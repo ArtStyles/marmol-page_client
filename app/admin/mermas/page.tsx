@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React from "react"
 import { useState } from 'react'
@@ -151,7 +151,7 @@ export default function MermasPage() {
             Control de Mermas
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Registra las pérdidas de material en metros cuadrados
+              Registra las pérdidas de material en metros cuadrados
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -161,7 +161,7 @@ export default function MermasPage() {
               Registrar Merma
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Registrar Merma (Pérdida)</DialogTitle>
             </DialogHeader>
@@ -262,7 +262,7 @@ export default function MermasPage() {
                 />
               </div>
 
-              {/* Cálculo en tiempo real */}
+              {/* CÃ¡lculo en tiempo real */}
               <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 space-y-2">
                 <h4 className="font-medium text-destructive">Resumen de Pérdida</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -295,7 +295,7 @@ export default function MermasPage() {
             <p className="text-sm text-blue-700">
               Las mermas se registran directamente en <strong>metros cuadrados</strong>. Si una losa se parte, 
               pero parte del material se puede aprovechar para una medida más pequeña, solo registra la porción 
-              que realmente se perdió. Esto permite un control más preciso del desperdicio real.
+              que realmente se perdiÃ³. Esto permite un control mÃ¡s preciso del desperdicio real.
             </p>
           </div>
         </div>
@@ -306,24 +306,26 @@ export default function MermasPage() {
         <StatCard
           title="Total m² Perdidos"
           value={`${totalM2Perdidos.toFixed(2)} m²`}
-          description="pérdida total"
-          icon={<AlertTriangle className="h-5 w-5" />}
+          description="pÃ©rdida total"
+          icon={<AlertTriangle className="h-5 w-5 text-red-500" />}
         />
         <StatCard
           title="Por Picar"
           value={`${(mermasPorMotivo['Partida al picar'] || 0).toFixed(2)} m²`}
           description="en proceso de corte"
-          icon={<Package className="h-5 w-5" />}
+          icon={<Package className="h-5 w-5 text-green-500" />}
         />
         <StatCard
           title="Por Pulir"
           value={`${(mermasPorMotivo['Partida al pulir'] || 0).toFixed(2)} m²`}
           description="en proceso de pulido"
+          icon={<Package className="h-5 w-5 text-green-500" />}
         />
         <StatCard
           title="Recortes"
           value={`${(mermasPorMotivo['Recorte aprovechable'] || 0).toFixed(2)} m²`}
           description="recortes no utilizables"
+          icon={<Package className="h-5 w-5 text-green-500" />}
         />
       </div>
 
@@ -347,3 +349,4 @@ export default function MermasPage() {
     </div>
   )
 }
+

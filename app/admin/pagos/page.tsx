@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React from "react"
 import { useState } from 'react'
@@ -65,7 +65,7 @@ export default function PagosPage() {
     }
   }).filter(t => t.estado === 'activo')
 
-  // Estadísticas
+    // Estadísticas
   const totalPendiente = acumuladosPorTrabajador.reduce((sum, t) => sum + t.totalPendiente, 0)
   const totalPagadoHistorico = historial.reduce((sum, h) => sum + h.totalPagado, 0)
   const totalBonosHistorico = historial.reduce((sum, h) => sum + h.montoBonos + h.bonoExtra, 0)
@@ -195,7 +195,7 @@ export default function PagosPage() {
           icon={<Clock className="h-5 w-5" />}
         />
         <StatCard
-          title="Pagado Histórico"
+          title="Pagado Historico"
           value={`$${totalPagadoHistorico.toLocaleString()}`}
           description="total pagado"
           icon={<CheckCircle className="h-5 w-5" />}
@@ -289,7 +289,7 @@ export default function PagosPage() {
 
       {/* Dialog Realizar Pago */}
       <Dialog open={isPagoDialogOpen} onOpenChange={setIsPagoDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto">
           {selectedTrabajador && (
             <>
               <DialogHeader>
@@ -377,7 +377,7 @@ export default function PagosPage() {
 
       {/* Dialog Detalle Historial */}
       <Dialog open={!!selectedHistorial} onOpenChange={() => setSelectedHistorial(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           {selectedHistorial && (
             <>
               <DialogHeader>
@@ -436,3 +436,4 @@ export default function PagosPage() {
     </div>
   )
 }
+

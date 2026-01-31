@@ -1,7 +1,7 @@
 import React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, TrendingDown } from 'lucide-react'
-import type { StatCard as StatCardType } from '@/lib/types'
+import type { StatCardType } from '@/lib/types'
 
 interface StatCardProps extends StatCardType {
   icon?: React.ReactNode

@@ -2,6 +2,7 @@ import { StatCard } from '@/components/stat-card'
 import { AdminDashboardTables } from '@/components/admin/dashboard-tables'
 import { productos, ventas, trabajadores, produccionDiaria, mermas, bloquesYLotes } from '@/lib/data'
 import { Package, DollarSign, Users, TrendingUp, Factory, AlertTriangle, Boxes } from 'lucide-react'
+import { losasAMetros } from '@/lib/types'
 
 export default function AdminDashboard() {
   // Cálculos del dashboard
@@ -13,10 +14,10 @@ export default function AdminDashboard() {
   
   const activeWorkers = trabajadores.filter(w => w.estado === 'activo').length
   
-  const totalMermas = mermas.reduce((sum, m) => sum + m.cantidadLosas, 0)
+  const totalMermas = mermas.reduce((sum, m) => sum + m.metrosCuadrados, 0)
   
   const produccionHoy = produccionDiaria.filter(p => p.fecha === '2026-01-28')
-  const losasHoy = produccionHoy.reduce((sum, p) => sum + p.cantidadLosas, 0)
+  const totalM2Hoy = produccionHoy.reduce((sum, p) => sum + losasAMetros(p.cantidadLosas, p.dimension), 0)
   
   const bloquesActivos = bloquesYLotes.filter(b => b.estado === 'activo').length
 
@@ -49,14 +50,14 @@ export default function AdminDashboard() {
         />
         <StatCard
           title="Producción Hoy"
-          value={`${losasHoy} losas`}
+            value={`${totalM2Hoy.toFixed(1)} m²`}
           description={`${produccionHoy.length} registros`}
           icon={<Factory className="h-5 w-5" />}
         />
         <StatCard
           title="Mermas Totales"
-          value={`${totalMermas} losas`}
-          description="losas perdidas este mes"
+          value={`${totalMermas.toFixed(1)} m²`}
+          description="m² perdidos este mes"
           trend={{ value: totalMermas, isPositive: false }}
           icon={<AlertTriangle className="h-5 w-5" />}
         />

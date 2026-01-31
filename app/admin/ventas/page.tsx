@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React from "react"
 import { useState } from 'react'
@@ -53,7 +53,7 @@ export default function VentasPage() {
     return matchesSearch && matchesStatus
   })
 
-  // Estadísticas
+    // Estadísticas
   const ventasCompletadas = ventas.filter(v => v.estado === 'completada')
   const totalRevenue = ventasCompletadas.reduce((sum, v) => sum + v.total, 0)
   const ventasPendientes = ventas.filter(v => v.estado === 'pendiente')
@@ -201,7 +201,7 @@ export default function VentasPage() {
               Nueva Venta
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Registrar Nueva Venta</DialogTitle>
             </DialogHeader>
@@ -393,7 +393,7 @@ export default function VentasPage() {
 
       {/* Detail Dialog */}
       <Dialog open={!!selectedVenta} onOpenChange={() => setSelectedVenta(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           {selectedVenta && (
             <>
               <DialogHeader>
@@ -453,3 +453,4 @@ export default function VentasPage() {
     </div>
   )
 }
+

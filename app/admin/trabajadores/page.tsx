@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React from "react"
 import { useState } from 'react'
@@ -52,7 +52,7 @@ export default function TrabajadoresPage() {
     t.rol.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  // Estadísticas
+  // EstadÃ­sticas
   const activos = trabajadores.filter(t => t.estado === 'activo')
   const totalLosasProducidas = trabajadores.reduce((sum, t) => sum + t.losasProducidas, 0)
   const totalPagos = trabajadores.reduce((sum, t) => sum + t.pagosTotales, 0)
@@ -92,7 +92,7 @@ export default function TrabajadoresPage() {
   }
 
   const handleDelete = (id: string) => {
-    if (confirm('¿Estás seguro de eliminar este trabajador?')) {
+    if (confirm('Â¿EstÃ¡s seguro de eliminar este trabajador?')) {
       setTrabajadores(trabajadores.filter(t => t.id !== id))
     }
   }
@@ -160,7 +160,7 @@ export default function TrabajadoresPage() {
         </div>
       )
     },
-    { key: 'telefono', header: 'Teléfono' },
+    { key: 'telefono', header: 'TelÃ©fono' },
     { 
       key: 'losasProducidas', 
       header: 'Losas Producidas',
@@ -238,7 +238,7 @@ export default function TrabajadoresPage() {
               Nuevo Trabajador
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingWorker ? 'Editar Trabajador' : 'Nuevo Trabajador'}
@@ -264,7 +264,7 @@ export default function TrabajadoresPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Teléfono</Label>
+                  <Label>TelÃ©fono</Label>
                   <Input
                     type="tel"
                     value={formData.telefono}
@@ -356,13 +356,13 @@ export default function TrabajadoresPage() {
         <StatCard
           title="Pagos Realizados"
           value={`$${totalPagos.toLocaleString()}`}
-          description="total histórico"
+          description="total histÃ³rico"
           icon={<DollarSign className="h-5 w-5" />}
         />
         <StatCard
           title="Bonos Otorgados"
           value={`$${totalBonos.toLocaleString()}`}
-          description="por desempeño"
+          description="por desempeÃ±o"
         />
       </div>
 
@@ -398,7 +398,7 @@ export default function TrabajadoresPage() {
 
       {/* Detail Dialog */}
       <Dialog open={!!selectedWorker} onOpenChange={() => setSelectedWorker(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
           {selectedWorker && (
             <>
               <DialogHeader>
@@ -428,7 +428,7 @@ export default function TrabajadoresPage() {
                     <p className="font-medium">{selectedWorker.email}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Teléfono</p>
+                    <p className="text-muted-foreground">TelÃ©fono</p>
                     <p className="font-medium">{selectedWorker.telefono}</p>
                   </div>
                   <div>
@@ -449,7 +449,7 @@ export default function TrabajadoresPage() {
                 </div>
 
                 <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">Estadísticas de Producción</h4>
+                  <h4 className="font-medium mb-3">EstadÃ­sticas de ProducciÃ³n</h4>
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div className="rounded-lg bg-blue-50 p-3">
                       <p className="text-2xl font-bold text-blue-600">{selectedWorker.losasProducidas}</p>
@@ -473,3 +473,4 @@ export default function TrabajadoresPage() {
     </div>
   )
 }
+

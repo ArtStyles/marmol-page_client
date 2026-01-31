@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React from "react"
 import { useState } from 'react'
@@ -92,7 +92,8 @@ export default function ProduccionPage() {
       pagoPorLosa,
       pagoTotal,
       bono: formData.bono,
-      pagoFinal
+      pagoFinal,
+      pagado: false
     }
 
     setProduccion([newProduccion, ...produccion])
@@ -183,7 +184,7 @@ export default function ProduccionPage() {
               Registrar Producción
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Registrar Producción</DialogTitle>
             </DialogHeader>
@@ -375,7 +376,7 @@ export default function ProduccionPage() {
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Buscar por trabajador, origen o acción..."
+            placeholder="Buscar por trabajador, origen o acción..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-9"
@@ -391,3 +392,4 @@ export default function ProduccionPage() {
     </div>
   )
 }
+

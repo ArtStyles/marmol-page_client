@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React from "react"
 import { useState } from 'react'
@@ -18,7 +18,7 @@ import { losasAMetros } from '@/lib/types'
 import type { Producto, Dimension, TipoProducto, EstadoLosa } from '@/lib/types'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useProductosStore } from '@/hooks/use-productos'
-import { Plus, Search, Edit, Trash2, Package, Ruler } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Package, Ruler, DollarSign, AlertTriangle   } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -180,17 +180,17 @@ export default function InventarioPage() {
     },
     { 
       key: 'metrosCuadrados', 
-      header: 'm²',
+        header: 'm²',
       render: (p) => `${p.metrosCuadrados.toFixed(1)} m²`
     },
     { 
       key: 'precioM2', 
-      header: 'Precio/m²',
+        header: 'Precio/m²',
       render: (p) => `$${p.precioM2}`
     },
     { 
       key: 'valor', 
-      header: 'Valor Total',
+      header: 'Valor Total a precio de venta',
       render: (p) => (
         <span className="font-bold text-primary">
           ${(p.metrosCuadrados * p.precioM2).toLocaleString()}
@@ -232,7 +232,7 @@ export default function InventarioPage() {
               Agregar al Inventario
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingProduct ? 'Editar Producto' : 'Agregar al Inventario'}
@@ -350,7 +350,7 @@ export default function InventarioPage() {
                 </div>
               </div>
 
-              {/* Cálculo automático */}
+              {/* CÃ¡lculo automÃ¡tico */}
               <div className="rounded-lg bg-muted p-4 space-y-2">
                 <h4 className="font-medium">Conversión Automática</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -385,7 +385,7 @@ export default function InventarioPage() {
           <div>
             <h4 className="font-medium text-green-800">Principio del Sistema</h4>
             <p className="text-sm text-green-700">
-              El inventario representa material real disponible para vender. Se alimenta únicamente 
+                El inventario representa material real disponible para vender. Se alimenta únicamente 
               desde la producción diaria y se descuenta únicamente desde las ventas.
             </p>
           </div>
@@ -395,27 +395,29 @@ export default function InventarioPage() {
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Total Losas"
+          title="Total de losas en inventario"
           value={totalLosas}
           description="losas en inventario"
-          icon={<Package className="h-5 w-5" />}
+          icon={<Package className="h-5 w-5 text-green-500" />}
         />
         <StatCard
           title="Total m²"
           value={`${totalM2.toFixed(1)} m²`}
           description="metros cuadrados"
-          icon={<Ruler className="h-5 w-5" />}
+          icon={<Ruler className="h-5 w-5 text-blue-500" />}
         />
         <StatCard
-          title="Valor del Inventario"
+          title="Valor del Inventario a precio de venta"
           value={`$${valorInventario.toLocaleString()}`}
           description="a precio de venta"
+          icon={<DollarSign className="h-5 w-5 text-primary" />}
         />
         <StatCard
-          title="Stock Bajo"
+          title="Stock Bajo (< 20 losas)"
           value={productosStockBajo}
           description="productos < 20 losas"
           trend={productosStockBajo > 0 ? { value: productosStockBajo, isPositive: false } : undefined}
+          icon={<AlertTriangle className="h-5 w-5 text-red-500" />}
         />
       </div>
 
@@ -463,3 +465,4 @@ export default function InventarioPage() {
     </div>
   )
 }
+

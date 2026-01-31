@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React from "react"
 import { useState } from 'react'
@@ -43,7 +43,7 @@ export default function BloquesPage() {
     b.proveedor.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  // Estadísticas
+  // EstadÃ­sticas
   const bloquesActivos = bloques.filter(b => b.estado === 'activo')
   const totalInversion = bloques.reduce((sum, b) => sum + b.costo, 0)
   const totalGanancia = bloques.reduce((sum, b) => sum + b.gananciaReal, 0)
@@ -122,8 +122,8 @@ export default function BloquesPage() {
     },
     { 
       key: 'metrosVendibles', 
-      header: 'm² Vendibles',
-      render: (b) => `${b.metrosVendibles.toFixed(1)} m²`
+      header: 'mÂ² Vendibles',
+      render: (b) => `${b.metrosVendibles.toFixed(1)} mÂ²`
     },
     { 
       key: 'gananciaReal', 
@@ -182,7 +182,7 @@ export default function BloquesPage() {
               Nuevo Bloque/Lote
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Registrar Nuevo Bloque/Lote</DialogTitle>
             </DialogHeader>
@@ -256,8 +256,8 @@ export default function BloquesPage() {
           <div>
             <h4 className="font-medium text-blue-800">Principio del Sistema</h4>
             <p className="text-sm text-blue-700">
-              Cada bloque o lote debe permitir saber: cuánto costó, cuántas losas produjo, 
-              cuántas se perdieron, cuántos metros vendibles generó, y qué ganancia real dejó.
+              Cada bloque o lote debe permitir saber: cuÃ¡nto costÃ³, cuÃ¡ntas losas produjo, 
+              cuÃ¡ntas se perdieron, cuÃ¡ntos metros vendibles generÃ³, y quÃ© ganancia real dejÃ³.
             </p>
           </div>
         </div>
@@ -272,7 +272,7 @@ export default function BloquesPage() {
           icon={<Boxes className="h-5 w-5" />}
         />
         <StatCard
-          title="Inversión Total"
+          title="InversiÃ³n Total"
           value={`$${totalInversion.toLocaleString()}`}
           description="en materia prima"
           icon={<DollarSign className="h-5 w-5" />}
@@ -280,7 +280,7 @@ export default function BloquesPage() {
         <StatCard
           title="Ganancia Real"
           value={`$${totalGanancia.toLocaleString()}`}
-          description="después de pérdidas"
+          description="despuÃ©s de pÃ©rdidas"
           trend={{ value: Math.round((totalGanancia / totalInversion) * 100), isPositive: totalGanancia > 0 }}
           icon={<TrendingUp className="h-5 w-5" />}
         />
@@ -312,7 +312,7 @@ export default function BloquesPage() {
 
       {/* Detail Dialog */}
       <Dialog open={!!selectedBloque} onOpenChange={() => setSelectedBloque(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
           {selectedBloque && (
             <>
               <DialogHeader>
@@ -341,10 +341,10 @@ export default function BloquesPage() {
                 </div>
 
                 <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">Análisis de Rentabilidad</h4>
+                  <h4 className="font-medium mb-3">AnÃ¡lisis de Rentabilidad</h4>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="rounded-lg bg-muted p-3">
-                      <p className="text-muted-foreground">Costo de Adquisición</p>
+                      <p className="text-muted-foreground">Costo de AdquisiciÃ³n</p>
                       <p className="text-xl font-bold">${selectedBloque.costo.toLocaleString()}</p>
                     </div>
                     <div className="rounded-lg bg-green-50 p-3">
@@ -355,7 +355,7 @@ export default function BloquesPage() {
                 </div>
 
                 <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">Producción</h4>
+                  <h4 className="font-medium mb-3">ProducciÃ³n</h4>
                   <div className="grid grid-cols-3 gap-4 text-sm text-center">
                     <div className="rounded-lg bg-green-50 p-3">
                       <p className="text-2xl font-bold text-green-600">{selectedBloque.losasProducidas}</p>
@@ -367,7 +367,7 @@ export default function BloquesPage() {
                     </div>
                     <div className="rounded-lg bg-blue-50 p-3">
                       <p className="text-2xl font-bold text-blue-600">{selectedBloque.metrosVendibles}</p>
-                      <p className="text-xs text-muted-foreground">m² Vendibles</p>
+                      <p className="text-xs text-muted-foreground">mÂ² Vendibles</p>
                     </div>
                   </div>
                 </div>
@@ -388,3 +388,4 @@ export default function BloquesPage() {
     </div>
   )
 }
+
