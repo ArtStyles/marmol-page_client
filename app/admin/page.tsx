@@ -5,7 +5,7 @@ import { Package, DollarSign, Users, TrendingUp, Factory, AlertTriangle, Boxes }
 import { losasAMetros } from '@/lib/types'
 
 export default function AdminDashboard() {
-  // Clculos del dashboard
+  // Cálculos del dashboard
   const totalLosasInventario = productos.reduce((sum, p) => sum + p.cantidadLosas, 0)
   const totalM2Inventario = productos.reduce((sum, p) => sum + p.metrosCuadrados, 0)
   
@@ -26,10 +26,10 @@ export default function AdminDashboard() {
       {/* Header */}
       <div>
         <h1 className="font-serif text-3xl font-bold text-foreground">
-          Panel de Control - Taller de MÃ¡rmol
+          Panel de Control - Taller de Mármol
         </h1>
         <p className="mt-1 text-muted-foreground">
-          Sistema de control de producciÃ³n, mermas, inventario y rentabilidad
+          Sistema de control de producción, mermas, inventario y rentabilidad
         </p>
       </div>
 
@@ -38,7 +38,7 @@ export default function AdminDashboard() {
         <StatCard
           title="Inventario Total"
           value={`${totalLosasInventario} losas`}
-          description={`${totalM2Inventario.toFixed(1)} mÂ² disponibles`}
+          description={`${totalM2Inventario.toFixed(1)} m² disponibles`}
           icon={<Package className="h-5 w-5" />}
         />
         <StatCard
@@ -49,15 +49,15 @@ export default function AdminDashboard() {
           icon={<DollarSign className="h-5 w-5" />}
         />
         <StatCard
-          title="ProducciÃ³n Hoy"
-            value={`${totalM2Hoy.toFixed(1)} mÂ²`}
+          title="Producción Hoy"
+            value={`${totalM2Hoy.toFixed(1)} m²`}
           description={`${produccionHoy.length} registros`}
           icon={<Factory className="h-5 w-5" />}
         />
         <StatCard
           title="Mermas Totales"
-          value={`${totalMermas.toFixed(1)} mÂ²`}
-          description="mÂ² perdidos este mes"
+          value={`${totalMermas.toFixed(1)} m²`}
+          description="m² perdidos este mes"
           trend={{ value: totalMermas, isPositive: false }}
           icon={<AlertTriangle className="h-5 w-5" />}
         />
@@ -80,7 +80,7 @@ export default function AdminDashboard() {
         <StatCard
           title="Ventas Pendientes"
           value={ventas.filter(v => v.estado === 'pendiente').length}
-          description="requieren atenciÃ³n"
+          description="requieren atención"
           icon={<TrendingUp className="h-5 w-5" />}
         />
       </div>
