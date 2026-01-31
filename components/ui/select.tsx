@@ -56,8 +56,14 @@ function SelectContent({
   position = 'popper',
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  const [container, setContainer] = React.useState<HTMLElement | null>(null)
+
+  React.useEffect(() => {
+    setContainer(document.body)
+  }, [])
+
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container ?? undefined}>
       <SelectPrimitive.Content
         data-slot="select-content"
         className={cn(

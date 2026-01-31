@@ -79,6 +79,20 @@ export interface Producto {
   imagen: string
 }
 
+// Producto visible en el catalogo del landing
+export interface CatalogoItem {
+  id: string
+  nombre: string
+  tipo: TipoProducto
+  acabado: EstadoLosa
+  dimension: Dimension
+  precioM2: number
+  stockLosas: number
+  destacado: boolean
+  descripcion: string
+  imagen: string
+}
+
 // Conversión de losas a m2
 export function losasAMetros(losas: number, dimension: Dimension): number {
   const dimensiones: Record<Dimension, number> = {

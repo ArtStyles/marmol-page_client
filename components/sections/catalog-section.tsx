@@ -1,4 +1,4 @@
-﻿import Image from 'next/image'
+import Image from 'next/image'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
@@ -75,11 +75,12 @@ export function CatalogSection() {
         </div>
 
         <div className="mt-12 flex items-center justify-center">
-          <Link href="#contacto">
-            <Button className="rounded-none bg-[#9a7a54] px-10 text-xs uppercase tracking-[0.35em] text-white hover:bg-[#8b6c49]">
-              Discover more
-            </Button>
-          </Link>
+          <Button
+            asChild
+            className="rounded-none bg-[#9a7a54] px-10 text-xs uppercase tracking-[0.35em] text-white hover:bg-[#8b6c49]"
+          >
+            <Link href="#contacto">Discover more</Link>
+          </Button>
         </div>
       </div>
     </section>

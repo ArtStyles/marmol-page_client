@@ -1,17 +1,7 @@
 import React from "react"
 import type { Metadata } from 'next'
-import { Source_Sans_3, Source_Serif_4 } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
-
-const sourceSerif = Source_Serif_4({ 
-  subsets: ["latin"],
-  variable: '--font-serif'
-})
-const sourceSans = Source_Sans_3({ 
-  subsets: ["latin"],
-  variable: '--font-sans'
-})
 
 export const metadata: Metadata = {
   title: 'Mármoles Elegance | Losas de Mármol Premium',
@@ -27,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${sourceSerif.variable} ${sourceSans.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         {children}
         <Analytics />
       </body>

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState } from 'react'
 import Image from 'next/image'
@@ -24,9 +24,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { dimensiones } from '@/lib/data'
-import type { Producto } from '@/lib/types'
+import type { CatalogoItem } from '@/lib/types'
 import { CheckCircle2, Sparkles } from 'lucide-react'
-import { useProductosStore } from '@/hooks/use-productos'
+import { catalogoItems } from '@/lib/catalogo-data'
+import { losasAMetros } from '@/lib/types'
 
 const tipoOptions = ['Todos', 'Piso', 'Plancha']
 const acabadoOptions = ['Todos', 'Pulido', 'Crudo']
@@ -40,28 +41,29 @@ const sortOptions = [
 ]
 
 export default function CatalogoPage() {
-  const { productos } = useProductosStore()
+  const [productos] = useState<CatalogoItem[]>(catalogoItems)
   const [search, setSearch] = useState('')
   const [tipo, setTipo] = useState('Todos')
   const [acabado, setAcabado] = useState('Todos')
   const [dimension, setDimension] = useState('Todos')
   const [sortBy, setSortBy] = useState('destacados')
-  const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null)
+  const [selectedProduct, setSelectedProduct] = useState<CatalogoItem | null>(null)
   const [requestedM2, setRequestedM2] = useState('')
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   const whatsappNumber = '5354789597'
 
-  const buildWhatsappUrl = (product?: Producto) => {
+  const buildWhatsappUrl = (product?: CatalogoItem) => {
     const metros = Number.parseFloat(requestedM2)
     const losasNecesarias = product ? calculateLosas(product.dimension, metros) : null
     const messageLines = [
       'Solicitud de compra desde el catálogo',
       product ? `Producto: ${product.nombre}` : 'Producto: No especificado',
       product ? `Tipo: ${product.tipo}` : '',
-      product ? `Acabado: ${product.estado}` : '',
+      product ? `Acabado: ${product.acabado}` : '',
       product ? `Dimensión: ${product.dimension} cm` : '',
       product ? `Precio: $${product.precioM2}/m2` : '',
-      product ? `Stock: ${product.cantidadLosas} losas` : '',
+      product ? `Stock: ${product.stockLosas} losas` : '',
       metros ? `Metros solicitados: ${metros} m2` : '',
       losasNecesarias ? `Losas aproximadas: ${losasNecesarias}` : '',
     ].filter(Boolean)
@@ -77,9 +79,9 @@ export default function CatalogoPage() {
       const matchesSearch =
         !normalizedSearch ||
         product.nombre.toLowerCase().includes(normalizedSearch) ||
-        product.origenNombre.toLowerCase().includes(normalizedSearch)
+        product.descripcion.toLowerCase().includes(normalizedSearch)
       const matchesTipo = tipo === 'Todos' || product.tipo === tipo
-      const matchesAcabado = acabado === 'Todos' || product.estado === acabado
+      const matchesAcabado = acabado === 'Todos' || product.acabado === acabado
       const matchesDimension = dimension === 'Todos' || product.dimension === dimension
 
       return matchesSearch && matchesTipo && matchesAcabado && matchesDimension
@@ -87,6 +89,10 @@ export default function CatalogoPage() {
 
     return [...filtered].sort((a, b) => {
       switch (sortBy) {
+        case 'destacados': {
+          const featuredDiff = Number(b.destacado) - Number(a.destacado)
+          return featuredDiff !== 0 ? featuredDiff : b.stockLosas - a.stockLosas
+        }
         case 'precio-asc':
           return a.precioM2 - b.precioM2
         case 'precio-desc':
@@ -94,9 +100,9 @@ export default function CatalogoPage() {
         case 'nombre':
           return a.nombre.localeCompare(b.nombre)
         case 'stock':
-          return b.cantidadLosas - a.cantidadLosas
+          return b.stockLosas - a.stockLosas
         default:
-          return b.cantidadLosas - a.cantidadLosas
+          return b.stockLosas - a.stockLosas
       }
     })
   }, [search, tipo, acabado, dimension, sortBy])
@@ -235,6 +241,7 @@ export default function CatalogoPage() {
                   onViewDetails={(item) => {
                     setRequestedM2('')
                     setSelectedProduct(item)
+                    setIsDialogOpen(true)
                   }}
                 />
               ))}
@@ -261,22 +268,32 @@ export default function CatalogoPage() {
                   </p>
                 </div>
               </div>
-              <Link href="/contacto">
-                <Button className="rounded-none bg-[#9a7a54] px-8 text-xs uppercase tracking-[0.35em] text-white hover:bg-[#8b6c49]">
-                  Solicitar propuesta
-                </Button>
-              </Link>
+              <Button
+                asChild
+                className="rounded-none bg-[#9a7a54] px-8 text-xs uppercase tracking-[0.35em] text-white hover:bg-[#8b6c49]"
+              >
+                <Link href="/contacto">Solicitar propuesta</Link>
+              </Button>
             </div>
           </div>
         </section>
       </main>
       <Footer />
 
-      <Dialog open={!!selectedProduct} onOpenChange={() => setSelectedProduct(null)}>
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          setIsDialogOpen(open)
+          if (!open) {
+            setSelectedProduct(null)
+            setRequestedM2('')
+          }
+        }}
+      >
         <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto border-[#e2d7c8] bg-[#f6f1ea]">
           {selectedProduct && (
             <div className="grid gap-8 md:grid-cols-[1fr_1.1fr]">
-              <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-white">
+              <div className="relative aspect-4/3 overflow-hidden rounded-2xl bg-white">
                 <Image
                   src={selectedProduct.imagen || '/placeholder.svg'}
                   alt={selectedProduct.nombre}
@@ -297,7 +314,7 @@ export default function CatalogoPage() {
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Badge className="bg-[#9a7a54] text-white">{selectedProduct.tipo}</Badge>
                   <Badge variant="secondary" className="bg-white text-[#9a7a54]">
-                    {selectedProduct.estado}
+                    {selectedProduct.acabado}
                   </Badge>
                   <Badge variant="outline" className="border-[#d6c2a6] text-[#9a7a54]">
                     {selectedProduct.dimension} cm
@@ -315,11 +332,11 @@ export default function CatalogoPage() {
                   <div className="mt-4 space-y-2 text-sm text-[#6b6056]">
                     <p className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-[#9a7a54]" />
-                      {selectedProduct.cantidadLosas} losas disponibles
+                      {selectedProduct.stockLosas} losas disponibles
                     </p>
                     <p className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-[#9a7a54]" />
-                      {selectedProduct.metrosCuadrados.toFixed(1)} m2 listos para entrega
+                      {selectedProduct.precioM2.toFixed(1)} m2 listos para entrega
                     </p>
                     <p className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-[#9a7a54]" />
@@ -360,7 +377,7 @@ export default function CatalogoPage() {
                   </div>
                   <div className="flex justify-between border-b border-[#e2d7c8] pb-2">
                     <span>Acabado</span>
-                    <span className="font-semibold text-[#2e2a25]">{selectedProduct.estado}</span>
+                    <span className="font-semibold text-[#2e2a25]">{selectedProduct.acabado}</span>
                   </div>
                   <div className="flex justify-between border-b border-[#e2d7c8] pb-2">
                     <span>Dimensión</span>
@@ -368,7 +385,7 @@ export default function CatalogoPage() {
                   </div>
                   <div className="flex justify-between">
                     <span>Stock disponible</span>
-                    <span className="font-semibold text-[#2e2a25]">{selectedProduct.cantidadLosas} losas</span>
+                    <span className="font-semibold text-[#2e2a25]">{selectedProduct.stockLosas} losas</span>
                   </div>
                 </div>
 

@@ -88,7 +88,7 @@ export default function MermasPage() {
     resetForm()
   }
 
-  const resetForm = () => {
+  const resetForm = (closeDialog = true) => {
     setFormData({
       origenId: '',
       tipo: 'Piso',
@@ -97,7 +97,9 @@ export default function MermasPage() {
       motivo: 'Partida al picar',
       observaciones: ''
     })
-    setIsDialogOpen(false)
+    if (closeDialog) {
+      setIsDialogOpen(false)
+    }
   }
 
   // Equivalente en losas (aproximado)
@@ -274,7 +276,7 @@ export default function MermasPage() {
               </div>
 
               <div className="flex gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={resetForm} className="flex-1 bg-transparent">
+                <Button type="button" variant="outline" onClick={()=>resetForm()} className="flex-1 bg-transparent">
                   Cancelar
                 </Button>
                 <Button type="submit" variant="destructive" className="flex-1">
@@ -302,7 +304,7 @@ export default function MermasPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:pb-0">
         <StatCard
           title="Total m² Perdidos"
           value={`${totalM2Perdidos.toFixed(2)} m²`}
@@ -330,14 +332,16 @@ export default function MermasPage() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por origen o motivo..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9"
-        />
+      <div className="rounded-xl border border-border/50 bg-card/60 p-3">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por origen o motivo..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
       </div>
 
       {/* Table */}
@@ -349,4 +353,3 @@ export default function MermasPage() {
     </div>
   )
 }
-

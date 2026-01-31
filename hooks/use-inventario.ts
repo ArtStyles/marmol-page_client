@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { productos as initialProductos } from '@/lib/data'
 import type { Producto } from '@/lib/types'
 
-const STORAGE_KEY = 'catalogo_productos'
+const STORAGE_KEY = 'admin_inventario_productos'
 
 const loadProductos = (): Producto[] => {
   if (typeof window === 'undefined') {
@@ -26,7 +26,7 @@ const persistProductos = (value: Producto[]) => {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
 }
 
-export function useProductosStore() {
+export function useInventarioStore() {
   const [productos, setProductos] = useState<Producto[]>(initialProductos)
   const hasLoaded = useRef(false)
 

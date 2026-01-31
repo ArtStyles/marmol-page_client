@@ -2,14 +2,16 @@ import React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import type { StatCardType } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
 interface StatCardProps extends StatCardType {
   icon?: React.ReactNode
+  className?: string
 }
 
-export function StatCard({ title, value, description, trend, icon }: StatCardProps) {
+export function StatCard({ title, value, description, trend, icon, className }: StatCardProps) {
   return (
-    <Card className="border-border/50">
+    <Card className={cn('border-border/50 min-w-[220px] shrink-0 md:min-w-0 md:shrink', className)}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}

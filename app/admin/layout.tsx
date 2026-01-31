@@ -17,11 +17,16 @@ export default function AdminLayout({
         isCollapsed={isCollapsed}
         onToggle={() => setIsCollapsed((prev) => !prev)}
       />
-      <main className={`min-h-screen transition-[margin] duration-200 ${isCollapsed ? 'ml-20' : 'ml-64'}`}>
-        <div className="p-8">
+      <main
+        className={`min-h-screen pb-24 transition-[margin] duration-200 md:pb-8 ${
+          isCollapsed ? 'md:ml-20' : 'md:ml-64'
+        }`}
+      >
+        <div className="p-4 md:p-8">
           {children}
         </div>
       </main>
     </div>
   )
 }
+

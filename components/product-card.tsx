@@ -4,12 +4,12 @@ import Image from 'next/image'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import type { Producto } from '@/lib/types'
+import type { CatalogoItem } from '@/lib/types'
 import { ArrowUpRight } from 'lucide-react'
 
 interface ProductCardProps {
-  product: Producto
-  onViewDetails?: (product: Producto) => void
+  product: CatalogoItem
+  onViewDetails?: (product: CatalogoItem) => void
 }
 
 export function ProductCard({ product, onViewDetails }: ProductCardProps) {
@@ -23,16 +23,16 @@ export function ProductCard({ product, onViewDetails }: ProductCardProps) {
           className="object-cover transition-transform duration-500 group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-        <Badge 
+        <Badge
           className="absolute top-3 right-3 bg-primary text-primary-foreground"
         >
           {product.tipo}
         </Badge>
-        <Badge 
-          variant={product.estado === 'Pulido' ? 'default' : 'secondary'}
+        <Badge
+          variant={product.acabado === 'Pulido' ? 'default' : 'secondary'}
           className="absolute top-3 left-3"
         >
-          {product.estado}
+          {product.acabado}
         </Badge>
       </div>
       <CardContent className="p-5">
@@ -41,7 +41,7 @@ export function ProductCard({ product, onViewDetails }: ProductCardProps) {
             {product.nombre}
           </h3>
           <span className="rounded-full bg-secondary px-2 py-1 text-xs text-muted-foreground">
-            {product.cantidadLosas} losas
+            {product.stockLosas} losas
           </span>
         </div>
         <div className="mt-4 flex items-center justify-between">
@@ -55,7 +55,8 @@ export function ProductCard({ product, onViewDetails }: ProductCardProps) {
         </div>
       </CardContent>
       <CardFooter className="p-5 pt-0">
-        <Button 
+        <Button
+          type="button"
           className="w-full"
           onClick={() => onViewDetails?.(product)}
         >

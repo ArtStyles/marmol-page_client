@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import React from "react"
 import { useState } from 'react'
@@ -264,7 +264,7 @@ export default function BloquesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:pb-0">
         <StatCard
           title="Bloques/Lotes Activos"
           value={bloquesActivos.length}
@@ -293,14 +293,16 @@ export default function BloquesPage() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nombre o proveedor..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9"
-        />
+      <div className="rounded-xl border border-border/50 bg-card/60 p-3">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nombre o proveedor..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
       </div>
 
       {/* Table */}
@@ -388,4 +390,5 @@ export default function BloquesPage() {
     </div>
   )
 }
+
 

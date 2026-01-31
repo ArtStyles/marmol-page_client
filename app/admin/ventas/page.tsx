@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import React from "react"
 import { useState } from 'react'
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { ventas as initialVentas } from '@/lib/data'
 import type { Venta } from '@/lib/types'
-import { useProductosStore } from '@/hooks/use-productos'
+import { useInventarioStore } from '@/hooks/use-inventario'
 import { Plus, Search, Eye, DollarSign, Clock, CheckCircle, ShoppingCart } from 'lucide-react'
 import {
   Dialog,
@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/select'
 
 export default function VentasPage() {
-  const { productos } = useProductosStore()
+  const { productos } = useInventarioStore()
   const [ventas, setVentas] = useState<Venta[]>(initialVentas)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -225,7 +225,7 @@ export default function VentasPage() {
                 </Select>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
                 <div className="space-y-2">
                   <Label>Cantidad (m²)</Label>
                   <Input
@@ -333,7 +333,7 @@ export default function VentasPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:pb-0">
         <StatCard
           title="Ingresos Totales"
           value={`$${totalRevenue.toLocaleString()}`}
@@ -361,27 +361,29 @@ export default function VentasPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar ventas..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
+      <div className="rounded-xl border border-border/50 bg-card/60 p-4">
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar ventas..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="Filtrar por estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="pendiente">Pendientes</SelectItem>
+              <SelectItem value="completada">Completadas</SelectItem>
+              <SelectItem value="cancelada">Canceladas</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filtrar por estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los estados</SelectItem>
-            <SelectItem value="pendiente">Pendientes</SelectItem>
-            <SelectItem value="completada">Completadas</SelectItem>
-            <SelectItem value="cancelada">Canceladas</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Table */}
@@ -453,4 +455,5 @@ export default function VentasPage() {
     </div>
   )
 }
+
 

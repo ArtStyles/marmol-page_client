@@ -21,7 +21,7 @@ export default function ConfiguracionPage() {
 
   const handleSave = () => {
     saveConfig()
-    alert('ConfiguraciA3n guardada correctamente')
+    alert('Configuración guardada correctamente')
   }
 
   const updateTarifa = (accion: AccionLosa, value: number) => {
@@ -52,10 +52,10 @@ export default function ConfiguracionPage() {
       {/* Header */}
       <div>
         <h1 className="font-serif text-3xl font-bold text-foreground">
-          ConfiguraciA3n
+          Configuración
         </h1>
         <p className="mt-1 text-muted-foreground">
-          Administra la configuraciA3n del sistema
+          Administra la configuración del sistema
         </p>
       </div>
 
@@ -65,10 +65,10 @@ export default function ConfiguracionPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Building className="h-5 w-5 text-primary" />
-              <CardTitle>InformaciA3n de la Empresa</CardTitle>
+              <CardTitle>Información de la Empresa</CardTitle>
             </div>
             <CardDescription>
-              Datos bA?sicos de tu negocio
+              Datos básicos de tu negocio
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -90,7 +90,7 @@ export default function ConfiguracionPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">TelAcfono</Label>
+              <Label htmlFor="phone">Teléfono</Label>
               <Input
                 id="phone"
                 value={config.telefono}
@@ -98,7 +98,7 @@ export default function ConfiguracionPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="address">DirecciA3n</Label>
+              <Label htmlFor="address">Dirección</Label>
               <Textarea
                 id="address"
                 value={config.direccion}
@@ -139,7 +139,7 @@ export default function ConfiguracionPage() {
               <div>
                 <p className="font-medium">Alertas de Stock Bajo</p>
                 <p className="text-sm text-muted-foreground">
-                  Aviso cuando el inventario estAc bajo
+                  Aviso cuando el inventario este bajo
                 </p>
               </div>
               <Switch
@@ -174,13 +174,13 @@ export default function ConfiguracionPage() {
               <CardTitle>Tarifas y Precios</CardTitle>
             </div>
             <CardDescription>
-              Ajusta pagos por acciA3n y precios por m2 segA?n dimensiA3n
+              Ajusta pagos por acción y precios por m2 segAún dimensión
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-3">
-              <h4 className="font-medium">Pagos por acciA3n (por losa)</h4>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <h4 className="font-medium">Pagos por acción (por losa)</h4>
+              <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
                 {acciones.map((accion) => (
                   <div key={accion} className="space-y-2">
                     <Label className="capitalize">{accion}</Label>
@@ -196,7 +196,7 @@ export default function ConfiguracionPage() {
             </div>
 
             <div className="space-y-3">
-              <h4 className="font-medium">Precio por m2 segA?n dimensiA3n</h4>
+              <h4 className="font-medium">Precio por m2 según dimensión</h4>
               <div className="space-y-4">
                 {dimensiones.map((dimension) => (
                   <div key={dimension} className="rounded-lg border border-border/60 p-4">
@@ -242,7 +242,7 @@ export default function ConfiguracionPage() {
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">AutenticaciA3n de Dos Factores</p>
+                <p className="font-medium">Autenticación de Dos Factores</p>
                 <p className="text-sm text-muted-foreground">
                   AA?ade una capa extra de seguridad
                 </p>
@@ -258,7 +258,7 @@ export default function ConfiguracionPage() {
               <div>
                 <p className="font-medium">Cierre de SesiA3n AutomA?tico</p>
                 <p className="text-sm text-muted-foreground">
-                  Cerrar sesiA3n tras 30 min de inactividad
+                  Cerrar sesión tras 30 min de inactividad
                 </p>
               </div>
               <Switch
@@ -324,3 +324,4 @@ export default function ConfiguracionPage() {
     </div>
   )
 }
+

@@ -1,4 +1,4 @@
-﻿import Image from 'next/image'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
@@ -27,14 +27,13 @@ export function HeroSection() {
             Superficies en marmol y piedra natural para proyectos residenciales y comerciales.
           </p>
           <div className="mt-10 flex items-center justify-center">
-            <Link href="#catalogo">
-              <Button
-                size="lg"
-                className="rounded-none bg-white/85 px-10 text-xs font-semibold uppercase tracking-[0.3em] text-slate-900 hover:bg-white"
-              >
-                Inspirate
-              </Button>
-            </Link>
+            <Button
+              asChild
+              size="lg"
+              className="rounded-none bg-white/85 px-10 text-xs font-semibold uppercase tracking-[0.3em] text-slate-900 hover:bg-white"
+            >
+              <Link href="#catalogo">Inspirate</Link>
+            </Button>
           </div>
         </div>
       </div>

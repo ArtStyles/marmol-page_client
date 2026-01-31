@@ -25,9 +25,9 @@ interface DataTableProps<T> {
   emptyMessage?: string
 }
 
-export function DataTable<T extends { id: string }>({ 
-  title, 
-  data, 
+export function DataTable<T extends { id: string }>({
+  title,
+  data,
   columns,
   emptyMessage = 'No hay datos disponibles'
 }: DataTableProps<T>) {
@@ -48,7 +48,61 @@ export function DataTable<T extends { id: string }>({
         </CardHeader>
       )}
       <CardContent className={title ? '' : 'pt-6'}>
-        <div className="overflow-x-auto">
+        <div className="space-y-4 md:hidden">
+          {data.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+              {emptyMessage}
+            </div>
+          ) : (
+            data.map((item) => (
+              <div
+                key={item.id}
+                className="relative rounded-xl border border-border/60 bg-card p-4 shadow-sm"
+              >
+                <div className="space-y-3">
+                  {columns.map((column) => {
+                    const isActions =
+                      String(column.key).toLowerCase() === 'actions' ||
+                      column.header.toLowerCase().includes('acciones')
+
+                    if (isActions) {
+                      return (
+                        <div
+                          key={`${item.id}-${String(column.key)}`}
+                          className="flex justify-end pt-2"
+                        >
+                          <div className="pointer-events-auto">
+                            {column.render
+                              ? column.render(item)
+                              : String(getValue(item, String(column.key)) ?? '')}
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div
+                        key={`${item.id}-${String(column.key)}`}
+                        className="flex items-start justify-between gap-4 text-sm"
+                      >
+                        <span className="pointer-events-none text-xs uppercase tracking-[0.25em] text-muted-foreground">
+                          {column.header}
+                        </span>
+                        <div className="text-right text-foreground">
+                          {column.render
+                            ? column.render(item)
+                            : String(getValue(item, String(column.key)) ?? '')}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -62,8 +116,8 @@ export function DataTable<T extends { id: string }>({
             <TableBody>
               {data.length === 0 ? (
                 <TableRow>
-                  <TableCell 
-                    colSpan={columns.length} 
+                  <TableCell
+                    colSpan={columns.length}
                     className="text-center text-muted-foreground py-8"
                   >
                     {emptyMessage}
@@ -74,8 +128,8 @@ export function DataTable<T extends { id: string }>({
                   <TableRow key={item.id}>
                     {columns.map((column) => (
                       <TableCell key={`${item.id}-${String(column.key)}`}>
-                        {column.render 
-                          ? column.render(item) 
+                        {column.render
+                          ? column.render(item)
                           : String(getValue(item, String(column.key)) ?? '')}
                       </TableCell>
                     ))}

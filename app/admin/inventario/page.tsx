@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import React from "react"
 import { useState } from 'react'
@@ -17,7 +17,7 @@ import {
 import { losasAMetros } from '@/lib/types'
 import type { Producto, Dimension, TipoProducto, EstadoLosa } from '@/lib/types'
 import { useConfiguracion } from '@/hooks/use-configuracion'
-import { useProductosStore } from '@/hooks/use-productos'
+import { useInventarioStore } from '@/hooks/use-inventario'
 import { Plus, Search, Edit, Trash2, Package, Ruler, DollarSign, AlertTriangle   } from 'lucide-react'
 import {
   Dialog,
@@ -42,7 +42,7 @@ export default function InventarioPage() {
     return config.preciosM2[dimension][tipo]
   }
 
-  const { productos, setProductos } = useProductosStore()
+  const { productos, setProductos } = useInventarioStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [tipoFilter, setTipoFilter] = useState<string>('all')
   const [estadoFilter, setEstadoFilter] = useState<string>('all')
@@ -249,7 +249,7 @@ export default function InventarioPage() {
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
                 <div className="space-y-2">
                   <Label>Tipo</Label>
                   <Select 
@@ -393,7 +393,7 @@ export default function InventarioPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:pb-0">
         <StatCard
           title="Total de losas en inventario"
           value={totalLosas}
@@ -422,38 +422,40 @@ export default function InventarioPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar productos..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
+      <div className="rounded-xl border border-border/50 bg-card/60 p-4">
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar productos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={tipoFilter} onValueChange={setTipoFilter}>
+            <SelectTrigger className="w-full sm:w-[150px]">
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {tiposProducto.map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+            <SelectTrigger className="w-full sm:w-[150px]">
+              <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {estadosLosa.map((e) => (
+                <SelectItem key={e} value={e}>{e}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={tipoFilter} onValueChange={setTipoFilter}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Tipo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            {tiposProducto.map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            {estadosLosa.map((e) => (
-              <SelectItem key={e} value={e}>{e}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Table */}
@@ -465,4 +467,5 @@ export default function InventarioPage() {
     </div>
   )
 }
+
 

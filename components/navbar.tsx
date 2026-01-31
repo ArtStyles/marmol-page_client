@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
@@ -63,20 +63,19 @@ export function Navbar() {
               {item.label}
             </Link>
           ))}
-          <Link href="/admin">
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn(
-                'transition-colors',
-                isScrolled
-                  ? 'border-border text-foreground hover:bg-accent'
-                  : 'border-black/60 bg-transparent text-black hover:border-black hover:bg-white/15',
-              )}
-            >
-              Panel Admin
-            </Button>
-          </Link>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className={cn(
+              'transition-colors',
+              isScrolled
+                ? 'border-border text-foreground hover:bg-accent'
+                : 'border-black/60 bg-transparent text-black hover:border-black hover:bg-white/15',
+            )}
+          >
+            <Link href="/admin">Panel Admin</Link>
+          </Button>
         </div>
 
         {/* Mobile Menu Button */}
@@ -105,11 +104,11 @@ export function Navbar() {
                 {item.label}
               </Link>
             ))}
-            <Link href="/admin" onClick={() => setIsOpen(false)}>
-              <Button variant="outline" size="sm" className="w-full bg-transparent">
+            <Button asChild variant="outline" size="sm" className="w-full bg-transparent">
+              <Link href="/admin" onClick={() => setIsOpen(false)}>
                 Panel Admin
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </div>
       )}
