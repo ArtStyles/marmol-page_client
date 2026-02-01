@@ -1,16 +1,16 @@
 'use client'
 
 import React from "react"
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DataTable, type Column } from '@/components/data-table'
 import { StatCard } from '@/components/stat-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { trabajadores as initialTrabajadores, acciones } from '@/lib/data'
-import { useConfiguracion } from '@/hooks/use-configuracion'
-import type { Trabajador, AccionLosa } from '@/lib/types'
+import { trabajadores as initialTrabajadores } from '@/lib/data'
+import type { Trabajador } from '@/lib/types'
+import { ADMIN_STORAGE_KEY, getAccessForRole, type AdminUser } from '@/lib/admin-auth'
 import { Plus, Search, Edit, Trash2, UserCheck, UserX, Users, DollarSign, Factory, Eye } from 'lucide-react'
 import {
   Dialog,
@@ -27,29 +27,53 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Checkbox } from '@/components/ui/checkbox'
 
-const roles = ['Operario', 'Supervisor', 'Administrador']
+const roles: Trabajador['rol'][] = [
+  'Administrador',
+  'Gestor de Ventas',
+  'Jefe de Turno de Produccion',
+  'Obrero',
+]
 
 export default function TrabajadoresPage() {
-  const { config } = useConfiguracion()
   const [trabajadores, setTrabajadores] = useState<Trabajador[]>(initialTrabajadores)
   const [searchTerm, setSearchTerm] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingWorker, setEditingWorker] = useState<Trabajador | null>(null)
   const [selectedWorker, setSelectedWorker] = useState<Trabajador | null>(null)
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
+  const [formError, setFormError] = useState('')
   const [formData, setFormData] = useState<Partial<Trabajador>>({
     nombre: '',
     email: '',
     telefono: '',
-    rol: 'Operario',
-    especialidad: [],
-    estado: 'activo'
+    rol: 'Obrero',
+    estado: 'activo',
+    usuario: '',
+    contrasena: '',
   })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+    if (!raw) return
+    try {
+      setCurrentUser(JSON.parse(raw) as AdminUser)
+    } catch {
+      window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    }
+  }, [])
+
+  const canManageWorkers = currentUser
+    ? getAccessForRole(currentUser.role).canManageWorkers
+    : false
+  const selectedRole = (formData.rol ?? 'Obrero') as Trabajador['rol']
+  const requiresAccount = selectedRole !== 'Obrero'
 
   const filteredTrabajadores = trabajadores.filter(t => 
     t.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.rol.toLowerCase().includes(searchTerm.toLowerCase())
+    t.rol.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (t.usuario ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   // EstadÃ­sticas
@@ -60,10 +84,30 @@ export default function TrabajadoresPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    const roleValue = (formData.rol ?? 'Obrero') as Trabajador['rol']
+    const needsAccount = roleValue !== 'Obrero'
+
+    if (!editingWorker && !canManageWorkers) {
+      setFormError('Solo el administrador puede crear nuevos usuarios.')
+      return
+    }
+
+    if (needsAccount && (!formData.usuario || !formData.contrasena)) {
+      setFormError('Este rol requiere usuario y contrasena.')
+      return
+    }
+
+    setFormError('')
+
     if (editingWorker) {
+      const updatedForm: Partial<Trabajador> = { ...formData, rol: roleValue }
+      if (!needsAccount) {
+        updatedForm.usuario = undefined
+        updatedForm.contrasena = undefined
+      }
       setTrabajadores(trabajadores.map(t => 
         t.id === editingWorker.id 
-          ? { ...t, ...formData } as Trabajador
+          ? { ...t, ...updatedForm } as Trabajador
           : t
       ))
     } else {
@@ -72,10 +116,11 @@ export default function TrabajadoresPage() {
         nombre: formData.nombre || '',
         email: formData.email || '',
         telefono: formData.telefono || '',
-        rol: formData.rol as Trabajador['rol'],
-        especialidad: formData.especialidad || [],
+        rol: roleValue,
         fechaIngreso: new Date().toISOString().split('T')[0],
         estado: formData.estado as 'activo' | 'inactivo',
+        usuario: needsAccount ? (formData.usuario || '') : undefined,
+        contrasena: needsAccount ? (formData.contrasena || '') : undefined,
         losasProducidas: 0,
         pagosTotales: 0,
         bonosTotales: 0
@@ -87,17 +132,24 @@ export default function TrabajadoresPage() {
 
   const handleEdit = (worker: Trabajador) => {
     setEditingWorker(worker)
-    setFormData(worker)
+    setFormData({
+      ...worker,
+      usuario: worker.usuario ?? '',
+      contrasena: worker.contrasena ?? '',
+    })
+    setFormError('')
     setIsDialogOpen(true)
   }
 
   const handleDelete = (id: string) => {
+    if (!canManageWorkers) return
     if (confirm('Â¿EstÃ¡s seguro de eliminar este trabajador?')) {
       setTrabajadores(trabajadores.filter(t => t.id !== id))
     }
   }
 
   const toggleStatus = (id: string) => {
+    if (!canManageWorkers) return
     setTrabajadores(trabajadores.map(t => 
       t.id === id 
         ? { ...t, estado: t.estado === 'activo' ? 'inactivo' : 'activo' } as Trabajador
@@ -105,13 +157,6 @@ export default function TrabajadoresPage() {
     ))
   }
 
-  const toggleEspecialidad = (accion: AccionLosa) => {
-    const current = formData.especialidad || []
-    const updated = current.includes(accion)
-      ? current.filter(a => a !== accion)
-      : [...current, accion]
-    setFormData({ ...formData, especialidad: updated })
-  }
 
   const resetForm = () => {
     setEditingWorker(null)
@@ -119,10 +164,12 @@ export default function TrabajadoresPage() {
       nombre: '',
       email: '',
       telefono: '',
-      rol: 'Operario',
-      especialidad: [],
-      estado: 'activo'
+      rol: 'Obrero',
+      estado: 'activo',
+      usuario: '',
+      contrasena: '',
     })
+    setFormError('')
     setIsDialogOpen(false)
   }
 
@@ -149,17 +196,6 @@ export default function TrabajadoresPage() {
       )
     },
     { key: 'rol', header: 'Rol' },
-    { 
-      key: 'especialidad', 
-      header: 'Especialidad',
-      render: (t) => (
-        <div className="flex flex-wrap gap-1">
-          {t.especialidad.map((e) => (
-            <Badge key={e} variant="outline" className="text-xs capitalize">{e}</Badge>
-          ))}
-        </div>
-      )
-    },
     { key: 'telefono', header: 'TelÃ©fono' },
     { 
       key: 'losasProducidas', 
@@ -201,7 +237,8 @@ export default function TrabajadoresPage() {
             size="icon" 
             variant="ghost" 
             onClick={() => toggleStatus(t.id)}
-            title={t.estado === 'activo' ? 'Desactivar' : 'Activar'}
+            title={canManageWorkers ? (t.estado === 'activo' ? 'Desactivar' : 'Activar') : 'Solo administrador'}
+            disabled={!canManageWorkers}
           >
             {t.estado === 'activo' 
               ? <UserX className="h-4 w-4" /> 
@@ -211,7 +248,13 @@ export default function TrabajadoresPage() {
           <Button size="icon" variant="ghost" onClick={() => handleEdit(t)}>
             <Edit className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="ghost" onClick={() => handleDelete(t.id)}>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => handleDelete(t.id)}
+            title={canManageWorkers ? 'Eliminar' : 'Solo administrador'}
+            disabled={!canManageWorkers}
+          >
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
@@ -228,12 +271,16 @@ export default function TrabajadoresPage() {
             Trabajadores
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Gestiona el equipo de trabajo y sus especialidades
+            Gestiona el equipo de trabajo
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => resetForm()}>
+            <Button
+              onClick={() => resetForm()}
+              disabled={!canManageWorkers}
+              title={canManageWorkers ? 'Nuevo Trabajador' : 'Solo administrador'}
+            >
               <Plus className="mr-2 h-4 w-4" />
               Nuevo Trabajador
             </Button>
@@ -278,7 +325,14 @@ export default function TrabajadoresPage() {
                   <Label>Rol</Label>
                   <Select 
                     value={formData.rol} 
-                    onValueChange={(value: Trabajador['rol']) => setFormData({ ...formData, rol: value })}
+                    onValueChange={(value: Trabajador['rol']) => {
+                      const nextForm = { ...formData, rol: value }
+                      if (value === 'Obrero') {
+                        nextForm.usuario = ''
+                        nextForm.contrasena = ''
+                      }
+                      setFormData(nextForm)
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -306,26 +360,37 @@ export default function TrabajadoresPage() {
                   </Select>
                 </div>
               </div>
-              
-              {/* Especialidades */}
-              <div className="space-y-3">
-                <Label>Especialidades (acciones que puede realizar)</Label>
-                <div className="grid grid-cols-3 gap-4">
-                  {acciones.map((accion) => (
-                    <div key={accion} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={accion}
-                        checked={formData.especialidad?.includes(accion as AccionLosa)}
-                        onCheckedChange={() => toggleEspecialidad(accion as AccionLosa)}
-                      />
-                      <label htmlFor={accion} className="text-sm font-medium capitalize cursor-pointer">
-                        {accion} (${config.tarifasGlobales[accion as AccionLosa]})
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
+              {requiresAccount ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Usuario</Label>
+                    <Input
+                      value={formData.usuario}
+                      onChange={(e) => setFormData({ ...formData, usuario: e.target.value })}
+                      placeholder="usuario@marmol.local"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Contrasena</Label>
+                    <Input
+                      type="password"
+                      value={formData.contrasena}
+                      onChange={(e) => setFormData({ ...formData, contrasena: e.target.value })}
+                      placeholder="********"
+                      required
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  El rol de obrero no requiere acceso al sistema.
+                </div>
+              )}
+
+              {formError && <p className="text-sm text-destructive">{formError}</p>}
+              
               <div className="flex gap-2 pt-4">
                 <Button type="button" variant="outline" onClick={resetForm} className="flex-1 bg-transparent">
                   Cancelar
@@ -429,6 +494,12 @@ export default function TrabajadoresPage() {
                     <p className="text-muted-foreground">Email</p>
                     <p className="font-medium">{selectedWorker.email}</p>
                   </div>
+                  {selectedWorker.usuario && (
+                    <div>
+                      <p className="text-muted-foreground">Usuario</p>
+                      <p className="font-medium">{selectedWorker.usuario}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-muted-foreground">TelÃ©fono</p>
                     <p className="font-medium">{selectedWorker.telefono}</p>
@@ -436,17 +507,6 @@ export default function TrabajadoresPage() {
                   <div>
                     <p className="text-muted-foreground">Fecha de Ingreso</p>
                     <p className="font-medium">{selectedWorker.fechaIngreso}</p>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">Especialidades</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedWorker.especialidad.map((esp) => (
-                      <Badge key={esp} className="capitalize">
-                        {esp} - ${config.tarifasGlobales[esp]}/losa
-                      </Badge>
-                    ))}
                   </div>
                 </div>
 

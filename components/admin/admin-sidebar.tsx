@@ -20,6 +20,8 @@ import {
   MoreHorizontal,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { getAccessForRole, type AdminUser } from '@/lib/admin-auth'
 
 const primaryNavItems = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
@@ -37,16 +39,24 @@ const secondaryNavItems = [
   { label: 'Configuracion', href: '/admin/configuracion', icon: Settings },
 ]
 
-const desktopNavItems = [...primaryNavItems, ...secondaryNavItems]
-
 interface AdminSidebarProps {
   isCollapsed: boolean
   onToggle: () => void
+  user: AdminUser
+  onLogout: () => void
 }
 
-export function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProps) {
+export function AdminSidebar({ isCollapsed, onToggle, user, onLogout }: AdminSidebarProps) {
   const pathname = usePathname()
-  const isMoreActive = secondaryNavItems.some((item) => item.href === pathname)
+  const access = getAccessForRole(user.role)
+  const isRouteAllowed = (href: string) =>
+    access.routes.some((route) => href === route || href.startsWith(`${route}/`))
+  const allowedPrimary = primaryNavItems.filter((item) => isRouteAllowed(item.href))
+  const allowedSecondary = secondaryNavItems.filter((item) => isRouteAllowed(item.href))
+  const desktopNavItems = [...allowedPrimary, ...allowedSecondary]
+  const mobilePrimary = allowedPrimary.length > 0 ? allowedPrimary : allowedSecondary
+  const mobileSecondary = allowedPrimary.length > 0 ? allowedSecondary : []
+  const isMoreActive = mobileSecondary.some((item) => item.href === pathname)
 
   return (
     <>
@@ -104,23 +114,42 @@ export function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProps) {
           </nav>
 
           <div className="border-t border-sidebar-border p-4">
-            <Link href="/">
+            <div className={cn('space-y-2', isCollapsed && 'hidden')}>
+              <p className="text-xs uppercase tracking-[0.2em] text-sidebar-foreground/60">
+                Sesion activa
+              </p>
+              <p className="text-sm font-semibold text-sidebar-foreground">{user.name}</p>
+              <Badge variant="outline" className="border-sidebar-border text-sidebar-foreground/70">
+                {user.role}
+              </Badge>
+            </div>
+            <div className={cn('mt-4 flex flex-col gap-2', isCollapsed && 'items-center')}>
               <Button
                 variant="outline"
                 className={cn('w-full justify-start gap-2 bg-transparent', isCollapsed && 'justify-center')}
                 title="Volver al Sitio"
+                asChild
               >
-                <ArrowLeft className="h-4 w-4" />
-                {!isCollapsed && 'Volver al Sitio'}
+                <Link href="/">
+                  <ArrowLeft className="h-4 w-4" />
+                  {!isCollapsed && 'Volver al Sitio'}
+                </Link>
               </Button>
-            </Link>
+              <Button
+                variant="ghost"
+                className={cn('w-full justify-start gap-2', isCollapsed && 'justify-center')}
+                onClick={onLogout}
+              >
+                <span className="text-sm">Cerrar sesion</span>
+              </Button>
+            </div>
           </div>
         </div>
       </aside>
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background md:hidden">
         <div className="mx-auto flex h-16 max-w-md items-center justify-around px-4">
-          {primaryNavItems.map((item) => {
+          {mobilePrimary.map((item) => {
             const isActive = pathname === item.href
             return (
               <Link
@@ -137,7 +166,8 @@ export function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProps) {
             )
           })}
 
-          <details className="group relative flex flex-1 flex-col items-center justify-center">
+          {mobileSecondary.length > 0 && (
+            <details className="group relative flex flex-1 flex-col items-center justify-center">
             <summary
               className={cn(
                 'flex cursor-pointer list-none flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors',
@@ -148,7 +178,7 @@ export function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProps) {
               <span>Mas</span>
             </summary>
             <div className="absolute bottom-16 left-1/2 w-56 -translate-x-1/2 rounded-xl border border-border bg-background p-2 shadow-lg">
-              {secondaryNavItems.map((item) => (
+              {mobileSecondary.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -159,6 +189,13 @@ export function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProps) {
                 </Link>
               ))}
               <div className="my-2 h-px bg-border" />
+              <button
+                type="button"
+                onClick={onLogout}
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-foreground/80 hover:bg-muted"
+              >
+                Cerrar sesion
+              </button>
               <Link
                 href="/"
                 className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-foreground/80 hover:bg-muted"
@@ -168,6 +205,7 @@ export function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProps) {
               </Link>
             </div>
           </details>
+          )}
         </div>
       </nav>
     </>

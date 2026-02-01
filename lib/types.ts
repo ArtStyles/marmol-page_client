@@ -13,6 +13,13 @@ export type TipoProducto = 'Piso' | 'Plancha'
 // Estados de la losa
 export type EstadoLosa = 'Crudo' | 'Pulido'
 
+// Roles del sistema (panel y personal operativo)
+export type RolTrabajador =
+  | 'Administrador'
+  | 'Gestor de Ventas'
+  | 'Jefe de Turno de Produccion'
+  | 'Obrero'
+
 // Acciones sobre losas
 export type AccionLosa = 'picar' | 'pulir' | 'escuadrar'
 
@@ -166,10 +173,12 @@ export interface Trabajador {
   nombre: string
   email: string
   telefono: string
-  rol: 'Operario' | 'Supervisor' | 'Administrador'
-  especialidad: AccionLosa[]
+  rol: RolTrabajador
   fechaIngreso: string
   estado: 'activo' | 'inactivo'
+  // Credenciales (solo si tiene acceso al sistema)
+  usuario?: string
+  contrasena?: string
   // Tarifas personalizadas (si son diferentes a las globales)
   tarifasPersonalizadas: TarifasTrabajador | null
   // Estadísticas
