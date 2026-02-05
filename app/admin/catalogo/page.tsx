@@ -441,10 +441,10 @@ export default function CatalogoAdminPage() {
         </Dialog>
       </div>
 
-      <div className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+      <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
         <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
           <div className="flex-1">
-            <Label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Buscar</Label>
+            <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</Label>
             <div className="mt-2 flex items-center gap-2">
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input
@@ -456,7 +456,7 @@ export default function CatalogoAdminPage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2 md:flex md:flex-wrap">
             <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Tipo</Label>
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Tipo</Label>
               <Select value={tipoFilter} onValueChange={setTipoFilter}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Tipo" />
@@ -472,7 +472,7 @@ export default function CatalogoAdminPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Acabado</Label>
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Acabado</Label>
               <Select value={acabadoFilter} onValueChange={setAcabadoFilter}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Acabado" />
@@ -488,7 +488,7 @@ export default function CatalogoAdminPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Dimension</Label>
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Dimension</Label>
               <Select value={dimensionFilter} onValueChange={setDimensionFilter}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Dimension" />
@@ -504,7 +504,7 @@ export default function CatalogoAdminPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Visibilidad</Label>
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Visibilidad</Label>
               <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Visibilidad" />
@@ -517,7 +517,7 @@ export default function CatalogoAdminPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Destacados</Label>
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Destacados</Label>
               <Select value={featuredFilter} onValueChange={setFeaturedFilter}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Destacados" />

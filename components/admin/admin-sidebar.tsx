@@ -34,7 +34,7 @@ const primaryNavItems = [
 const secondaryNavItems = [
   { label: 'Producción diaria', href: '/admin/produccion', icon: Factory },
   { label: 'Mermas', href: '/admin/mermas', icon: AlertTriangle },
-  { label: 'Bloques y lotes', href: '/admin/bloques', icon: Boxes },
+  { label: 'Materia prima', href: '/admin/bloques', icon: Boxes },
   { label: 'Trabajadores', href: '/admin/trabajadores', icon: Users },
   { label: 'Pagos', href: '/admin/pagos', icon: Wallet },
   { label: 'Historial', href: '/admin/historial', icon: ClipboardList },

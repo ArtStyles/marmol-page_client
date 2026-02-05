@@ -49,7 +49,7 @@ export function DataTable<T extends { id: string }>({
             {data.map((item) => (
               <div
                 key={item.id}
-                className="relative rounded-[22px] border border-[var(--dash-border)] bg-white/80 p-4 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.22)] backdrop-blur-xl"
+                className="relative rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] backdrop-blur-xl"
               >
                 <div className="space-y-2.5">
                   {columns.map((column) => {

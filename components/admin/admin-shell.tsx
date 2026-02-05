@@ -108,7 +108,7 @@ function buildDefaultNav(): AdminNavItem[] {
     },
     {
       href: '/admin/bloques',
-      label: 'Bloques y lotes',
+      label: 'Materia prima',
       helper: `${bloquesActivos} activos`,
       icon: Boxes,
     },
@@ -202,10 +202,10 @@ export function AdminShell({ children, rightPanel, navItems }: AdminShellProps) 
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.7),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.5),transparent_50%)]" />
         </div>
 
-        <div className="relative grid gap-4 lg:grid-cols-[200px_minmax(0,1fr)_260px]">
+        <div className="relative grid gap-4 pb-28 lg:pb-0 lg:grid-cols-[200px_minmax(0,1fr)_260px]">
           <aside className="hidden min-h-0 overflow-hidden lg:block lg:sticky lg:top-8 lg:self-start">
-            <div className="scrollbar-hidden space-y-3 py-1 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-3 lg:-mr-3">
-              <div className="rounded-[22px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-2 shadow-[var(--dash-shadow)]">
+            <div className="scrollbar-hidden space-y-3 py-1 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-4 lg:-mr-4">
+              <div className="rounded-[22px] border border-(--dash-border) bg-(--dash-card) p-2 shadow-(--dash-shadow)">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Navegacion</p>
                   <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.2em]">
@@ -274,12 +274,12 @@ export function AdminShell({ children, rightPanel, navItems }: AdminShellProps) 
             </div>
           </aside>
 
-          <section className="space-y-5 pb-24 lg:pb-0">
+          <section className="space-y-5">
             {children}
           </section>
 
           <aside className="min-h-0 overflow-hidden lg:sticky lg:top-8 lg:self-start">
-            <div className="scrollbar-hidden space-y-4 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-3 lg:-mr-3">
+            <div className="scrollbar-hidden space-y-4 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-4 lg:-mr-4">
               {rightPanel ?? (
                 <AdminPanelCard title="Resumen" meta="Panel">
                   <div className="space-y-2 text-sm text-slate-700">

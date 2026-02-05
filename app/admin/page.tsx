@@ -1,4 +1,7 @@
+'use client'
+
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import type { CSSProperties } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { productos, ventas, trabajadores, produccionDiaria, mermas, bloquesYLotes } from '@/lib/data'
@@ -9,12 +12,14 @@ import {
   ClipboardList,
   DollarSign,
   Factory,
+  LayoutDashboard,
   Package,
   Users,
 } from 'lucide-react'
 import { losasAMetros } from '@/lib/types'
 
 export default function AdminDashboard() {
+  const pathname = usePathname()
   const totalLosasInventario = productos.reduce((sum, p) => sum + p.cantidadLosas, 0)
   const totalM2Inventario = productos.reduce((sum, p) => sum + p.metrosCuadrados, 0)
 
@@ -78,7 +83,7 @@ export default function AdminDashboard() {
     },
     {
       href: '/admin/bloques',
-      label: 'Bloques y lotes',
+      label: 'Materia prima',
       helper: `${bloquesActivos} activos`,
       icon: Boxes,
     },
@@ -100,6 +105,11 @@ export default function AdminDashboard() {
       helper: 'Auditoria y logs',
       icon: ClipboardList,
     },
+  ]
+
+  const mobileNavItems = [
+    { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+    ...navItems,
   ]
 
   const moduleCards = [
@@ -132,7 +142,7 @@ export default function AdminDashboard() {
     },
     {
       href: '/admin/bloques',
-      title: 'Bloques y lotes',
+      title: 'Materia prima',
       description: `${bloquesActivos} activos`,
       value: `${bloquesYLotes.length} totales`,
       footer: 'Control de origen',
@@ -168,8 +178,8 @@ export default function AdminDashboard() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.7),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.5),transparent_50%)]" />
         </div>
 
-        <div className="relative grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
-          <aside className="space-y-4 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4 motion-safe:duration-700">
+        <div className="relative grid gap-6 pb-28 lg:pb-0 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
+          <aside className="hidden space-y-4 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4 motion-safe:duration-700 lg:block">
             <div className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Navegacion</p>
@@ -417,6 +427,40 @@ export default function AdminDashboard() {
             </div>
           </aside>
         </div>
+
+        <nav className="fixed inset-x-4 bottom-4 z-40 lg:hidden">
+          <div className="rounded-[22px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-2 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+            <div className="scrollbar-hidden flex items-center gap-2 overflow-x-auto px-1">
+              {mobileNavItems.map((item) => {
+                const Icon = item.icon
+                const isActive =
+                  item.href === '/admin'
+                    ? pathname === '/admin'
+                    : pathname === item.href || pathname.startsWith(`${item.href}/`)
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex min-w-[92px] flex-shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition ${
+                      isActive
+                        ? 'border-slate-900/10 bg-white/90 text-slate-900 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.35)]'
+                        : 'border-transparent bg-white/60 text-slate-600 hover:border-white/80 hover:bg-white/80 hover:text-slate-900'
+                    }`}
+                  >
+                    <span
+                      className={`flex h-8 w-8 items-center justify-center rounded-xl ${
+                        isActive ? 'bg-slate-900 text-white' : 'bg-white/70 text-slate-600'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        </nav>
       </div>
     </div>
   )

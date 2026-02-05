@@ -8,8 +8,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
-import { trabajadores as initialTrabajadores } from '@/lib/data'
-import type { Trabajador } from '@/lib/types'
+import {
+  trabajadores as initialTrabajadores,
+  produccionDiaria as initialProduccion,
+  historialPagos as initialHistorial,
+} from '@/lib/data'
+import type { Trabajador, ProduccionDiaria, HistorialPago, AccionLosa } from '@/lib/types'
+import { losasAMetros } from '@/lib/types'
 import { ADMIN_STORAGE_KEY, getAccessForRole, type AdminUser } from '@/lib/admin-auth'
 import { Plus, Search, Edit, Trash2, UserCheck, UserX, Eye } from 'lucide-react'
 import {
@@ -43,6 +48,8 @@ export default function TrabajadoresPage() {
   const [selectedWorker, setSelectedWorker] = useState<Trabajador | null>(null)
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
   const [formError, setFormError] = useState('')
+  const produccion = initialProduccion
+  const historialPagos = initialHistorial
   const [formData, setFormData] = useState<Partial<Trabajador>>({
     nombre: '',
     email: '',
@@ -312,6 +319,71 @@ export default function TrabajadoresPage() {
     }
   ]
 
+  const selectedProduccion: ProduccionDiaria[] = selectedWorker
+    ? produccion.filter((p) => p.trabajadorId === selectedWorker.id)
+    : []
+  const selectedPagos: HistorialPago[] = selectedWorker
+    ? historialPagos.filter((h) => h.trabajadorId === selectedWorker.id)
+    : []
+
+  const accionesResumen = selectedProduccion.reduce<Record<AccionLosa, number>>(
+    (acc, item) => {
+      acc[item.accion] += losasAMetros(item.cantidadLosas, item.dimension)
+      return acc
+    },
+    { picar: 0, pulir: 0, escuadrar: 0 },
+  )
+  const totalM2 = accionesResumen.picar + accionesResumen.pulir + accionesResumen.escuadrar
+
+  const produccionPorFecha = selectedProduccion.reduce<
+    Record<
+      string,
+      { fecha: string; m2: Record<AccionLosa, number>; totalPago: number }
+    >
+  >((acc, item) => {
+    if (!acc[item.fecha]) {
+      acc[item.fecha] = {
+        fecha: item.fecha,
+        m2: { picar: 0, pulir: 0, escuadrar: 0 },
+        totalPago: 0,
+      }
+    }
+    acc[item.fecha].m2[item.accion] += losasAMetros(item.cantidadLosas, item.dimension)
+    acc[item.fecha].totalPago += item.pagoFinal
+    return acc
+  }, {})
+
+  const produccionDiariaList = Object.values(produccionPorFecha).sort((a, b) =>
+    b.fecha.localeCompare(a.fecha),
+  )
+
+  const totalGanado = selectedProduccion.reduce((sum, item) => sum + item.pagoFinal, 0)
+  const totalPagado = selectedPagos.reduce((sum, item) => sum + item.totalPagado, 0)
+  const balancePendiente = totalGanado - totalPagado
+
+  const historialMovimientos = [
+    ...produccionDiariaList.map((item) => ({
+      type: 'produccion' as const,
+      fecha: item.fecha,
+      m2: item.m2,
+      totalPago: item.totalPago,
+    })),
+    ...selectedPagos.map((item) => ({
+      type: 'pago' as const,
+      fecha: item.fecha,
+      totalPagado: item.totalPagado,
+      produccionIds: item.produccionIds,
+      bonoExtra: item.bonoExtra,
+      motivoBonoExtra: item.motivoBonoExtra,
+      observaciones: item.observaciones,
+    })),
+  ].sort((a, b) => {
+    if (a.fecha === b.fecha) {
+      return a.type === 'pago' ? 1 : -1
+    }
+    return b.fecha.localeCompare(a.fecha)
+  })
+
   return (
     <AdminShell rightPanel={rightPanel}>
       <div className="space-y-8">
@@ -456,15 +528,18 @@ export default function TrabajadoresPage() {
       </div>
 
       {/* Search */}
-      <div className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-3 shadow-[var(--dash-shadow)] backdrop-blur-xl">
-        <div className="relative w-full sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar trabajadores..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
+      <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</p>
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar trabajadores..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
       </div>
 
@@ -523,20 +598,104 @@ export default function TrabajadoresPage() {
                 </div>
 
                 <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">Estadísticas de Producción</h4>
-                  <div className="grid grid-cols-3 gap-4 text-center">
-                    <div className="rounded-lg bg-blue-50 p-3">
-                      <p className="text-2xl font-bold text-blue-600">{selectedWorker.losasProducidas}</p>
-                      <p className="text-xs text-muted-foreground">Losas Producidas</p>
+                  <h4 className="mb-3 font-medium">Resumen de produccion</h4>
+                  <div className="grid grid-cols-2 gap-3 text-center">
+                    <div className="rounded-lg bg-emerald-50 p-3">
+                      <p className="text-2xl font-bold text-emerald-700">
+                        {accionesResumen.pulir.toFixed(2)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">m2 pulidos</p>
                     </div>
-                    <div className="rounded-lg bg-green-50 p-3">
-                      <p className="text-2xl font-bold text-green-600">${(selectedWorker.pagosTotales / 1000).toFixed(0)}k</p>
-                      <p className="text-xs text-muted-foreground">Pagos Totales</p>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-2xl font-bold text-slate-700">{totalM2.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">m2 totales</p>
                     </div>
-                    <div className="rounded-lg bg-amber-50 p-3">
-                      <p className="text-2xl font-bold text-amber-600">${(selectedWorker.bonosTotales / 1000).toFixed(0)}k</p>
-                      <p className="text-xs text-muted-foreground">Bonos</p>
+                    <div className="rounded-lg bg-white/80 p-3">
+                      <p className="text-2xl font-bold text-slate-900">
+                        ${totalGanado.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Ganado total</p>
                     </div>
+                    <div className="rounded-lg bg-white/80 p-3">
+                      <p className="text-2xl font-bold text-slate-900">
+                        ${balancePendiente.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Balance pendiente</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <h4 className="mb-3 font-medium">Historico de produccion y pagos</h4>
+                  <div className="space-y-3">
+                    {historialMovimientos.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Sin registros de produccion ni pagos.
+                      </p>
+                    ) : (
+                      historialMovimientos.map((item, index) => (
+                        <div
+                          key={`${item.fecha}-${item.type}-${index}`}
+                          className="rounded-2xl border border-white/70 bg-white/70 px-3 py-2"
+                        >
+                          {item.type === 'produccion' ? (
+                            <div className="space-y-2 text-sm">
+                              <div className="flex items-center justify-between">
+                                <p className="font-medium text-slate-900">Produccion diaria</p>
+                                <span className="text-xs text-slate-500">{item.fecha}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                                {item.m2.picar > 0 && (
+                                  <span className="rounded-full border border-slate-200 bg-white/70 px-2 py-0.5">
+                                    Picar {item.m2.picar.toFixed(2)} m2
+                                  </span>
+                                )}
+                                {item.m2.pulir > 0 && (
+                                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
+                                    Pulir {item.m2.pulir.toFixed(2)} m2
+                                  </span>
+                                )}
+                                {item.m2.escuadrar > 0 && (
+                                  <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700">
+                                    Escuadrar {item.m2.escuadrar.toFixed(2)} m2
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-slate-500">Pago del dia</span>
+                                <span className="font-semibold text-slate-900">
+                                  ${item.totalPago.toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 text-sm">
+                              <div className="flex items-center justify-between">
+                                <p className="font-medium text-slate-900">Pago realizado</p>
+                                <span className="text-xs text-slate-500">{item.fecha}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-slate-500">
+                                  {item.produccionIds.length} registros incluidos
+                                </span>
+                                <span className="font-semibold text-emerald-700">
+                                  -${item.totalPagado.toLocaleString()}
+                                </span>
+                              </div>
+                              {item.bonoExtra > 0 && (
+                                <p className="text-xs text-amber-700">
+                                  Bono extra: +${item.bonoExtra.toLocaleString()}{' '}
+                                  {item.motivoBonoExtra ? `(${item.motivoBonoExtra})` : ''}
+                                </p>
+                              )}
+                              {item.observaciones && (
+                                <p className="text-xs text-slate-500">{item.observaciones}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -548,5 +707,6 @@ export default function TrabajadoresPage() {
     </AdminShell>
   )
 }
+
 
 
