@@ -3,11 +3,11 @@
 import React from "react"
 import { useState } from 'react'
 import { DataTable, type Column } from '@/components/data-table'
-import { StatCard } from '@/components/stat-card'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { 
   bloquesYLotes,
   tiposProducto,
@@ -18,7 +18,7 @@ import { losasAMetros } from '@/lib/types'
 import type { Producto, Dimension, TipoProducto, EstadoLosa } from '@/lib/types'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useInventarioStore } from '@/hooks/use-inventario'
-import { Plus, Search, Edit, Trash2, Package, Ruler, DollarSign, AlertTriangle   } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Package } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -72,6 +72,56 @@ export default function InventarioPage() {
   const totalM2 = productos.reduce((sum, p) => sum + p.metrosCuadrados, 0)
   const valorInventario = productos.reduce((sum, p) => sum + (p.metrosCuadrados * p.precioM2), 0)
   const productosStockBajo = productos.filter(p => p.cantidadLosas < 20).length
+  const lowStockItems = productos
+    .filter(p => p.cantidadLosas < 20)
+    .sort((a, b) => a.cantidadLosas - b.cantidadLosas)
+    .slice(0, 3)
+
+  const rightPanel = (
+    <div className="space-y-4">
+      <AdminPanelCard title="Resumen inventario" meta={`${productos.length} items`}>
+        <div className="space-y-3 text-sm text-slate-700">
+          <div className="flex items-center justify-between">
+            <span>Total losas</span>
+            <span className="font-semibold">{totalLosas}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Total m2</span>
+            <span className="font-semibold">{totalM2.toFixed(1)} m2</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Valor inventario</span>
+            <span className="font-semibold">${valorInventario.toLocaleString()}</span>
+          </div>
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard
+        title="Stock bajo"
+        badge={
+          <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.2em]">
+            {productosStockBajo} alertas
+          </Badge>
+        }
+      >
+        <div className="space-y-2 text-sm text-slate-700">
+          {lowStockItems.length === 0 ? (
+            <p className="text-xs text-slate-500">Sin alertas pendientes.</p>
+          ) : (
+            lowStockItems.map((item) => (
+              <div key={item.id} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+                <div>
+                  <p className="text-xs font-semibold text-slate-900">{item.nombre}</p>
+                  <p className="text-[11px] text-slate-500">{item.origenNombre}</p>
+                </div>
+                <span className="text-xs font-semibold text-amber-700">{item.cantidadLosas} losas</span>
+              </div>
+            ))
+          )}
+        </div>
+      </AdminPanelCard>
+    </div>
+  )
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -214,7 +264,8 @@ export default function InventarioPage() {
   ]
 
   return (
-    <div className="space-y-8">
+    <AdminShell rightPanel={rightPanel}>
+      <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -350,7 +401,7 @@ export default function InventarioPage() {
                 </div>
               </div>
 
-              {/* CÃ¡lculo automÃ¡tico */}
+              {/* Cálculo automático */}
               <div className="rounded-lg bg-muted p-4 space-y-2">
                 <h4 className="font-medium">Conversión Automática</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -379,7 +430,7 @@ export default function InventarioPage() {
       </div>
 
       {/* Principio */}
-      <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+      <div className="rounded-[24px] border border-emerald-200/70 bg-emerald-50/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-sm">
         <div className="flex items-start gap-3">
           <Package className="h-5 w-5 text-green-600 mt-0.5" />
           <div>
@@ -392,37 +443,8 @@ export default function InventarioPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:pb-0">
-        <StatCard
-          title="Total de losas en inventario"
-          value={totalLosas}
-          description="losas en inventario"
-          icon={<Package className="h-5 w-5 text-green-500" />}
-        />
-        <StatCard
-          title="Total m²"
-          value={`${totalM2.toFixed(1)} m²`}
-          description="metros cuadrados"
-          icon={<Ruler className="h-5 w-5 text-blue-500" />}
-        />
-        <StatCard
-          title="Valor del Inventario a precio de venta"
-          value={`$${valorInventario.toLocaleString()}`}
-          description="a precio de venta"
-          icon={<DollarSign className="h-5 w-5 text-primary" />}
-        />
-        <StatCard
-          title="Stock Bajo (< 20 losas)"
-          value={productosStockBajo}
-          description="productos < 20 losas"
-          trend={productosStockBajo > 0 ? { value: productosStockBajo, isPositive: false } : undefined}
-          icon={<AlertTriangle className="h-5 w-5 text-red-500" />}
-        />
-      </div>
-
       {/* Filters */}
-      <div className="rounded-xl border border-border/50 bg-card/60 p-4">
+      <div className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
         <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-center">
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -464,7 +486,8 @@ export default function InventarioPage() {
         columns={columns}
         emptyMessage="No hay productos en inventario"
       />
-    </div>
+      </div>
+    </AdminShell>
   )
 }
 

@@ -18,8 +18,9 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
+  ClipboardList,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/admin/admin-button'
 import { Badge } from '@/components/ui/badge'
 import { getAccessForRole, type AdminUser } from '@/lib/admin-auth'
 
@@ -31,12 +32,13 @@ const primaryNavItems = [
 ]
 
 const secondaryNavItems = [
-  { label: 'Produccion diaria', href: '/admin/produccion', icon: Factory },
+  { label: 'Producción diaria', href: '/admin/produccion', icon: Factory },
   { label: 'Mermas', href: '/admin/mermas', icon: AlertTriangle },
   { label: 'Bloques y lotes', href: '/admin/bloques', icon: Boxes },
   { label: 'Trabajadores', href: '/admin/trabajadores', icon: Users },
   { label: 'Pagos', href: '/admin/pagos', icon: Wallet },
-  { label: 'Configuracion', href: '/admin/configuracion', icon: Settings },
+  { label: 'Historial', href: '/admin/historial', icon: ClipboardList },
+  { label: 'Configuración', href: '/admin/configuracion', icon: Settings },
 ]
 
 interface AdminSidebarProps {
@@ -67,8 +69,8 @@ export function AdminSidebar({ isCollapsed, onToggle, user, onLogout }: AdminSid
         )}
       >
         <div className="flex h-full flex-col">
-          <div className="flex h-16 items-center justify-between gap-2 border-b border-sidebar-border px-4">
-            <div className="flex items-center gap-2">
+          <div className={`flex h-16 items-center ${isCollapsed && 'w-20'} justify-between gap-2 border-b border-sidebar-border px-4`}>
+            <div className='flex items-center gap-2'>
               <span
                 className={cn(
                   'font-serif text-lg font-bold text-sidebar-foreground transition-opacity',
@@ -98,9 +100,9 @@ export function AdminSidebar({ isCollapsed, onToggle, user, onLogout }: AdminSid
                   href={item.href}
                   title={item.label}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    `flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${isCollapsed && 'w-max'} font-medium transition-colors`,
                     isActive
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                      ? `bg-sidebar-accent text-sidebar-accent-foreground`
                       : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
                   )}
                 >
@@ -113,8 +115,8 @@ export function AdminSidebar({ isCollapsed, onToggle, user, onLogout }: AdminSid
             })}
           </nav>
 
-          <div className="border-t border-sidebar-border p-4">
-            <div className={cn('space-y-2', isCollapsed && 'hidden')}>
+          <div className={`border-t border-sidebar-border p-4 ${isCollapsed && 'w-20'}`}>
+            <div className={cn('space-y-2', isCollapsed && 'hidden w-20')}>
               <p className="text-xs uppercase tracking-[0.2em] text-sidebar-foreground/60">
                 Sesion activa
               </p>

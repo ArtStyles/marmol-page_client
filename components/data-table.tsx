@@ -2,14 +2,6 @@
 
 import React from "react"
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export interface Column<T> {
@@ -41,25 +33,25 @@ export function DataTable<T extends { id: string }>({
   }
 
   return (
-    <Card className="border-border/50">
+    <Card className="overflow-hidden rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] py-0 shadow-[var(--dash-shadow)] backdrop-blur-xl">
       {title && (
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">{title}</CardTitle>
+        <CardHeader className="border-b border-white/60 pb-4">
+          <CardTitle className="text-lg font-semibold text-slate-900">{title}</CardTitle>
         </CardHeader>
       )}
-      <CardContent className={title ? '' : 'pt-6'}>
-        <div className="space-y-4 md:hidden">
-          {data.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-              {emptyMessage}
-            </div>
-          ) : (
-            data.map((item) => (
+      <CardContent className="pb-4 pt-4">
+        {data.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+            {emptyMessage}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {data.map((item) => (
               <div
                 key={item.id}
-                className="relative rounded-xl border border-border/60 bg-card p-4 shadow-sm"
+                className="relative rounded-[22px] border border-[var(--dash-border)] bg-white/80 p-4 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.22)] backdrop-blur-xl"
               >
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {columns.map((column) => {
                     const isActions =
                       String(column.key).toLowerCase() === 'actions' ||
@@ -69,7 +61,7 @@ export function DataTable<T extends { id: string }>({
                       return (
                         <div
                           key={`${item.id}-${String(column.key)}`}
-                          className="flex justify-end pt-2"
+                          className="flex justify-end pt-1"
                         >
                           <div className="pointer-events-auto">
                             {column.render
@@ -83,12 +75,12 @@ export function DataTable<T extends { id: string }>({
                     return (
                       <div
                         key={`${item.id}-${String(column.key)}`}
-                        className="flex items-start justify-between gap-4 text-sm"
+                        className="flex items-start justify-between gap-3 text-sm"
                       >
-                        <span className="pointer-events-none text-xs uppercase tracking-[0.25em] text-muted-foreground">
+                        <span className="pointer-events-none text-[10px] uppercase tracking-[0.28em] text-slate-500">
                           {column.header}
                         </span>
-                        <div className="text-right text-foreground">
+                        <div className="text-right text-sm font-medium text-slate-900">
                           {column.render
                             ? column.render(item)
                             : String(getValue(item, String(column.key)) ?? '')}
@@ -98,47 +90,9 @@ export function DataTable<T extends { id: string }>({
                   })}
                 </div>
               </div>
-            ))
-          )}
-        </div>
-
-        <div className="hidden overflow-x-auto md:block">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {columns.map((column) => (
-                  <TableHead key={String(column.key)} className="text-muted-foreground">
-                    {column.header}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="text-center text-muted-foreground py-8"
-                  >
-                    {emptyMessage}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                data.map((item) => (
-                  <TableRow key={item.id}>
-                    {columns.map((column) => (
-                      <TableCell key={`${item.id}-${String(column.key)}`}>
-                        {column.render
-                          ? column.render(item)
-                          : String(getValue(item, String(column.key)) ?? '')}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

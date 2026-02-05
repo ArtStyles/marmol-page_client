@@ -3,12 +3,12 @@
 import React from "react"
 import { useState } from 'react'
 import { DataTable, type Column } from '@/components/data-table'
-import { StatCard } from '@/components/stat-card'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
+import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { 
   mermas as initialMermas, 
   bloquesYLotes,
@@ -17,7 +17,7 @@ import {
   motivosMerma
 } from '@/lib/data'
 import type { Merma, Dimension, TipoProducto } from '@/lib/types'
-import { Plus, Search, AlertTriangle, Package, Info } from 'lucide-react'
+import { Plus, Search, Info } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -58,6 +58,58 @@ export default function MermasPage() {
     acc[m.motivo] = (acc[m.motivo] || 0) + m.metrosCuadrados
     return acc
   }, {} as Record<string, number>)
+  const motivosOrdenados = Object.entries(mermasPorMotivo)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+
+  const rightPanel = (
+    <div className="space-y-4">
+      <AdminPanelCard title="Resumen mermas" meta={`${mermas.length} registros`}>
+        <div className="space-y-3 text-sm text-slate-700">
+          <div className="flex items-center justify-between">
+            <span>Total m2</span>
+            <span className="font-semibold">{totalM2Perdidos.toFixed(2)} m2</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Motivos</span>
+            <span className="font-semibold">{Object.keys(mermasPorMotivo).length}</span>
+          </div>
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Detalle por proceso" meta="M2 perdidos">
+        <div className="space-y-2 text-sm text-slate-700">
+          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+            <span>Por picar</span>
+            <span className="font-semibold">{(mermasPorMotivo['Partida al picar'] || 0).toFixed(2)} m2</span>
+          </div>
+          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+            <span>Por pulir</span>
+            <span className="font-semibold">{(mermasPorMotivo['Partida al pulir'] || 0).toFixed(2)} m2</span>
+          </div>
+          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+            <span>Recortes</span>
+            <span className="font-semibold">{(mermasPorMotivo['Recorte aprovechable'] || 0).toFixed(2)} m2</span>
+          </div>
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Motivos principales" meta="Top 3">
+        <div className="space-y-2 text-sm text-slate-700">
+          {motivosOrdenados.length === 0 ? (
+            <p className="text-xs text-slate-500">Sin registros.</p>
+          ) : (
+            motivosOrdenados.map(([motivo, total]) => (
+              <div key={motivo} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+                <span className="text-xs font-semibold text-slate-900">{motivo}</span>
+                <span className="text-xs font-semibold text-rose-700">{total.toFixed(2)} m2</span>
+              </div>
+            ))
+          )}
+        </div>
+      </AdminPanelCard>
+    </div>
+  )
 
   // Referencia de m² por dimensión de losa
   const m2PorDimension: Record<Dimension, number> = {
@@ -145,7 +197,8 @@ export default function MermasPage() {
   ]
 
   return (
-    <div className="space-y-8">
+    <AdminShell rightPanel={rightPanel}>
+      <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -264,7 +317,7 @@ export default function MermasPage() {
                 />
               </div>
 
-              {/* CÃ¡lculo en tiempo real */}
+              {/* Cálculo en tiempo real */}
               <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 space-y-2">
                 <h4 className="font-medium text-destructive">Resumen de Pérdida</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -289,7 +342,7 @@ export default function MermasPage() {
       </div>
 
       {/* Info Box */}
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+      <div className="rounded-[24px] border border-sky-200/70 bg-sky-50/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-sm">
         <div className="flex items-start gap-3">
           <Info className="h-5 w-5 text-blue-600 mt-0.5" />
           <div>
@@ -297,42 +350,14 @@ export default function MermasPage() {
             <p className="text-sm text-blue-700">
               Las mermas se registran directamente en <strong>metros cuadrados</strong>. Si una losa se parte, 
               pero parte del material se puede aprovechar para una medida más pequeña, solo registra la porción 
-              que realmente se perdiÃ³. Esto permite un control mÃ¡s preciso del desperdicio real.
+              que realmente se perdió. Esto permite un control más preciso del desperdicio real.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:pb-0">
-        <StatCard
-          title="Total m² Perdidos"
-          value={`${totalM2Perdidos.toFixed(2)} m²`}
-          description="pÃ©rdida total"
-          icon={<AlertTriangle className="h-5 w-5 text-red-500" />}
-        />
-        <StatCard
-          title="Por Picar"
-          value={`${(mermasPorMotivo['Partida al picar'] || 0).toFixed(2)} m²`}
-          description="en proceso de corte"
-          icon={<Package className="h-5 w-5 text-green-500" />}
-        />
-        <StatCard
-          title="Por Pulir"
-          value={`${(mermasPorMotivo['Partida al pulir'] || 0).toFixed(2)} m²`}
-          description="en proceso de pulido"
-          icon={<Package className="h-5 w-5 text-green-500" />}
-        />
-        <StatCard
-          title="Recortes"
-          value={`${(mermasPorMotivo['Recorte aprovechable'] || 0).toFixed(2)} m²`}
-          description="recortes no utilizables"
-          icon={<Package className="h-5 w-5 text-green-500" />}
-        />
-      </div>
-
       {/* Search */}
-      <div className="rounded-xl border border-border/50 bg-card/60 p-3">
+      <div className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-3 shadow-[var(--dash-shadow)] backdrop-blur-xl">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -350,6 +375,7 @@ export default function MermasPage() {
         columns={columns}
         emptyMessage="No hay registros de mermas"
       />
-    </div>
+      </div>
+    </AdminShell>
   )
 }

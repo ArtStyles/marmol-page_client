@@ -6,7 +6,8 @@ import type {
   Venta, 
   Trabajador, 
   HistorialPago,
-  ConfiguracionSistema
+  ConfiguracionSistema,
+  SystemLog
 } from './types'
 import { TARIFAS_ACCION_DEFAULT, PRECIOS_M2_DEFAULT } from './types'
 
@@ -36,6 +37,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     nombre: 'Bloque Carrara #1',
     tipo: 'Bloque',
     costo: 15000,
+    metrosComprados: 32.0,
     fechaIngreso: '2026-01-10',
     proveedor: 'Mármoles Italia S.A.',
     losasProducidas: 120,
@@ -49,6 +51,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     nombre: 'Bloque Emperador #3',
     tipo: 'Bloque',
     costo: 12000,
+    metrosComprados: 26.5,
     fechaIngreso: '2026-01-05',
     proveedor: 'Canteras España',
     losasProducidas: 95,
@@ -62,6 +65,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     nombre: 'Lote Crema Marfil #15',
     tipo: 'Lote',
     costo: 8500,
+    metrosComprados: 52.0,
     fechaIngreso: '2026-01-15',
     proveedor: 'Distribuidora Nacional',
     losasProducidas: 200,
@@ -75,6 +79,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     nombre: 'Bloque Calacatta Gold #2',
     tipo: 'Bloque',
     costo: 25000,
+    metrosComprados: 21.0,
     fechaIngreso: '2025-12-20',
     proveedor: 'Mármoles Italia S.A.',
     losasProducidas: 85,
@@ -200,7 +205,7 @@ export const trabajadores: Trabajador[] = [
     nombre: 'Miguel Ángel Torres',
     email: 'miguel.torres@taller.com',
     telefono: '+52 555 345 6789',
-    rol: 'Jefe de Turno de Produccion',
+    rol: 'Jefe de Turno de Producción',
     fechaIngreso: '2022-01-10',
     estado: 'activo',
     usuario: 'produccion@marmol.local',
@@ -492,6 +497,64 @@ export const historialPagos: HistorialPago[] = [
     motivoBonoExtra: '',
     totalPagado: 5040,
     observaciones: 'Pago por producción del día'
+  }
+]
+
+// Logs del sistema
+export const logsSistema: SystemLog[] = [
+  {
+    id: 'LOG001',
+    fecha: '2026-02-03 08:15',
+    usuario: 'admin@marmol.local',
+    accion: 'Creo bloque',
+    modulo: 'Bloques',
+    descripcion: 'Registro de Bloque Carrara #4',
+    nivel: 'info'
+  },
+  {
+    id: 'LOG002',
+    fecha: '2026-02-03 09:05',
+    usuario: 'produccion@marmol.local',
+    accion: 'Registro produccion',
+    modulo: 'Produccion',
+    descripcion: 'Registro de losas pulidas (20) en Bloque Carrara #1',
+    nivel: 'info'
+  },
+  {
+    id: 'LOG003',
+    fecha: '2026-02-02 16:40',
+    usuario: 'ventas@marmol.local',
+    accion: 'Venta creada',
+    modulo: 'Ventas',
+    descripcion: 'Venta V004 creada para Hotel Grand Palace',
+    nivel: 'alerta'
+  },
+  {
+    id: 'LOG004',
+    fecha: '2026-02-02 18:10',
+    usuario: 'admin@marmol.local',
+    accion: 'Cambio de estado',
+    modulo: 'Bloques',
+    descripcion: 'Bloque Calacatta Gold #2 marcado como agotado',
+    nivel: 'info'
+  },
+  {
+    id: 'LOG005',
+    fecha: '2026-02-01 13:22',
+    usuario: 'produccion@marmol.local',
+    accion: 'Merma registrada',
+    modulo: 'Mermas',
+    descripcion: 'Merma por partida al pulir (0.32 m2)',
+    nivel: 'alerta'
+  },
+  {
+    id: 'LOG006',
+    fecha: '2026-02-01 14:05',
+    usuario: 'admin@marmol.local',
+    accion: 'Error de registro',
+    modulo: 'Inventario',
+    descripcion: 'Intento de registrar producto sin origen valido',
+    nivel: 'error'
   }
 ]
 

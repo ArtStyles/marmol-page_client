@@ -3,8 +3,7 @@
 import React from "react"
 import { useState } from 'react'
 import { DataTable, type Column } from '@/components/data-table'
-import { StatCard } from '@/components/stat-card'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -15,7 +14,7 @@ import {
   produccionDiaria as initialProduccion
 } from '@/lib/data'
 import type { HistorialPago, Trabajador, ProduccionDiaria } from '@/lib/types'
-import { Search, Wallet, DollarSign, Clock, CheckCircle, Eye, Gift, CreditCard, Users } from 'lucide-react'
+import { Search, Wallet, DollarSign, CheckCircle, Eye, Users } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -30,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 
 export default function PagosPage() {
   const [historial, setHistorial] = useState<HistorialPago[]>(initialHistorial)
@@ -70,6 +70,53 @@ export default function PagosPage() {
   const totalPagadoHistorico = historial.reduce((sum, h) => sum + h.totalPagado, 0)
   const totalBonosHistorico = historial.reduce((sum, h) => sum + h.montoBonos + h.bonoExtra, 0)
   const trabajadoresConPendiente = acumuladosPorTrabajador.filter(t => t.totalPendiente > 0).length
+  const topPendientes = [...acumuladosPorTrabajador]
+    .filter((t) => t.totalPendiente > 0)
+    .sort((a, b) => b.totalPendiente - a.totalPendiente)
+    .slice(0, 3)
+
+  const rightPanel = (
+    <div className="space-y-4">
+      <AdminPanelCard title="Resumen pagos" meta={`${historial.length} pagos`}>
+        <div className="space-y-3 text-sm text-slate-700">
+          <div className="flex items-center justify-between">
+            <span>Total pendiente</span>
+            <span className="font-semibold">${totalPendiente.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Pagado historico</span>
+            <span className="font-semibold">${totalPagadoHistorico.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Bonos historicos</span>
+            <span className="font-semibold">${totalBonosHistorico.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Con pendiente</span>
+            <span className="font-semibold">{trabajadoresConPendiente}</span>
+          </div>
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Pendientes altos" meta="Top 3">
+        <div className="space-y-2 text-sm text-slate-700">
+          {topPendientes.length === 0 ? (
+            <p className="text-xs text-slate-500">Sin pendientes.</p>
+          ) : (
+            topPendientes.map((trabajador) => (
+              <div key={trabajador.id} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+                <div>
+                  <p className="text-xs font-semibold text-slate-900">{trabajador.nombre}</p>
+                  <p className="text-[11px] text-slate-500">{trabajador.produccionesPendientes.length} registros</p>
+                </div>
+                <span className="text-xs font-semibold text-emerald-700">${trabajador.totalPendiente.toLocaleString()}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </AdminPanelCard>
+    </div>
+  )
 
   const openPagoDialog = (trabajador: typeof acumuladosPorTrabajador[0]) => {
     setSelectedTrabajador(trabajador)
@@ -175,7 +222,8 @@ export default function PagosPage() {
   ]
 
   return (
-    <div className="space-y-8">
+    <AdminShell rightPanel={rightPanel}>
+      <div className="space-y-8">
       {/* Header */}
       <div>
         <h1 className="font-serif text-3xl font-bold text-foreground">
@@ -186,34 +234,6 @@ export default function PagosPage() {
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:pb-0">
-        <StatCard
-          title="Total Pendiente"
-          value={`$${totalPendiente.toLocaleString()}`}
-          description={`${trabajadoresConPendiente} trabajadores`}
-          icon={<Clock className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Pagado Historico"
-          value={`$${totalPagadoHistorico.toLocaleString()}`}
-          description="total pagado"
-          icon={<CheckCircle className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Bonos Otorgados"
-          value={`$${totalBonosHistorico.toLocaleString()}`}
-          description="en bonos totales"
-          icon={<Gift className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Pagos Realizados"
-          value={historial.length}
-          description="registros de pago"
-          icon={<CreditCard className="h-5 w-5" />}
-        />
-      </div>
-
       {/* Acumulados Pendientes */}
       <div>
         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -222,7 +242,12 @@ export default function PagosPage() {
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {acumuladosPorTrabajador.map((t) => (
-            <Card key={t.id} className={t.totalPendiente > 0 ? 'border-primary/30' : 'opacity-60'}>
+            <Card
+              key={t.id}
+              className={`rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl ${
+                t.totalPendiente > 0 ? 'border-emerald-200/70' : 'opacity-70'
+              }`}
+            >
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center justify-between">
                   {t.nombre}
@@ -270,7 +295,7 @@ export default function PagosPage() {
           Historial de Pagos Realizados
         </h2>
         
-        <div className="mb-4 rounded-xl border border-border/50 bg-card/60 p-3">
+        <div className="mb-4 rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-3 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="relative w-full sm:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -435,7 +460,8 @@ export default function PagosPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </AdminShell>
   )
 }
 

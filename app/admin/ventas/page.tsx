@@ -3,15 +3,15 @@
 import React from "react"
 import { useState } from 'react'
 import { DataTable, type Column } from '@/components/data-table'
-import { StatCard } from '@/components/stat-card'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { ventas as initialVentas } from '@/lib/data'
 import type { Venta } from '@/lib/types'
 import { useInventarioStore } from '@/hooks/use-inventario'
-import { Plus, Search, Eye, DollarSign, Clock, CheckCircle, ShoppingCart } from 'lucide-react'
+import { Plus, Search, Eye, ShoppingCart } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -61,6 +61,64 @@ export default function VentasPage() {
   const avgSaleValue = ventasCompletadas.length > 0 
     ? totalRevenue / ventasCompletadas.length 
     : 0
+  const recentVentas = [...ventas]
+    .sort((a, b) => b.fecha.localeCompare(a.fecha))
+    .slice(0, 3)
+
+  const rightPanel = (
+    <div className="space-y-4">
+      <AdminPanelCard title="Resumen ventas" meta={`${ventas.length} registros`}>
+        <div className="space-y-3 text-sm text-slate-700">
+          <div className="flex items-center justify-between">
+            <span>Ingresos</span>
+            <span className="font-semibold">${totalRevenue.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>m2 vendidos</span>
+            <span className="font-semibold">{totalM2Vendidos.toFixed(1)} m2</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Pendientes</span>
+            <span className="font-semibold">{ventasPendientes.length}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Promedio</span>
+            <span className="font-semibold">${Math.round(avgSaleValue).toLocaleString()}</span>
+          </div>
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Ultimas ventas" meta="Ultimos registros">
+        <div className="space-y-2 text-sm text-slate-700">
+          {recentVentas.length === 0 ? (
+            <p className="text-xs text-slate-500">Sin ventas recientes.</p>
+          ) : (
+            recentVentas.map((venta) => (
+              <div key={venta.id} className="rounded-2xl bg-white/70 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-900">{venta.productoNombre}</p>
+                  <Badge
+                    variant="outline"
+                    className={
+                      venta.estado === 'completada'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border-amber-200 bg-amber-50 text-amber-700'
+                    }
+                  >
+                    {venta.estado}
+                  </Badge>
+                </div>
+                <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
+                  <span>{venta.fecha}</span>
+                  <span>${venta.total.toLocaleString()}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </AdminPanelCard>
+    </div>
+  )
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -183,7 +241,8 @@ export default function VentasPage() {
   ]
 
   return (
-    <div className="space-y-8">
+    <AdminShell rightPanel={rightPanel}>
+      <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -319,7 +378,7 @@ export default function VentasPage() {
       </div>
 
       {/* Principio */}
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+      <div className="rounded-[24px] border border-sky-200/70 bg-sky-50/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-sm">
         <div className="flex items-start gap-3">
           <ShoppingCart className="h-5 w-5 text-blue-600 mt-0.5" />
           <div>
@@ -332,36 +391,8 @@ export default function VentasPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:pb-0">
-        <StatCard
-          title="Ingresos Totales"
-          value={`$${totalRevenue.toLocaleString()}`}
-          description="ventas completadas"
-          icon={<DollarSign className="h-5 w-5" />}
-        />
-        <StatCard
-          title="m² Vendidos"
-          value={`${totalM2Vendidos.toFixed(1)} m²`}
-          description="metros cuadrados"
-          icon={<ShoppingCart className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Ventas Pendientes"
-          value={ventasPendientes.length}
-          description="requieren atención"
-          icon={<Clock className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Valor Promedio"
-          value={`$${Math.round(avgSaleValue).toLocaleString()}`}
-          description="por venta"
-          icon={<CheckCircle className="h-5 w-5" />}
-        />
-      </div>
-
       {/* Filters */}
-      <div className="rounded-xl border border-border/50 bg-card/60 p-4">
+      <div className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
         <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -452,7 +483,8 @@ export default function VentasPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </AdminShell>
   )
 }
 

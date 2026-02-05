@@ -3,18 +3,18 @@
 import React from "react"
 import { useState } from 'react'
 import { DataTable, type Column } from '@/components/data-table'
-import { StatCard } from '@/components/stat-card'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { catalogoItems } from '@/lib/catalogo-data'
 import { dimensiones, estadosLosa, tiposProducto } from '@/lib/data'
 import type { CatalogoItem, Dimension, EstadoLosa, TipoProducto } from '@/lib/types'
 import { losasAMetros } from '@/lib/types'
-import { Plus, Search, Star, Eye, EyeOff, Edit, Trash2, LayoutGrid } from 'lucide-react'
+import { Plus, Search, Star, Eye, EyeOff, Edit, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -89,13 +89,59 @@ export default function CatalogoAdminPage() {
   const totalVisibles = items.filter((item) => item.visible).length
   const totalDestacados = items.filter((item) => item.destacado).length
   const totalStock = items.reduce((sum, item) => sum + item.stockLosas, 0)
-  const totalM2 = items.reduce(
-    (sum, item) => sum + losasAMetros(item.stockLosas, item.dimension),
-    0,
-  )
   const valorEstimado = items.reduce(
     (sum, item) => sum + losasAMetros(item.stockLosas, item.dimension) * item.precioM2,
     0,
+  )
+  const visiblesRecientes = items.filter((item) => item.visible).slice(0, 3)
+
+  const rightPanel = (
+    <div className="space-y-4">
+      <AdminPanelCard title="Resumen catalogo" meta={`${items.length} items`}>
+        <div className="space-y-3 text-sm text-slate-700">
+          <div className="flex items-center justify-between">
+            <span>Visibles</span>
+            <span className="font-semibold">{totalVisibles}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Destacados</span>
+            <span className="font-semibold">{totalDestacados}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Stock total</span>
+            <span className="font-semibold">{totalStock} losas</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Valor estimado</span>
+            <span className="font-semibold">${valorEstimado.toLocaleString()}</span>
+          </div>
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Visibles recientes" meta="Landing">
+        <div className="space-y-2 text-sm text-slate-700">
+          {visiblesRecientes.length === 0 ? (
+            <p className="text-xs text-slate-500">Sin items visibles.</p>
+          ) : (
+            visiblesRecientes.map((item) => (
+              <div key={item.id} className="rounded-2xl bg-white/70 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-900">{item.nombre}</p>
+                  {item.destacado && (
+                    <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.2em]">
+                      Destacado
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {item.dimension} · ${item.precioM2}/m2
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      </AdminPanelCard>
+    </div>
   )
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -219,10 +265,11 @@ export default function CatalogoAdminPage() {
   ]
 
   return (
-    <div className="space-y-8">
+    <AdminShell rightPanel={rightPanel}>
+      <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-foreground">Catalogo landing</h1>
+          <h1 className="font-serif text-3xl font-bold text-foreground">Catálogo landing</h1>
           <p className="mt-1 text-muted-foreground">
             Administra la seleccion que se muestra en el catalogo del landing. Datos mock por ahora.
           </p>
@@ -394,38 +441,7 @@ export default function CatalogoAdminPage() {
         </Dialog>
       </div>
 
-      <div className="flex flex-col gap-4 md:flex-row md:flex-wrap">
-        <StatCard
-          title="Items en catalogo"
-          value={items.length}
-          description="Total de referencias"
-          icon={<LayoutGrid className="h-4 w-4" />}
-        />
-        <StatCard
-          title="Visibles"
-          value={totalVisibles}
-          description="Publicados en landing"
-          icon={<Eye className="h-4 w-4" />}
-        />
-        <StatCard
-          title="Destacados"
-          value={totalDestacados}
-          description="Prioridad comercial"
-          icon={<Star className="h-4 w-4" />}
-        />
-        <StatCard
-          title="Stock total"
-          value={`${totalStock} losas`}
-          description={`${totalM2.toFixed(1)} m2 aprox.`}
-        />
-        <StatCard
-          title="Valor estimado"
-          value={`$${valorEstimado.toLocaleString()}`}
-          description="Precio estimado por m2"
-        />
-      </div>
-
-      <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+      <div className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
         <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
           <div className="flex-1">
             <Label className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Buscar</Label>
@@ -523,6 +539,7 @@ export default function CatalogoAdminPage() {
         columns={columns}
         emptyMessage="No hay productos para mostrar en el catalogo."
       />
-    </div>
+      </div>
+    </AdminShell>
   )
 }

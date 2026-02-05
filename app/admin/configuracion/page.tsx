@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { Building, Bell, Shield, Palette } from 'lucide-react'
 import { acciones, dimensiones } from '@/lib/data'
 import type { AccionLosa, Dimension } from '@/lib/types'
@@ -47,8 +48,45 @@ export default function ConfiguracionPage() {
     })
   }
 
+  const rightPanel = (
+    <div className="space-y-4">
+      <AdminPanelCard title="Resumen sistema" meta="Configuracion">
+        <div className="space-y-3 text-sm text-slate-700">
+          <div className="flex items-center justify-between">
+            <span>Empresa</span>
+            <span className="font-semibold">{config.nombreEmpresa}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Email</span>
+            <span className="font-semibold">{config.email}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Alertas stock</span>
+            <span className="font-semibold">{config.alertasStockBajo ? 'Activo' : 'Inactivo'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Reportes ventas</span>
+            <span className="font-semibold">{config.reportesVentas ? 'Activo' : 'Inactivo'}</span>
+          </div>
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Tarifas base" meta="Por losa">
+        <div className="space-y-2 text-sm text-slate-700">
+          {acciones.map((accion) => (
+            <div key={accion} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+              <span className="capitalize">{accion}</span>
+              <span className="font-semibold">${config.tarifasGlobales[accion as AccionLosa]}</span>
+            </div>
+          ))}
+        </div>
+      </AdminPanelCard>
+    </div>
+  )
+
   return (
-    <div className="space-y-8">
+    <AdminShell rightPanel={rightPanel}>
+      <div className="space-y-8">
       {/* Header */}
       <div>
         <h1 className="font-serif text-3xl font-bold text-foreground">
@@ -61,7 +99,7 @@ export default function ConfiguracionPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Company Info */}
-        <Card className="border-border/50">
+        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Building className="h-5 w-5 text-primary" />
@@ -110,7 +148,7 @@ export default function ConfiguracionPage() {
         </Card>
 
         {/* Notifications */}
-        <Card className="border-border/50">
+        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Bell className="h-5 w-5 text-primary" />
@@ -167,14 +205,14 @@ export default function ConfiguracionPage() {
         </Card>
 
         {/* Tarifas y Precios */}
-        <Card className="border-border/50">
+        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Building className="h-5 w-5 text-primary" />
               <CardTitle>Tarifas y Precios</CardTitle>
             </div>
             <CardDescription>
-              Ajusta pagos por acción y precios por m2 segAún dimensión
+              Ajusta pagos por acción y precios por m² según dimensión
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -229,7 +267,7 @@ export default function ConfiguracionPage() {
         </Card>
 
         {/* Security */}
-        <Card className="border-border/50">
+        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
@@ -275,7 +313,7 @@ export default function ConfiguracionPage() {
         </Card>
 
         {/* Appearance */}
-        <Card className="border-border/50">
+        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5 text-primary" />
@@ -321,7 +359,8 @@ export default function ConfiguracionPage() {
           Guardar Cambios
         </Button>
       </div>
-    </div>
+      </div>
+    </AdminShell>
   )
 }
 

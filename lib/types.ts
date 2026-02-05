@@ -17,7 +17,7 @@ export type EstadoLosa = 'Crudo' | 'Pulido'
 export type RolTrabajador =
   | 'Administrador'
   | 'Gestor de Ventas'
-  | 'Jefe de Turno de Produccion'
+  | 'Jefe de Turno de Producción'
   | 'Obrero'
 
 // Acciones sobre losas
@@ -62,6 +62,7 @@ export interface BloqueOLote {
   nombre: string
   tipo: 'Bloque' | 'Lote'
   costo: number
+  metrosComprados: number
   fechaIngreso: string
   proveedor: string
   losasProducidas: number
@@ -202,6 +203,17 @@ export interface HistorialPago {
   motivoBonoExtra: string
   totalPagado: number
   observaciones: string
+}
+
+// Log del sistema
+export interface SystemLog {
+  id: string
+  fecha: string
+  usuario: string
+  accion: string
+  modulo: string
+  descripcion: string
+  nivel: 'info' | 'alerta' | 'error'
 }
 
 // Tipos auxiliares para navegación y UI

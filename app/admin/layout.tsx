@@ -4,8 +4,7 @@ import React from "react"
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { AdminSidebar } from '@/components/admin/admin-sidebar'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/admin/admin-button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,7 +23,6 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const [authUser, setAuthUser] = useState<AdminUser | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [email, setEmail] = useState('')
@@ -66,17 +64,6 @@ export default function AdminLayout({
     }
   }
 
-  const handleLogout = () => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(ADMIN_STORAGE_KEY)
-    }
-    setAuthUser(null)
-    setEmail('')
-    setPassword('')
-    setError('')
-    router.replace('/admin')
-  }
-
   if (!isReady) {
     return <div className="min-h-screen bg-background" />
   }
@@ -111,7 +98,7 @@ export default function AdminLayout({
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="••••••••"
+                  placeholder="********"
                   required
                 />
               </div>
@@ -167,31 +154,12 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen bg-background">
-      <AdminSidebar
-        isCollapsed={isCollapsed}
-        onToggle={() => setIsCollapsed((prev) => !prev)}
-        user={authUser}
-        onLogout={handleLogout}
-      />
-      <main
-        className={`min-h-screen pb-24 transition-[margin] duration-200 md:pb-8 ${
-          isCollapsed ? 'md:ml-20' : 'md:ml-64'
-        }`}
-      >
-        <div className="p-4 md:p-8">
-          <div className="mb-6 flex items-center justify-between rounded-lg border border-border/60 bg-card/60 px-4 py-3 md:hidden">
-            <div>
-              <p className="text-xs text-muted-foreground">Sesion activa</p>
-              <p className="text-sm font-semibold">{authUser.name}</p>
-            </div>
-            <Button size="sm" variant="outline" onClick={handleLogout}>
-              Cerrar sesion
-            </Button>
-          </div>
+      <main className="min-h-screen  ">
+        <div className="">
           {isAllowed ? (
             children
           ) : (
-            <div className="rounded-xl border border-border/60 bg-card p-6">
+            <div className="bg-card p-6">
               <p className="text-sm font-semibold text-foreground">Sin acceso a esta seccion.</p>
               {access && (
                 <p className="mt-2 text-sm text-muted-foreground">

@@ -1,7 +1,7 @@
 export type AdminRole =
   | 'Administrador'
   | 'Gestor de Ventas'
-  | 'Jefe de Turno de Produccion'
+  | 'Jefe de Turno de Producción'
 
 export type AdminUser = {
   id: string
@@ -52,7 +52,7 @@ export const MOCK_ADMIN_USERS: Array<{
       id: 'PROD-001',
       name: 'Jefe de Turno',
       email: 'produccion@marmol.local',
-      role: 'Jefe de Turno de Produccion',
+      role: 'Jefe de Turno de Producción',
     },
   },
 ]
@@ -67,6 +67,7 @@ const ROLE_ACCESS: Record<AdminRole, AdminAccess> = {
       '/admin/inventario',
       '/admin/bloques',
       '/admin/catalogo',
+      '/admin/historial',
       '/admin/trabajadores',
       '/admin/configuracion',
     ],
@@ -79,8 +80,8 @@ const ROLE_ACCESS: Record<AdminRole, AdminAccess> = {
     routes: ['/admin/ventas', '/admin/pagos'],
     canManageWorkers: false,
   },
-  'Jefe de Turno de Produccion': {
-    role: 'Jefe de Turno de Produccion',
+  'Jefe de Turno de Producción': {
+    role: 'Jefe de Turno de Producción',
     label: 'Produccion',
     home: '/admin/produccion',
     routes: ['/admin/produccion', '/admin/mermas'],

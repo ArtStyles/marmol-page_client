@@ -3,15 +3,15 @@
 import React from "react"
 import { useEffect, useState } from 'react'
 import { DataTable, type Column } from '@/components/data-table'
-import { StatCard } from '@/components/stat-card'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { trabajadores as initialTrabajadores } from '@/lib/data'
 import type { Trabajador } from '@/lib/types'
 import { ADMIN_STORAGE_KEY, getAccessForRole, type AdminUser } from '@/lib/admin-auth'
-import { Plus, Search, Edit, Trash2, UserCheck, UserX, Users, DollarSign, Factory, Eye } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, UserCheck, UserX, Eye } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -31,7 +31,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 const roles: Trabajador['rol'][] = [
   'Administrador',
   'Gestor de Ventas',
-  'Jefe de Turno de Produccion',
+  'Jefe de Turno de Producción',
   'Obrero',
 ]
 
@@ -76,11 +76,61 @@ export default function TrabajadoresPage() {
     (t.usuario ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  // EstadÃ­sticas
+  // Estadísticas
   const activos = trabajadores.filter(t => t.estado === 'activo')
   const totalLosasProducidas = trabajadores.reduce((sum, t) => sum + t.losasProducidas, 0)
   const totalPagos = trabajadores.reduce((sum, t) => sum + t.pagosTotales, 0)
   const totalBonos = trabajadores.reduce((sum, t) => sum + t.bonosTotales, 0)
+  const topTrabajadores = [...trabajadores]
+    .sort((a, b) => b.losasProducidas - a.losasProducidas)
+    .slice(0, 3)
+
+  const rightPanel = (
+    <div className="space-y-4">
+      <AdminPanelCard title="Resumen equipo" meta={`${trabajadores.length} perfiles`}>
+        <div className="space-y-3 text-sm text-slate-700">
+          <div className="flex items-center justify-between">
+            <span>Activos</span>
+            <span className="font-semibold">{activos.length}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Inactivos</span>
+            <span className="font-semibold">{trabajadores.filter(t => t.estado === 'inactivo').length}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Losas producidas</span>
+            <span className="font-semibold">{totalLosasProducidas}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Pagos totales</span>
+            <span className="font-semibold">${totalPagos.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Bonos</span>
+            <span className="font-semibold">${totalBonos.toLocaleString()}</span>
+          </div>
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Top productores" meta="Losas acumuladas">
+        <div className="space-y-2 text-sm text-slate-700">
+          {topTrabajadores.length === 0 ? (
+            <p className="text-xs text-slate-500">Sin registros disponibles.</p>
+          ) : (
+            topTrabajadores.map((worker) => (
+              <div key={worker.id} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+                <div>
+                  <p className="text-xs font-semibold text-slate-900">{worker.nombre}</p>
+                  <p className="text-[11px] text-slate-500">{worker.rol}</p>
+                </div>
+                <span className="text-xs font-semibold text-emerald-700">{worker.losasProducidas} losas</span>
+              </div>
+            ))
+          )}
+        </div>
+      </AdminPanelCard>
+    </div>
+  )
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -143,7 +193,7 @@ export default function TrabajadoresPage() {
 
   const handleDelete = (id: string) => {
     if (!canManageWorkers) return
-    if (confirm('Â¿EstÃ¡s seguro de eliminar este trabajador?')) {
+    if (confirm('¿Estás seguro de eliminar este trabajador?')) {
       setTrabajadores(trabajadores.filter(t => t.id !== id))
     }
   }
@@ -196,7 +246,7 @@ export default function TrabajadoresPage() {
       )
     },
     { key: 'rol', header: 'Rol' },
-    { key: 'telefono', header: 'TelÃ©fono' },
+    { key: 'telefono', header: 'Teléfono' },
     { 
       key: 'losasProducidas', 
       header: 'Losas Producidas',
@@ -263,7 +313,8 @@ export default function TrabajadoresPage() {
   ]
 
   return (
-    <div className="space-y-8">
+    <AdminShell rightPanel={rightPanel}>
+      <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -311,7 +362,7 @@ export default function TrabajadoresPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>TelÃ©fono</Label>
+                  <Label>Teléfono</Label>
                   <Input
                     type="tel"
                     value={formData.telefono}
@@ -404,47 +455,8 @@ export default function TrabajadoresPage() {
         </Dialog>
       </div>
 
-      {/* Stats */}
-      <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:pb-0">
-        <StatCard
-          title="Trabajadores Activos"
-          value={activos.length}
-          description={`de ${trabajadores.length} total`}
-          icon={<Users className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Losas Producidas"
-          value={totalLosasProducidas}
-          description="total del equipo"
-          icon={<Factory className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Pagos Realizados"
-          value={`$${totalPagos.toLocaleString()}`}
-          description="total histÃ³rico"
-          icon={<DollarSign className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Bonos Otorgados"
-          value={`$${totalBonos.toLocaleString()}`}
-          description="por desempeÃ±o"
-        />
-      </div>
-
-      {/* Quick Stats */}
-      <div className="flex gap-4 text-sm">
-        <div className="flex items-center gap-2 rounded-lg bg-green-100 px-3 py-2 text-green-800">
-          <UserCheck className="h-4 w-4" />
-          <span>{activos.length} Activos</span>
-        </div>
-        <div className="flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-gray-800">
-          <UserX className="h-4 w-4" />
-          <span>{trabajadores.filter(t => t.estado === 'inactivo').length} Inactivos</span>
-        </div>
-      </div>
-
       {/* Search */}
-      <div className="rounded-xl border border-border/50 bg-card/60 p-3">
+      <div className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-3 shadow-[var(--dash-shadow)] backdrop-blur-xl">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -501,7 +513,7 @@ export default function TrabajadoresPage() {
                     </div>
                   )}
                   <div>
-                    <p className="text-muted-foreground">TelÃ©fono</p>
+                    <p className="text-muted-foreground">Teléfono</p>
                     <p className="font-medium">{selectedWorker.telefono}</p>
                   </div>
                   <div>
@@ -511,7 +523,7 @@ export default function TrabajadoresPage() {
                 </div>
 
                 <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">EstadÃ­sticas de ProducciÃ³n</h4>
+                  <h4 className="font-medium mb-3">Estadísticas de Producción</h4>
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div className="rounded-lg bg-blue-50 p-3">
                       <p className="text-2xl font-bold text-blue-600">{selectedWorker.losasProducidas}</p>
@@ -532,7 +544,8 @@ export default function TrabajadoresPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </AdminShell>
   )
 }
 

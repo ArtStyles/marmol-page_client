@@ -1,16 +1,17 @@
 'use client'
 
 import React from "react"
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DataTable, type Column } from '@/components/data-table'
-import { StatCard } from '@/components/stat-card'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { bloquesYLotes as initialBloques } from '@/lib/data'
 import type { BloqueOLote } from '@/lib/types'
-import { Plus, Search, Boxes, DollarSign, Package, TrendingUp, Eye } from 'lucide-react'
+import { ADMIN_STORAGE_KEY, type AdminUser } from '@/lib/admin-auth'
+import { Plus, Search, Boxes, Eye, Edit, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -31,27 +32,110 @@ export default function BloquesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedBloque, setSelectedBloque] = useState<BloqueOLote | null>(null)
+  const [editingBloque, setEditingBloque] = useState<BloqueOLote | null>(null)
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
   const [formData, setFormData] = useState({
     nombre: '',
     tipo: 'Bloque' as 'Bloque' | 'Lote',
     costo: 0,
+    metrosComprados: 0,
     proveedor: ''
   })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+    if (!raw) return
+    try {
+      setCurrentUser(JSON.parse(raw) as AdminUser)
+    } catch {
+      window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    }
+  }, [])
+
+  const isAdmin = currentUser?.role === 'Administrador'
 
   const filteredBloques = bloques.filter(b => 
     b.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     b.proveedor.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  // EstadÃ­sticas
+  // Estadísticas
   const bloquesActivos = bloques.filter(b => b.estado === 'activo')
   const totalInversion = bloques.reduce((sum, b) => sum + b.costo, 0)
-  const totalGanancia = bloques.reduce((sum, b) => sum + b.gananciaReal, 0)
-  const totalLosasProducidas = bloques.reduce((sum, b) => sum + b.losasProducidas, 0)
-  const totalLosasPerdidas = bloques.reduce((sum, b) => sum + b.losasPerdidas, 0)
+  const totalMetrosComprados = bloques.reduce((sum, b) => sum + b.metrosComprados, 0)
+  const proveedores = new Set(bloques.map(b => b.proveedor)).size
+  const today = new Date().toISOString().split('T')[0]
+  const canModify = (fechaIngreso: string) => isAdmin || fechaIngreso === today
+  const recentBloques = [...bloques]
+    .sort((a, b) => b.fechaIngreso.localeCompare(a.fechaIngreso))
+    .slice(0, 3)
+
+  const rightPanel = (
+    <div className="space-y-4">
+      <AdminPanelCard title="Resumen bloques" meta={`${bloques.length} registros`}>
+        <div className="space-y-3 text-sm text-slate-700">
+          <div className="flex items-center justify-between">
+            <span>Activos</span>
+            <span className="font-semibold">{bloquesActivos.length}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Inversion total</span>
+            <span className="font-semibold">${totalInversion.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Metros comprados</span>
+            <span className="font-semibold">{totalMetrosComprados.toFixed(1)} m2</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Proveedores</span>
+            <span className="font-semibold">{proveedores}</span>
+          </div>
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Entradas recientes" meta="Ultimos registros">
+        <div className="space-y-2 text-sm text-slate-700">
+          {recentBloques.length === 0 ? (
+            <p className="text-xs text-slate-500">Sin registros recientes.</p>
+          ) : (
+            recentBloques.map((bloque) => (
+              <div key={bloque.id} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+                <div>
+                  <p className="text-xs font-semibold text-slate-900">{bloque.nombre}</p>
+                  <p className="text-[11px] text-slate-500">{bloque.fechaIngreso}</p>
+                </div>
+                <Badge variant="outline" className="text-[11px]">
+                  {bloque.tipo}
+                </Badge>
+              </div>
+            ))
+          )}
+        </div>
+      </AdminPanelCard>
+    </div>
+  )
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (editingBloque) {
+      if (!canModify(editingBloque.fechaIngreso)) return
+      setBloques(bloques.map(b => 
+        b.id === editingBloque.id
+          ? {
+              ...b,
+              nombre: formData.nombre,
+              tipo: formData.tipo,
+              costo: formData.costo,
+              metrosComprados: formData.metrosComprados,
+              proveedor: formData.proveedor,
+            } as BloqueOLote
+          : b
+      ))
+      resetForm()
+      return
+    }
 
     const newBloque: BloqueOLote = {
       id: formData.tipo === 'Bloque' 
@@ -60,6 +144,7 @@ export default function BloquesPage() {
       nombre: formData.nombre,
       tipo: formData.tipo,
       costo: formData.costo,
+      metrosComprados: formData.metrosComprados,
       fechaIngreso: new Date().toISOString().split('T')[0],
       proveedor: formData.proveedor,
       losasProducidas: 0,
@@ -73,19 +158,43 @@ export default function BloquesPage() {
     resetForm()
   }
 
-  const toggleEstado = (id: string) => {
+  const handleEdit = (bloque: BloqueOLote) => {
+    if (!canModify(bloque.fechaIngreso)) return
+    setEditingBloque(bloque)
+    setFormData({
+      nombre: bloque.nombre,
+      tipo: bloque.tipo,
+      costo: bloque.costo,
+      metrosComprados: bloque.metrosComprados,
+      proveedor: bloque.proveedor,
+    })
+    setIsDialogOpen(true)
+  }
+
+  const handleDelete = (bloque: BloqueOLote) => {
+    if (!canModify(bloque.fechaIngreso)) return
+    if (confirm('Eliminar este bloque/lote?')) {
+      setBloques(bloques.filter(b => b.id !== bloque.id))
+    }
+  }
+
+  const toggleEstado = (bloque: BloqueOLote) => {
+    if (!canModify(bloque.fechaIngreso)) return
+
     setBloques(bloques.map(b => 
-      b.id === id 
+      b.id === bloque.id 
         ? { ...b, estado: b.estado === 'activo' ? 'agotado' : 'activo' } as BloqueOLote
         : b
     ))
   }
 
   const resetForm = () => {
+    setEditingBloque(null)
     setFormData({
       nombre: '',
       tipo: 'Bloque',
       costo: 0,
+      metrosComprados: 0,
       proveedor: ''
     })
     setIsDialogOpen(false)
@@ -108,32 +217,13 @@ export default function BloquesPage() {
       header: 'Costo',
       render: (b) => `$${b.costo.toLocaleString()}`
     },
+    { 
+      key: 'metrosComprados', 
+      header: 'm2 Comprados',
+      render: (b) => `${b.metrosComprados.toFixed(1)} m2`
+    },
     { key: 'fechaIngreso', header: 'Ingreso' },
     { key: 'proveedor', header: 'Proveedor' },
-    { 
-      key: 'losasProducidas', 
-      header: 'Producidas',
-      render: (b) => <span className="text-green-600 font-medium">{b.losasProducidas} losas</span>
-    },
-    { 
-      key: 'losasPerdidas', 
-      header: 'Perdidas',
-      render: (b) => <span className="text-destructive font-medium">{b.losasPerdidas} losas</span>
-    },
-    { 
-      key: 'metrosVendibles', 
-      header: 'mÂ² Vendibles',
-      render: (b) => `${b.metrosVendibles.toFixed(1)} mÂ²`
-    },
-    { 
-      key: 'gananciaReal', 
-      header: 'Ganancia',
-      render: (b) => (
-        <span className={b.gananciaReal >= 0 ? 'text-green-600 font-bold' : 'text-destructive font-bold'}>
-          ${b.gananciaReal.toLocaleString()}
-        </span>
-      )
-    },
     { 
       key: 'estado', 
       header: 'Estado',
@@ -146,25 +236,50 @@ export default function BloquesPage() {
     {
       key: 'actions',
       header: 'Acciones',
-      render: (b) => (
-        <div className="flex gap-2">
-          <Button size="icon" variant="ghost" onClick={() => setSelectedBloque(b)}>
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button 
-            size="sm" 
-            variant="outline"
-            onClick={() => toggleEstado(b.id)}
-          >
-            {b.estado === 'activo' ? 'Agotar' : 'Reactivar'}
-          </Button>
-        </div>
-      )
+      render: (b) => {
+        const allowed = canModify(b.fechaIngreso)
+        const blockedTitle = 'Solo administrador despues del dia'
+        return (
+          <div className="flex flex-wrap gap-2">
+            <Button size="icon" variant="ghost" onClick={() => setSelectedBloque(b)} title="Ver detalle">
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => handleEdit(b)}
+              disabled={!allowed}
+              title={allowed ? 'Editar' : blockedTitle}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => handleDelete(b)}
+              disabled={!allowed}
+              title={allowed ? 'Eliminar' : blockedTitle}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => toggleEstado(b)}
+              disabled={!allowed}
+              title={allowed ? (b.estado === 'activo' ? 'Agotar' : 'Reactivar') : blockedTitle}
+            >
+              {b.estado === 'activo' ? 'Agotar' : 'Reactivar'}
+            </Button>
+          </div>
+        )
+      }
     }
   ]
 
   return (
-    <div className="space-y-8">
+    <AdminShell rightPanel={rightPanel}>
+      <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -172,7 +287,7 @@ export default function BloquesPage() {
             Bloques y Lotes
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Gestiona el origen de la materia prima y su rentabilidad
+            Gestiona el origen de la materia prima y sus entradas registradas
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -184,7 +299,7 @@ export default function BloquesPage() {
           </DialogTrigger>
           <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Registrar Nuevo Bloque/Lote</DialogTitle>
+              <DialogTitle>{editingBloque ? 'Editar Bloque/Lote' : 'Registrar Nuevo Bloque/Lote'}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -226,6 +341,17 @@ export default function BloquesPage() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label>Cantidad comprada (m2)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.metrosComprados}
+                    onChange={(e) => setFormData({ ...formData, metrosComprados: Number(e.target.value) })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label>Proveedor</Label>
                   <Input
                     value={formData.proveedor}
@@ -241,7 +367,7 @@ export default function BloquesPage() {
                   Cancelar
                 </Button>
                 <Button type="submit" className="flex-1">
-                  Registrar
+                  {editingBloque ? 'Guardar' : 'Registrar'}
                 </Button>
               </div>
             </form>
@@ -250,50 +376,21 @@ export default function BloquesPage() {
       </div>
 
       {/* Principio del sistema */}
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+      <div className="rounded-[24px] border border-sky-200/70 bg-sky-50/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-sm">
         <div className="flex items-start gap-3">
           <Boxes className="h-5 w-5 text-blue-600 mt-0.5" />
           <div>
             <h4 className="font-medium text-blue-800">Principio del Sistema</h4>
             <p className="text-sm text-blue-700">
-              Cada bloque o lote debe permitir saber: cuÃ¡nto costÃ³, cuÃ¡ntas losas produjo, 
-              cuÃ¡ntas se perdieron, cuÃ¡ntos metros vendibles generÃ³, y quÃ© ganancia real dejÃ³.
+              Cada bloque o lote registra su costo, metros comprados, proveedor y fecha de ingreso.
+              La produccion y las ganancias se consultan en los modulos correspondientes.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:pb-0">
-        <StatCard
-          title="Bloques/Lotes Activos"
-          value={bloquesActivos.length}
-          description={`de ${bloques.length} total`}
-          icon={<Boxes className="h-5 w-5" />}
-        />
-        <StatCard
-          title="InversiÃ³n Total"
-          value={`$${totalInversion.toLocaleString()}`}
-          description="en materia prima"
-          icon={<DollarSign className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Ganancia Real"
-          value={`$${totalGanancia.toLocaleString()}`}
-          description="despuÃ©s de pÃ©rdidas"
-          trend={{ value: Math.round((totalGanancia / totalInversion) * 100), isPositive: totalGanancia > 0 }}
-          icon={<TrendingUp className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Eficiencia"
-          value={`${Math.round((totalLosasProducidas / (totalLosasProducidas + totalLosasPerdidas)) * 100)}%`}
-          description={`${totalLosasProducidas} producidas / ${totalLosasPerdidas} perdidas`}
-          icon={<Package className="h-5 w-5" />}
-        />
-      </div>
-
       {/* Search */}
-      <div className="rounded-xl border border-border/50 bg-card/60 p-3">
+      <div className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-3 shadow-[var(--dash-shadow)] backdrop-blur-xl">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -337,57 +434,25 @@ export default function BloquesPage() {
                     <p className="font-medium">{selectedBloque.fechaIngreso}</p>
                   </div>
                   <div>
+                    <p className="text-muted-foreground">Cantidad comprada</p>
+                    <p className="font-medium">{selectedBloque.metrosComprados.toFixed(1)} m2</p>
+                  </div>
+                  <div>
                     <p className="text-muted-foreground">Proveedor</p>
                     <p className="font-medium">{selectedBloque.proveedor}</p>
                   </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">AnÃ¡lisis de Rentabilidad</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="rounded-lg bg-muted p-3">
-                      <p className="text-muted-foreground">Costo de AdquisiciÃ³n</p>
-                      <p className="text-xl font-bold">${selectedBloque.costo.toLocaleString()}</p>
-                    </div>
-                    <div className="rounded-lg bg-green-50 p-3">
-                      <p className="text-muted-foreground">Ganancia Real</p>
-                      <p className="text-xl font-bold text-green-600">${selectedBloque.gananciaReal.toLocaleString()}</p>
-                    </div>
+                  <div>
+                    <p className="text-muted-foreground">Costo</p>
+                    <p className="font-medium">${selectedBloque.costo.toLocaleString()}</p>
                   </div>
                 </div>
-
-                <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">ProducciÃ³n</h4>
-                  <div className="grid grid-cols-3 gap-4 text-sm text-center">
-                    <div className="rounded-lg bg-green-50 p-3">
-                      <p className="text-2xl font-bold text-green-600">{selectedBloque.losasProducidas}</p>
-                      <p className="text-xs text-muted-foreground">Losas Producidas</p>
-                    </div>
-                    <div className="rounded-lg bg-red-50 p-3">
-                      <p className="text-2xl font-bold text-destructive">{selectedBloque.losasPerdidas}</p>
-                      <p className="text-xs text-muted-foreground">Losas Perdidas</p>
-                    </div>
-                    <div className="rounded-lg bg-blue-50 p-3">
-                      <p className="text-2xl font-bold text-blue-600">{selectedBloque.metrosVendibles}</p>
-                      <p className="text-xs text-muted-foreground">mÂ² Vendibles</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Eficiencia del Bloque/Lote:</span>
-                    <span className="text-xl font-bold">
-                      {Math.round((selectedBloque.losasProducidas / (selectedBloque.losasProducidas + selectedBloque.losasPerdidas)) * 100) || 0}%
-                    </span>
-                  </div>
-                </div>
-              </div>
+            </div>
             </>
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </AdminShell>
   )
 }
 

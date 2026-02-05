@@ -1,24 +1,26 @@
 'use client'
 
 import React from "react"
-import { useState } from 'react'
-import { DataTable, type Column } from '@/components/data-table'
-import { StatCard } from '@/components/stat-card'
-import { Button } from '@/components/ui/button'
+import { useEffect, useState } from 'react'
+import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { 
   produccionDiaria as initialProduccion, 
   trabajadores, 
   bloquesYLotes,
   tiposProducto,
-  dimensiones,
-  acciones
+  dimensiones
 } from '@/lib/data'
 import type { ProduccionDiaria, AccionLosa, Dimension, TipoProducto } from '@/lib/types'
+import { losasAMetros } from '@/lib/types'
+import { ADMIN_STORAGE_KEY, type AdminUser } from '@/lib/admin-auth'
 import { useConfiguracion } from '@/hooks/use-configuracion'
-import { Plus, Search, Factory, DollarSign, Users } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
+
 import {
   Dialog,
   DialogContent,
@@ -34,20 +36,59 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+
+type AccionResumen = {
+  accion: AccionLosa
+  totalLosas: number
+  totalM2: number
+  totalPago: number
+  tipos: Set<TipoProducto>
+  dimensiones: Set<Dimension>
+}
+
+type ProduccionLoteGroup = {
+  origenId: string
+  origenNombre: string
+  acciones: Record<AccionLosa, AccionResumen>
+}
+
+type ProduccionWorkerGroup = {
+  trabajadorId: string
+  trabajadorNombre: string
+  lotes: ProduccionLoteGroup[]
+  resumenAcciones: Record<AccionLosa, { losas: number; m2: number; totalPago: number }>
+  totalPago: number
+}
+
 export default function ProduccionPage() {
   const { config } = useConfiguracion()
   const [produccion, setProduccion] = useState<ProduccionDiaria[]>(initialProduccion)
   const [searchTerm, setSearchTerm] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
+  const [formError, setFormError] = useState('')
   const [formData, setFormData] = useState({
     trabajadorId: '',
-    accion: 'picar' as AccionLosa,
     origenId: '',
     tipo: 'Piso' as TipoProducto,
     dimension: '60x40' as Dimension,
-    cantidadLosas: 1,
-    bono: 0
+    cantidadPicar: 0,
+    cantidadPulir: 0,
+    cantidadEscuadrar: 0
   })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+    if (!raw) return
+    try {
+      setCurrentUser(JSON.parse(raw) as AdminUser)
+    } catch {
+      window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    }
+  }, [])
+
+  const isAdmin = currentUser?.role === 'Administrador'
 
   const filteredProduccion = produccion.filter(p => 
     p.trabajadorNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -56,15 +97,37 @@ export default function ProduccionPage() {
   )
 
   // Estadísticas
-  const totalLosasHoy = produccion
-    .filter(p => p.fecha === new Date().toISOString().split('T')[0])
-    .reduce((sum, p) => sum + p.cantidadLosas, 0)
-  
-  const totalPagosHoy = produccion
-    .filter(p => p.fecha === new Date().toISOString().split('T')[0])
-    .reduce((sum, p) => sum + p.pagoFinal, 0)
-
+  const today = new Date().toISOString().split('T')[0]
+  const produccionHoy = produccion.filter(p => p.fecha === today)
+  const totalLosasHoy = produccionHoy.reduce((sum, p) => sum + p.cantidadLosas, 0)
+  const totalPagosHoy = produccionHoy.reduce((sum, p) => sum + p.pagoFinal, 0)
   const trabajadoresActivos = new Set(produccion.map(p => p.trabajadorId)).size
+  const resumenAcciones = produccionHoy.reduce<Record<AccionLosa, { losas: number; m2: number }>>(
+    (acc, p) => {
+      acc[p.accion].losas += p.cantidadLosas
+      acc[p.accion].m2 += losasAMetros(p.cantidadLosas, p.dimension)
+      return acc
+    },
+    {
+      picar: { losas: 0, m2: 0 },
+      pulir: { losas: 0, m2: 0 },
+      escuadrar: { losas: 0, m2: 0 },
+    },
+  )
+  const resumenTrabajadoresHoy = produccionHoy.reduce<Record<string, { nombre: string; losas: number; m2: number }>>(
+    (acc, item) => {
+      if (!acc[item.trabajadorId]) {
+        acc[item.trabajadorId] = { nombre: item.trabajadorNombre, losas: 0, m2: 0 }
+      }
+      acc[item.trabajadorId].losas += item.cantidadLosas
+      acc[item.trabajadorId].m2 += losasAMetros(item.cantidadLosas, item.dimension)
+      return acc
+    },
+    {},
+  )
+  const topTrabajadoresHoy = Object.values(resumenTrabajadoresHoy)
+    .sort((a, b) => b.m2 - a.m2)
+    .slice(0, 3)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -74,101 +137,197 @@ export default function ProduccionPage() {
     
     if (!trabajador || !origen) return
 
-    const pagoPorLosa = config.tarifasGlobales[formData.accion]
-    const pagoTotal = pagoPorLosa * formData.cantidadLosas
-    const pagoFinal = pagoTotal + formData.bono
+    const accionesRegistradas: Array<{ accion: AccionLosa; cantidad: number }> = [
+      { accion: 'picar', cantidad: formData.cantidadPicar },
+      { accion: 'pulir', cantidad: formData.cantidadPulir },
+      { accion: 'escuadrar', cantidad: formData.cantidadEscuadrar },
+    ].filter((item) => item.cantidad > 0)
 
-    const newProduccion: ProduccionDiaria = {
-      id: `PD${String(produccion.length + 1).padStart(3, '0')}`,
-      fecha: new Date().toISOString().split('T')[0],
-      trabajadorId: formData.trabajadorId,
-      trabajadorNombre: trabajador.nombre,
-      accion: formData.accion,
-      origenId: formData.origenId,
-      origenNombre: origen.nombre,
-      tipo: formData.tipo,
-      dimension: formData.dimension,
-      cantidadLosas: formData.cantidadLosas,
-      pagoPorLosa,
-      pagoTotal,
-      bono: formData.bono,
-      pagoFinal,
-      pagado: false
+    if (accionesRegistradas.length === 0) {
+      setFormError('Ingresa al menos una cantidad de losas.')
+      return
     }
 
-    setProduccion([newProduccion, ...produccion])
+    setFormError('')
+
+    const baseIndex = produccion.length + 1
+    const fecha = new Date().toISOString().split('T')[0]
+    const nuevasProducciones: ProduccionDiaria[] = accionesRegistradas.map((item, index) => {
+      const pagoPorLosa = config.tarifasGlobales[item.accion]
+      const pagoTotal = pagoPorLosa * item.cantidad
+
+      return {
+        id: `PD${String(baseIndex + index).padStart(3, '0')}`,
+        fecha,
+        trabajadorId: formData.trabajadorId,
+        trabajadorNombre: trabajador.nombre,
+        accion: item.accion,
+        origenId: formData.origenId,
+        origenNombre: origen.nombre,
+        tipo: formData.tipo,
+        dimension: formData.dimension,
+        cantidadLosas: item.cantidad,
+        pagoPorLosa,
+        pagoTotal,
+        bono: 0,
+        pagoFinal: pagoTotal,
+        pagado: false
+      }
+    })
+
+    setProduccion([...nuevasProducciones, ...produccion])
     resetForm()
   }
 
   const resetForm = () => {
     setFormData({
       trabajadorId: '',
-      accion: 'picar',
       origenId: '',
       tipo: 'Piso',
       dimension: '60x40',
-      cantidadLosas: 1,
-      bono: 0
+      cantidadPicar: 0,
+      cantidadPulir: 0,
+      cantidadEscuadrar: 0
     })
+    setFormError('')
     setIsDialogOpen(false)
   }
 
-  // Calcular pago en tiempo real
-  const pagoCalculado = config.tarifasGlobales[formData.accion] * formData.cantidadLosas
-  const pagoTotal = pagoCalculado + formData.bono
 
-  const columns: Column<ProduccionDiaria>[] = [
-    { key: 'fecha', header: 'Fecha' },
-    { key: 'trabajadorNombre', header: 'Trabajador' },
-    { 
-      key: 'accion', 
-      header: 'Acción',
-      render: (p) => {
-        const colors: Record<AccionLosa, string> = {
-          picar: 'bg-blue-100 text-blue-800',
-          pulir: 'bg-green-100 text-green-800',
-          escuadrar: 'bg-amber-100 text-amber-800'
-        }
-        return (
-          <Badge className={`capitalize ${colors[p.accion]}`}>
-            {p.accion}
-          </Badge>
-        )
+  const accionColors: Record<AccionLosa, string> = {
+    picar: 'bg-blue-100 text-blue-800',
+    pulir: 'bg-green-100 text-green-800',
+    escuadrar: 'bg-amber-100 text-amber-800'
+  }
+
+  const actionOrder: AccionLosa[] = ['picar', 'pulir', 'escuadrar']
+
+  const createResumenAcciones = () => ({
+    picar: { losas: 0, m2: 0, totalPago: 0 },
+    pulir: { losas: 0, m2: 0, totalPago: 0 },
+    escuadrar: { losas: 0, m2: 0, totalPago: 0 },
+  })
+
+  const createAccionResumen = (accion: AccionLosa): AccionResumen => ({
+    accion,
+    totalLosas: 0,
+    totalM2: 0,
+    totalPago: 0,
+    tipos: new Set<TipoProducto>(),
+    dimensiones: new Set<Dimension>(),
+  })
+
+  const groupedProduccion = filteredProduccion.reduce<ProduccionWorkerGroup[]>((acc, item) => {
+    let worker = acc.find((entry) => entry.trabajadorId === item.trabajadorId)
+    if (!worker) {
+      worker = {
+        trabajadorId: item.trabajadorId,
+        trabajadorNombre: item.trabajadorNombre,
+        lotes: [],
+        resumenAcciones: createResumenAcciones(),
+        totalPago: 0,
       }
-    },
-    { key: 'origenNombre', header: 'Bloque/Lote' },
-    { 
-      key: 'tipo', 
-      header: 'Tipo',
-      render: (p) => <Badge variant="outline">{p.tipo}</Badge>
-    },
-    { key: 'dimension', header: 'Dimensión' },
-    { 
-      key: 'cantidadLosas', 
-      header: 'Losas',
-      render: (p) => <span className="font-medium">{p.cantidadLosas}</span>
-    },
-    { 
-      key: 'pagoPorLosa', 
-      header: '$/Losa',
-      render: (p) => `$${p.pagoPorLosa}`
-    },
-    { 
-      key: 'bono', 
-      header: 'Bono',
-      render: (p) => p.bono > 0 ? <span className="text-green-600">+${p.bono}</span> : '-'
-    },
-    { 
-      key: 'pagoFinal', 
-      header: 'Total',
-      render: (p) => <span className="font-bold text-primary">${p.pagoFinal.toLocaleString()}</span>
-    },
-  ]
+      acc.push(worker)
+    }
+
+    const m2 = losasAMetros(item.cantidadLosas, item.dimension)
+    worker.resumenAcciones[item.accion].losas += item.cantidadLosas
+    worker.resumenAcciones[item.accion].m2 += m2
+    worker.resumenAcciones[item.accion].totalPago += item.pagoFinal
+    worker.totalPago += item.pagoFinal
+
+    let lote = worker.lotes.find((entry) => entry.origenId === item.origenId)
+    if (!lote) {
+      lote = {
+        origenId: item.origenId,
+        origenNombre: item.origenNombre,
+        acciones: {
+          picar: createAccionResumen('picar'),
+          pulir: createAccionResumen('pulir'),
+          escuadrar: createAccionResumen('escuadrar'),
+        },
+      }
+      worker.lotes.push(lote)
+    }
+
+    const accionResumen = lote.acciones[item.accion]
+    accionResumen.totalLosas += item.cantidadLosas
+    accionResumen.totalM2 += m2
+    accionResumen.totalPago += item.pagoFinal
+    accionResumen.tipos.add(item.tipo)
+    accionResumen.dimensiones.add(item.dimension)
+
+    return acc
+  }, [])
+
+  const rightPanel = (
+    <div className="space-y-4">
+      <AdminPanelCard title="Resumen diario" meta={today}>
+        <div className="space-y-3 text-sm text-slate-700">
+          <div className="flex items-center justify-between">
+            <span>Losas hoy</span>
+            <span className="font-semibold">{totalLosasHoy}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>m2 hoy</span>
+            <span className="font-semibold">
+              {produccionHoy.reduce((sum, p) => sum + losasAMetros(p.cantidadLosas, p.dimension), 0).toFixed(2)} m2
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Trabajadores</span>
+            <span className="font-semibold">{trabajadoresActivos}</span>
+          </div>
+          {isAdmin && (
+            <div className="flex items-center justify-between">
+              <span>Pagos hoy</span>
+              <span className="font-semibold">${totalPagosHoy.toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Acciones hoy" meta="Resumen por accion">
+        <div className="space-y-2 text-sm text-slate-700">
+          {actionOrder.map((accion) => (
+            <div key={accion} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+              <span className="capitalize">{accion}</span>
+              <div className="text-right">
+                <p className="text-[11px] text-slate-500">{resumenAcciones[accion].losas} losas</p>
+                <p className="text-xs font-semibold text-slate-900">
+                  {resumenAcciones[accion].m2.toFixed(2)} m2
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Top trabajadores" meta="Hoy">
+        <div className="space-y-2 text-sm text-slate-700">
+          {topTrabajadoresHoy.length === 0 ? (
+            <p className="text-xs text-slate-500">Sin produccion registrada hoy.</p>
+          ) : (
+            topTrabajadoresHoy.map((item) => (
+              <div key={item.nombre} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+                <div>
+                  <p className="text-xs font-semibold text-slate-900">{item.nombre}</p>
+                  <p className="text-[11px] text-slate-500">{item.losas} losas</p>
+                </div>
+                <span className="text-xs font-semibold text-emerald-700">{item.m2.toFixed(2)} m2</span>
+              </div>
+            ))
+          )}
+        </div>
+      </AdminPanelCard>
+    </div>
+  )
 
   return (
-    <div className="space-y-8">
+    <AdminShell rightPanel={rightPanel}>
+      <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-serif text-3xl font-bold text-foreground">
             Producción Diaria
@@ -202,24 +361,6 @@ export default function ProduccionPage() {
                     <SelectContent>
                       {trabajadores.filter(t => t.estado === 'activo').map((t) => (
                         <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Acción</Label>
-                  <Select 
-                    value={formData.accion} 
-                    onValueChange={(value: AccionLosa) => setFormData({ ...formData, accion: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {acciones.map((a) => (
-                        <SelectItem key={a} value={a} className="capitalize">
-                          {a} - ${config.tarifasGlobales[a as AccionLosa]}/losa
-                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -279,44 +420,43 @@ export default function ProduccionPage() {
                   </Select>
                 </div>
               </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Cantidad de Losas</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={formData.cantidadLosas}
-                    onChange={(e) => setFormData({ ...formData, cantidadLosas: Number(e.target.value) })}
-                    required
-                  />
+              <div className="space-y-2">
+                <Label>Producción por acción</Label>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>Losas Picadas</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={formData.cantidadPicar}
+                      onChange={(e) => setFormData({ ...formData, cantidadPicar: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Losas Pulidas</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={formData.cantidadPulir}
+                      onChange={(e) => setFormData({ ...formData, cantidadPulir: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Losas Escuadradas</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={formData.cantidadEscuadrar}
+                      onChange={(e) => setFormData({ ...formData, cantidadEscuadrar: Number(e.target.value) })}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Bono Extra (opcional)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={formData.bono}
-                    onChange={(e) => setFormData({ ...formData, bono: Number(e.target.value) })}
-                    placeholder="0"
-                  />
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  Ingresa 0 si no hubo producción en alguna acción.
+                </p>
               </div>
 
-              {/* Cálculo en tiempo real */}
-              <div className="rounded-lg bg-muted p-4 space-y-2">
-                <h4 className="font-medium">Resumen de Pago</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Tarifa por losa:</span>
-                  <span className="text-right">${config.tarifasGlobales[formData.accion]}</span>
-                  <span className="text-muted-foreground">Losas x Tarifa:</span>
-                  <span className="text-right">{formData.cantidadLosas} x ${config.tarifasGlobales[formData.accion]} = ${pagoCalculado}</span>
-                  <span className="text-muted-foreground">Bono:</span>
-                  <span className="text-right text-green-600">+${formData.bono}</span>
-                  <span className="font-medium">Total a pagar:</span>
-                  <span className="text-right font-bold text-primary">${pagoTotal.toLocaleString()}</span>
-                </div>
-              </div>
+              {formError && <p className="text-sm text-destructive">{formError}</p>}
 
               <div className="flex gap-2 pt-4">
                 <Button type="button" variant="outline" onClick={resetForm} className="flex-1 bg-transparent">
@@ -332,9 +472,9 @@ export default function ProduccionPage() {
       </div>
 
       {/* Tarifas Info */}
-      <div className="rounded-lg border bg-card p-4">
-        <h3 className="font-medium mb-3">Tarifas por Acción (por losa)</h3>
-        <div className="flex flex-wrap gap-4">
+      <div className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <h3 className="mb-2 font-medium">Tarifas por Acción (por losa)</h3>
+        <div className="flex flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <Badge className="bg-blue-100 text-blue-800">Picar</Badge>
             <span className="font-bold">${config.tarifasGlobales.picar}</span>
@@ -350,30 +490,8 @@ export default function ProduccionPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
-        <StatCard
-          title="Losas Producidas Hoy"
-          value={totalLosasHoy}
-          description="losas procesadas"
-          icon={<Factory className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Pagos Generados Hoy"
-          value={`$${totalPagosHoy.toLocaleString()}`}
-          description="en pagos a trabajadores"
-          icon={<DollarSign className="h-5 w-5" />}
-        />
-        <StatCard
-          title="Trabajadores Activos"
-          value={trabajadoresActivos}
-          description="han trabajado recientemente"
-          icon={<Users className="h-5 w-5" />}
-        />
-      </div>
-
       {/* Search */}
-      <div className="rounded-xl border border-border/50 bg-card/60 p-3">
+      <div className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-3 shadow-[var(--dash-shadow)] backdrop-blur-xl">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -385,13 +503,139 @@ export default function ProduccionPage() {
         </div>
       </div>
 
-      {/* Table */}
-      <DataTable
-        data={filteredProduccion}
-        columns={columns}
-        emptyMessage="No hay registros de producción"
-      />
-    </div>
+      {/* Produccion */}
+      <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] py-0 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <CardContent className="pb-4 pt-4">
+          {groupedProduccion.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+              No hay registros de produccion
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {groupedProduccion.map((worker) => (
+                <div
+                  key={worker.trabajadorId}
+                  className="rounded-[22px] border border-[var(--dash-border)] bg-white/80 p-4 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.22)] backdrop-blur-xl"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Trabajador</p>
+                      <p className="text-base font-semibold text-slate-900">{worker.trabajadorNombre}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <div className="rounded-xl border border-white/80 bg-white/70 px-2.5 py-1.5">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Picadas</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {worker.resumenAcciones.picar.losas}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/80 bg-white/70 px-2.5 py-1.5">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Pulidas</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {worker.resumenAcciones.pulir.losas}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/80 bg-white/70 px-2.5 py-1.5">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Escuadradas</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {worker.resumenAcciones.escuadrar.losas}
+                        </p>
+                      </div>
+                      {isAdmin && (
+                        <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 px-2.5 py-1.5 text-emerald-700">
+                          <p className="text-[10px] uppercase tracking-[0.2em]">Total</p>
+                          <p className="text-sm font-semibold">
+                            ${worker.totalPago.toLocaleString()}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-4">
+                    {worker.lotes.map((lote) => (
+                      <div key={`${worker.trabajadorId}-${lote.origenId}`} className="space-y-2">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">
+                            Bloque/Lote
+                          </p>
+                          <p className="text-sm font-semibold text-slate-900">{lote.origenNombre}</p>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/70 bg-white/70">
+                          <div className="divide-y divide-white/60">
+                            {actionOrder.map((accion) => {
+                              const resumen = lote.acciones[accion]
+                              if (!resumen || resumen.totalLosas === 0) return null
+                              const tipoList = Array.from(resumen.tipos)
+                              const dimensionList = Array.from(resumen.dimensiones)
+                              const tipoLabel = tipoList.length === 1 ? tipoList[0] : 'Mixto'
+                              const dimensionLabel = dimensionList.length === 1 ? dimensionList[0] : 'Mixto'
+                              const promedioPago =
+                                resumen.totalLosas > 0 ? resumen.totalPago / resumen.totalLosas : 0
+
+                              return (
+                                <div key={`${lote.origenId}-${accion}`} className="px-3 py-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <Badge className={`capitalize ${accionColors[accion]}`}>{accion}</Badge>
+                                      <span className="text-[11px] text-slate-500">
+                                        {tipoLabel} / {dimensionLabel}
+                                      </span>
+                                    </div>
+                                    {isAdmin && (
+                                      <div className="text-sm font-semibold text-emerald-700">
+                                        ${resumen.totalPago.toLocaleString()}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                                        Losas
+                                      </p>
+                                      <p className="font-medium text-slate-900">{resumen.totalLosas}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                                        M2
+                                      </p>
+                                      <p className="text-slate-900">{resumen.totalM2.toFixed(2)} m2</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                                        Prom. $/Losa
+                                      </p>
+                                      <p className="text-slate-900">${promedioPago.toFixed(0)}</p>
+                                    </div>
+                                    {isAdmin && (
+                                      <div>
+                                        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                                          Total
+                                        </p>
+                                        <p className="font-semibold text-emerald-700">
+                                          ${resumen.totalPago.toLocaleString()}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      </div>
+    </AdminShell>
   )
 }
 
