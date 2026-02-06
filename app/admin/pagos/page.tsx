@@ -226,10 +226,10 @@ export default function PagosPage() {
       <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="font-serif text-3xl font-bold text-foreground">
+        <h1 className="text-3xl font-bold text-foreground font-sans">
           Pagos a Trabajadores
         </h1>
-        <p className="mt-1 text-muted-foreground">
+        <p className="mt-1 text-muted-foreground font-sans">
           Sistema de pagos con acumulación. Los pagos se realizan en cualquier momento y quedan registrados.
         </p>
       </div>

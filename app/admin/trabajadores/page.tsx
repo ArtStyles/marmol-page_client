@@ -390,10 +390,10 @@ export default function TrabajadoresPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-foreground">
+          <h1 className="text-3xl font-bold text-foreground font-sans">
             Trabajadores
           </h1>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-1 text-muted-foreground font-sans">
             Gestiona el equipo de trabajo
           </p>
         </div>

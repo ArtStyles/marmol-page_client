@@ -269,8 +269,8 @@ export default function CatalogoAdminPage() {
       <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-foreground">Catálogo landing</h1>
-          <p className="mt-1 text-muted-foreground">
+          <h1 className="text-3xl font-bold text-foreground font-sans">Catálogo landing</h1>
+          <p className="mt-1 text-muted-foreground font-sans">
             Administra la seleccion que se muestra en el catalogo del landing. Datos mock por ahora.
           </p>
         </div>

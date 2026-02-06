@@ -300,10 +300,10 @@ export default function ProduccionPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-foreground">
+          <h1 className="text-3xl font-bold text-foreground font-sans">
             Producción Diaria
           </h1>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-1 text-muted-foreground font-sans">
             Registra las losas picadas, pulidas y escuadradas por cada trabajador
           </p>
         </div>

@@ -33,7 +33,7 @@ export function DataTable<T extends { id: string }>({
   }
 
   return (
-    <Card className="overflow-hidden rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] py-0 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+    <Card className="overflow-hidden rounded-[24px] border border-white/60 bg-white/70 py-0 shadow-[var(--dash-shadow)] backdrop-blur-xl">
       {title && (
         <CardHeader className="border-b border-white/60 pb-4">
           <CardTitle className="text-lg font-semibold text-slate-900">{title}</CardTitle>
@@ -49,7 +49,7 @@ export function DataTable<T extends { id: string }>({
             {data.map((item) => (
               <div
                 key={item.id}
-                className="relative rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] backdrop-blur-xl"
+                className="relative rounded-[22px] border border-white/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.28)] backdrop-blur-xl"
               >
                 <div className="space-y-2.5">
                   {columns.map((column) => {

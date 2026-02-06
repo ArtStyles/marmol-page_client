@@ -269,10 +269,10 @@ export default function InventarioPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-foreground">
+          <h1 className="text-3xl font-bold text-foreground font-sans">
             Inventario
           </h1>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-1 text-muted-foreground font-sans">
             Material disponible para vender. Se alimenta desde producción y se descuenta desde ventas.
           </p>
         </div>
