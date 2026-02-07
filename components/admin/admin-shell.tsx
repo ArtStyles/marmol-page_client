@@ -10,10 +10,12 @@ import {
   ClipboardList,
   DollarSign,
   Factory,
+  FileText,
   LayoutDashboard,
   LayoutGrid,
   Package,
   Settings,
+  TrendingUp,
   Users,
   Wallet,
 } from 'lucide-react'
@@ -22,7 +24,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/admin/admin-button'
 import { Meteors } from '@/components/ui/meteors'
 import { cn } from '@/lib/utils'
-import { ADMIN_STORAGE_KEY, type AdminUser } from '@/lib/admin-auth'
+import {
+  ADMIN_STORAGE_KEY,
+  getAccessForRole,
+  isPathAllowed,
+  type AdminUser,
+} from '@/lib/admin-auth'
+import { WORKSHOP_STORAGE_KEY } from '@/lib/workshops'
 import {
   bloquesYLotes,
   historialPagos,
@@ -107,6 +115,18 @@ function buildDefaultNav(): AdminNavItem[] {
       icon: DollarSign,
     },
     {
+      href: '/admin/finanzas',
+      label: 'Finanzas',
+      helper: 'Balance',
+      icon: TrendingUp,
+    },
+    {
+      href: '/admin/contabilidad',
+      label: 'Contabilidad',
+      helper: 'Reportes',
+      icon: FileText,
+    },
+    {
       href: '/admin/bloques',
       label: 'Materia prima',
       helper: `${bloquesActivos} activos`,
@@ -171,22 +191,36 @@ export function AdminPanelCard({ title, meta, badge, className, children }: Admi
 export function AdminShell({ children, rightPanel, navItems }: AdminShellProps) {
   const pathname = usePathname()
   const items = navItems ?? buildDefaultNav()
-  const [sessionUser, setSessionUser] = useState<AdminUser | null>(null)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
+  const readSessionUser = () => {
+    if (typeof window === 'undefined') return null
     const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
-    if (!raw) return
+    if (!raw) return null
     try {
-      setSessionUser(JSON.parse(raw) as AdminUser)
+      return JSON.parse(raw) as AdminUser
     } catch {
       window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+      return null
     }
-  }, [])
+  }
+  const [sessionUser, setSessionUser] = useState<AdminUser | null>(() => readSessionUser())
+
+  useEffect(() => {
+    if (sessionUser) return
+    const stored = readSessionUser()
+    if (stored) {
+      setSessionUser(stored)
+    }
+  }, [sessionUser])
+
+  const access = sessionUser ? getAccessForRole(sessionUser.role) : null
+  const filteredItems = access
+    ? items.filter((item) => isPathAllowed(item.href, access))
+    : []
 
   const handleLogout = () => {
     if (typeof window === 'undefined') return
     window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
     window.location.assign('/admin')
   }
 
@@ -213,7 +247,7 @@ export function AdminShell({ children, rightPanel, navItems }: AdminShellProps) 
                   </Badge>
                 </div>
                 <div className="mt-3 space-y-1.5">
-                  {items.map((item) => {
+                  {filteredItems.map((item) => {
                     const Icon = item.icon
                     const isActive =
                       item.href === '/admin'
@@ -294,7 +328,7 @@ export function AdminShell({ children, rightPanel, navItems }: AdminShellProps) 
         <nav className="fixed inset-x-4 bottom-4 z-40 lg:hidden">
           <div className="rounded-[22px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-2 shadow-[var(--dash-shadow)] backdrop-blur-xl">
             <div className="scrollbar-hidden flex items-center gap-2 overflow-x-auto px-1">
-              {items.map((item) => {
+              {filteredItems.map((item) => {
                 const Icon = item.icon
                 const isActive =
                   item.href === '/admin'

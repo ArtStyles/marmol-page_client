@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/admin/admin-button'
+import { AdminWorkshopSelector } from '@/components/admin/workshop-selector'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,6 +18,14 @@ import {
   isPathAllowed,
   type AdminUser,
 } from '@/lib/admin-auth'
+import {
+  WORKSHOP_STORAGE_KEY,
+  MOCK_WORKSHOPS,
+  createMockWorkshop,
+  getAssignedWorkshopId,
+  type WorkshopCreateInput,
+  type WorkshopTenant,
+} from '@/lib/workshops'
 
 export default function AdminLayout({
   children,
@@ -28,6 +37,8 @@ export default function AdminLayout({
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [selectedWorkshopId, setSelectedWorkshopId] = useState<string | null>(null)
+  const [workshops, setWorkshops] = useState<WorkshopTenant[]>(MOCK_WORKSHOPS)
   const pathname = usePathname()
   const router = useRouter()
 
@@ -40,6 +51,10 @@ export default function AdminLayout({
       } catch {
         window.localStorage.removeItem(ADMIN_STORAGE_KEY)
       }
+    }
+    const storedWorkshop = window.localStorage.getItem(WORKSHOP_STORAGE_KEY)
+    if (storedWorkshop) {
+      setSelectedWorkshopId(storedWorkshop)
     }
     setIsReady(true)
   }, [])
@@ -58,11 +73,74 @@ export default function AdminLayout({
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(user))
     }
+    if (user.role === 'Super Admin') {
+      setSelectedWorkshopId(null)
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
+      }
+    }
     const nextAccess = getAccessForRole(user.role)
     if (!isPathAllowed(pathname, nextAccess)) {
       router.replace(nextAccess.home)
     }
   }
+
+  const handleLogout = () => {
+    setAuthUser(null)
+    setSelectedWorkshopId(null)
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+      window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
+    }
+  }
+
+  const handleSelectWorkshop = (workshopId: string) => {
+    setSelectedWorkshopId(workshopId)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(WORKSHOP_STORAGE_KEY, workshopId)
+    }
+  }
+
+  const handleCreateWorkshop = (input: WorkshopCreateInput) => {
+    const nextId = workshops.length + 1
+    const newWorkshop = createMockWorkshop(input, nextId)
+    setWorkshops((prev) => [newWorkshop, ...prev])
+    handleSelectWorkshop(newWorkshop.id)
+  }
+
+  const handleToggleWorkshopStatus = (workshopId: string) => {
+    setWorkshops((prev) =>
+      prev.map((workshop) => {
+        if (workshop.id !== workshopId) return workshop
+        const nextStatus = workshop.estado === 'activo' ? 'pausado' : 'activo'
+        return { ...workshop, estado: nextStatus }
+      }),
+    )
+  }
+
+  const handleDeleteWorkshop = (workshopId: string) => {
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm('Deseas eliminar este taller? Esta accion no se puede deshacer.')
+      if (!confirmed) return
+    }
+    setWorkshops((prev) => prev.filter((workshop) => workshop.id !== workshopId))
+    if (selectedWorkshopId === workshopId) {
+      setSelectedWorkshopId(null)
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (!authUser) return
+    if (authUser.role === 'Super Admin') return
+    const assigned = getAssignedWorkshopId(authUser.id, workshops)
+    if (!assigned) return
+    if (assigned !== selectedWorkshopId) {
+      handleSelectWorkshop(assigned)
+    }
+  }, [authUser, selectedWorkshopId, workshops])
 
   if (!isReady) {
     return <div className="min-h-screen bg-background" />
@@ -151,29 +229,43 @@ export default function AdminLayout({
   }
 
   const isAllowed = access ? isPathAllowed(pathname, access) : false
+  const needsWorkshopSelection =
+    authUser.role === 'Super Admin' && !selectedWorkshopId
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="min-h-screen  ">
-        <div className="">
-          {isAllowed ? (
-            children
-          ) : (
-            <div className="bg-card p-6">
-              <p className="text-sm font-semibold text-foreground">Sin acceso a esta seccion.</p>
-              {access && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Tu rol ({access.label}) solo puede gestionar su area asignada.
-                </p>
-              )}
-              {access && (
-                <Button asChild className="mt-4">
-                  <Link href={access.home}>Ir a tu panel</Link>
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
+      <main className="min-h-screen">
+        {needsWorkshopSelection ? (
+          <AdminWorkshopSelector
+            user={authUser}
+            workshops={workshops}
+            onSelect={handleSelectWorkshop}
+            onCreate={handleCreateWorkshop}
+            onToggleStatus={handleToggleWorkshopStatus}
+            onDelete={handleDeleteWorkshop}
+            onLogout={handleLogout}
+          />
+        ) : (
+          <div className="">
+            {isAllowed ? (
+              children
+            ) : (
+              <div className="bg-card p-6">
+                <p className="text-sm font-semibold text-foreground">Sin acceso a esta seccion.</p>
+                {access && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Tu rol ({access.label}) solo puede gestionar su area asignada.
+                  </p>
+                )}
+                {access && (
+                  <Button asChild className="mt-4">
+                    <Link href={access.home}>Ir a tu panel</Link>
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </main>
     </div>
   )

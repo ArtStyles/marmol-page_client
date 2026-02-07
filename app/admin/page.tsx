@@ -2,9 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { productos, ventas, trabajadores, produccionDiaria, mermas, bloquesYLotes } from '@/lib/data'
+import {
+  ADMIN_STORAGE_KEY,
+  getAccessForRole,
+  isPathAllowed,
+  type AdminUser,
+} from '@/lib/admin-auth'
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -12,14 +19,17 @@ import {
   ClipboardList,
   DollarSign,
   Factory,
+  FileText,
   LayoutDashboard,
   Package,
   Users,
+  TrendingUp,
 } from 'lucide-react'
 import { losasAMetros } from '@/lib/types'
 
 export default function AdminDashboard() {
   const pathname = usePathname()
+  const [sessionUser, setSessionUser] = useState<AdminUser | null>(null)
   const totalLosasInventario = productos.reduce((sum, p) => sum + p.cantidadLosas, 0)
   const totalM2Inventario = productos.reduce((sum, p) => sum + p.metrosCuadrados, 0)
 
@@ -82,6 +92,18 @@ export default function AdminDashboard() {
       icon: DollarSign,
     },
     {
+      href: '/admin/finanzas',
+      label: 'Finanzas',
+      helper: 'Balance y utilidades',
+      icon: TrendingUp,
+    },
+    {
+      href: '/admin/contabilidad',
+      label: 'Contabilidad',
+      helper: 'Reportes',
+      icon: FileText,
+    },
+    {
       href: '/admin/bloques',
       label: 'Materia prima',
       helper: `${bloquesActivos} activos`,
@@ -107,10 +129,27 @@ export default function AdminDashboard() {
     },
   ]
 
-  const mobileNavItems = [
-    { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-    ...navItems,
-  ]
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+    if (!raw) return
+    try {
+      setSessionUser(JSON.parse(raw) as AdminUser)
+    } catch {
+      window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    }
+  }, [])
+
+  const access = sessionUser ? getAccessForRole(sessionUser.role) : null
+  const filteredNavItems = access
+    ? navItems.filter((item) => isPathAllowed(item.href, access))
+    : navItems
+
+  const mobileNavItems = access
+    ? [{ href: '/admin', label: 'Dashboard', icon: LayoutDashboard }, ...filteredNavItems].filter(
+        (item) => isPathAllowed(item.href, access),
+      )
+    : [{ href: '/admin', label: 'Dashboard', icon: LayoutDashboard }, ...navItems]
 
   const moduleCards = [
     {
@@ -186,7 +225,7 @@ export default function AdminDashboard() {
                 <span className="text-[11px] text-slate-500">{fechaUltima}</span>
               </div>
               <div className="mt-4 space-y-2">
-                {navItems.map((item) => {
+                {filteredNavItems.map((item) => {
                   const Icon = item.icon
                   return (
                     <Link

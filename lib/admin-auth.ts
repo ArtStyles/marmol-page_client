@@ -1,5 +1,7 @@
 export type AdminRole =
+  | 'Super Admin'
   | 'Administrador'
+  | 'Contadora'
   | 'Gestor de Ventas'
   | 'Jefe de Turno de Producción'
 
@@ -26,6 +28,16 @@ export const MOCK_ADMIN_USERS: Array<{
   user: AdminUser
 }> = [
   {
+    email: 'superadmin@marmol.local',
+    password: 'super123',
+    user: {
+      id: 'SUP-001',
+      name: 'Super Admin',
+      email: 'superadmin@marmol.local',
+      role: 'Super Admin',
+    },
+  },
+  {
     email: 'admin@marmol.local',
     password: 'admin123',
     user: {
@@ -33,6 +45,16 @@ export const MOCK_ADMIN_USERS: Array<{
       name: 'Admin Principal',
       email: 'admin@marmol.local',
       role: 'Administrador',
+    },
+  },
+  {
+    email: 'contadora@marmol.local',
+    password: 'conta123',
+    user: {
+      id: 'CONT-001',
+      name: 'Contadora General',
+      email: 'contadora@marmol.local',
+      role: 'Contadora',
     },
   },
   {
@@ -58,6 +80,27 @@ export const MOCK_ADMIN_USERS: Array<{
 ]
 
 const ROLE_ACCESS: Record<AdminRole, AdminAccess> = {
+  'Super Admin': {
+    role: 'Super Admin',
+    label: 'Super Admin',
+    home: '/admin',
+    routes: [
+      '/admin',
+      '/admin/inventario',
+      '/admin/produccion',
+      '/admin/ventas',
+      '/admin/finanzas',
+      '/admin/contabilidad',
+      '/admin/bloques',
+      '/admin/mermas',
+      '/admin/catalogo',
+      '/admin/historial',
+      '/admin/trabajadores',
+      '/admin/pagos',
+      '/admin/configuracion',
+    ],
+    canManageWorkers: true,
+  },
   Administrador: {
     role: 'Administrador',
     label: 'Administrador',
@@ -65,13 +108,24 @@ const ROLE_ACCESS: Record<AdminRole, AdminAccess> = {
     routes: [
       '/admin',
       '/admin/inventario',
+      '/admin/produccion',
+      '/admin/ventas',
+      '/admin/contabilidad',
       '/admin/bloques',
+      '/admin/mermas',
       '/admin/catalogo',
-      '/admin/historial',
       '/admin/trabajadores',
+      '/admin/pagos',
       '/admin/configuracion',
     ],
     canManageWorkers: true,
+  },
+  Contadora: {
+    role: 'Contadora',
+    label: 'Contabilidad',
+    home: '/admin/contabilidad',
+    routes: ['/admin/contabilidad'],
+    canManageWorkers: false,
   },
   'Gestor de Ventas': {
     role: 'Gestor de Ventas',

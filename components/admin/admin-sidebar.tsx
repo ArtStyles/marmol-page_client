@@ -19,6 +19,8 @@ import {
   ChevronRight,
   MoreHorizontal,
   ClipboardList,
+  TrendingUp,
+  FileText,
 } from 'lucide-react'
 import { Button } from '@/components/admin/admin-button'
 import { Badge } from '@/components/ui/badge'
@@ -28,6 +30,8 @@ const primaryNavItems = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { label: 'Inventario', href: '/admin/inventario', icon: Package },
   { label: 'Ventas', href: '/admin/ventas', icon: ShoppingCart },
+  { label: 'Finanzas', href: '/admin/finanzas', icon: TrendingUp },
+  { label: 'Contabilidad', href: '/admin/contabilidad', icon: FileText },
   { label: 'Catalogo', href: '/admin/catalogo', icon: LayoutGrid },
 ]
 
