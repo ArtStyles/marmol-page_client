@@ -37,12 +37,12 @@ import {
   logsSistema,
   mermas,
   produccionDiaria,
+  produccionTrabajadores,
   productos,
   trabajadores,
   ventas,
 } from '@/lib/data'
 import { catalogoItems } from '@/lib/catalogo-data'
-import { losasAMetros } from '@/lib/types'
 
 type AdminNavItem = {
   href: string
@@ -81,13 +81,21 @@ function buildDefaultNav(): AdminNavItem[] {
   const bloquesActivos = bloquesYLotes.filter((b) => b.estado === 'activo').length
   const activeWorkers = trabajadores.filter((w) => w.estado === 'activo').length
   const produccionPorFecha = produccionDiaria.reduce<Record<string, number>>((acc, registro) => {
-    acc[registro.fecha] =
-      (acc[registro.fecha] ?? 0) + losasAMetros(registro.cantidadLosas, registro.dimension)
+    acc[registro.fecha] = (acc[registro.fecha] ?? 0) + registro.totalM2
+    return acc
+  }, {})
+  const asignacionesPorFecha = produccionTrabajadores.reduce<Record<string, number>>((acc, registro) => {
+    acc[registro.fecha] = (acc[registro.fecha] ?? 0) + 1
     return acc
   }, {})
   const fechasOrdenadas = Object.keys(produccionPorFecha).sort()
+  const fechasAsignaciones = Object.keys(asignacionesPorFecha).sort()
   const fechaUltima = fechasOrdenadas[fechasOrdenadas.length - 1]
+  const fechaUltimaAsignacion = fechasAsignaciones[fechasAsignaciones.length - 1]
   const totalM2Hoy = fechaUltima ? (produccionPorFecha[fechaUltima] ?? 0) : 0
+  const totalAsignacionesHoy = fechaUltimaAsignacion
+    ? (asignacionesPorFecha[fechaUltimaAsignacion] ?? 0)
+    : 0
 
   return [
     {
@@ -107,6 +115,12 @@ function buildDefaultNav(): AdminNavItem[] {
       label: 'Produccion',
       helper: `${totalM2Hoy.toFixed(1)} m2 hoy`,
       icon: Factory,
+    },
+    {
+      href: '/admin/asignaciones',
+      label: 'Asignaciones',
+      helper: `${totalAsignacionesHoy} hoy`,
+      icon: Users,
     },
     {
       href: '/admin/ventas',

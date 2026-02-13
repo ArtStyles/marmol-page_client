@@ -2,8 +2,7 @@
 
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Badge } from '@/components/ui/badge'
-import { bloquesYLotes, mermas, produccionDiaria, ventas } from '@/lib/data'
-import { losasAMetros } from '@/lib/types'
+import { bloquesYLotes, mermas, produccionDiaria, produccionTrabajadores, ventas } from '@/lib/data'
 import { ArrowUpRight, DollarSign, TrendingUp, Wallet } from 'lucide-react'
 
 export default function FinanzasPage() {
@@ -14,29 +13,40 @@ export default function FinanzasPage() {
     0,
   )
   const ingresosOperativos = totalSubtotal - totalDescuentos
-  const totalFondosOperativos = ventasCompletadas.reduce(
-    (sum, venta) => sum + (venta.fondoOperativo ?? 0),
-    0,
-  )
   const ingresosTotales = ventasCompletadas.reduce((sum, venta) => sum + venta.total, 0)
   const totalMetrosVendidos = ventasCompletadas.reduce((sum, venta) => sum + venta.cantidadM2, 0)
+
+  const PORC_GASTO_TRANSPORTE = 0.04
+  const PORC_GASTO_CORRIENTE = 0.06
+  const PORC_MANTENIMIENTO_EQUIPOS = 0.12
+  const PORC_REINVERSION = 0.4
+  const PORC_PAGO_DIRECTIVOS = 0.6
 
   const totalCostoBloques = bloquesYLotes.reduce((sum, bloque) => sum + bloque.costo, 0)
   const totalMetrosComprados = bloquesYLotes.reduce((sum, bloque) => sum + bloque.metrosComprados, 0)
   const costoMaterialM2 = totalMetrosComprados ? totalCostoBloques / totalMetrosComprados : 0
   const costoMaterialEstimado = totalMetrosVendidos * costoMaterialM2
 
-  const nominaTotal = produccionDiaria.reduce((sum, registro) => sum + registro.pagoFinal, 0)
-  const nominaPagada = produccionDiaria
+  const nominaTotal = produccionTrabajadores.reduce((sum, registro) => sum + registro.pagoFinal, 0)
+  const nominaPagada = produccionTrabajadores
     .filter((registro) => registro.pagado)
     .reduce((sum, registro) => sum + registro.pagoFinal, 0)
   const nominaPendiente = nominaTotal - nominaPagada
-  const bonosTotal = produccionDiaria.reduce((sum, registro) => sum + registro.bono, 0)
+  const bonosTotal = produccionTrabajadores.reduce((sum, registro) => sum + registro.bono, 0)
 
   const utilidadOperativa = ingresosOperativos - costoMaterialEstimado - nominaTotal
-  const utilidadDisponible = utilidadOperativa - totalFondosOperativos
+  const gastoTransporte = ingresosOperativos * PORC_GASTO_TRANSPORTE
+  const gastoCorriente = ingresosOperativos * PORC_GASTO_CORRIENTE
+  const utilidadAntesMantenimiento = utilidadOperativa - gastoTransporte - gastoCorriente
+  const mantenimientoEquipos =
+    utilidadAntesMantenimiento > 0
+      ? (utilidadAntesMantenimiento / (1 + PORC_MANTENIMIENTO_EQUIPOS)) * PORC_MANTENIMIENTO_EQUIPOS
+      : 0
+  const gananciaNeta = utilidadAntesMantenimiento - mantenimientoEquipos
+  const reinversion = gananciaNeta > 0 ? gananciaNeta * PORC_REINVERSION : 0
+  const pagoDirectivos = gananciaNeta > 0 ? gananciaNeta * PORC_PAGO_DIRECTIVOS : 0
   const margenOperativo = ingresosOperativos ? utilidadOperativa / ingresosOperativos : 0
-  const margenNeto = ingresosOperativos ? utilidadDisponible / ingresosOperativos : 0
+  const margenNeto = ingresosOperativos ? gananciaNeta / ingresosOperativos : 0
   const ticketPromedio = ventasCompletadas.length ? ingresosOperativos / ventasCompletadas.length : 0
   const ingresoPorM2 = totalMetrosVendidos ? ingresosOperativos / totalMetrosVendidos : 0
 
@@ -44,10 +54,7 @@ export default function FinanzasPage() {
   const costoMerma = totalMermas * costoMaterialM2
   const mermaRatio = totalMetrosComprados ? totalMermas / totalMetrosComprados : 0
 
-  const produccionTotalM2 = produccionDiaria.reduce(
-    (sum, registro) => sum + losasAMetros(registro.cantidadLosas, registro.dimension),
-    0,
-  )
+  const produccionTotalM2 = produccionDiaria.reduce((sum, registro) => sum + registro.totalM2, 0)
   const ratioVentaProduccion = produccionTotalM2 ? totalMetrosVendidos / produccionTotalM2 : 0
 
   const serieVentas = [...ventasCompletadas]
@@ -83,22 +90,39 @@ export default function FinanzasPage() {
       gradient: 'from-emerald-400 to-emerald-500',
     },
     {
-      label: 'Fondo operativo',
-      value: totalFondosOperativos,
-      helper: `Reserva ${formatPercent(ingresosOperativos ? totalFondosOperativos / ingresosOperativos : 0)}`,
+      label: 'Transporte',
+      value: gastoTransporte,
+      helper: `${formatPercent(PORC_GASTO_TRANSPORTE)} del ingreso operativo`,
       gradient: 'from-sky-400 to-sky-500',
     },
     {
-      label: 'Utilidad disponible',
-      value: utilidadDisponible,
-      helper: `Margen ${formatPercent(margenNeto)}`,
-      gradient:
-        utilidadDisponible >= 0 ? 'from-slate-700 to-slate-900' : 'from-rose-400 to-rose-500',
+      label: 'Corriente',
+      value: gastoCorriente,
+      helper: `${formatPercent(PORC_GASTO_CORRIENTE)} del ingreso operativo`,
+      gradient: 'from-indigo-400 to-indigo-500',
+    },
+    {
+      label: 'Mantenimiento equipos',
+      value: mantenimientoEquipos,
+      helper: `${formatPercent(PORC_MANTENIMIENTO_EQUIPOS)} sobre ganancia neta`,
+      gradient: 'from-violet-400 to-violet-500',
+    },
+    {
+      label: 'Reinversion (40%)',
+      value: reinversion,
+      helper: 'Capital para aumentar la inversion',
+      gradient: 'from-cyan-500 to-cyan-600',
+    },
+    {
+      label: 'Pago directivos (60%)',
+      value: pagoDirectivos,
+      helper: 'Distribucion para dueños del negocio',
+      gradient: 'from-slate-700 to-slate-900',
     },
   ]
 
   const alertas = [
-    margenNeto < 0 ? 'Margen neto negativo. Revisar costos y precios.' : null,
+    margenNeto < 0 ? 'Ganancia neta negativa. Revisar costos y precios.' : null,
     nominaTotal && nominaPendiente / nominaTotal > 0.35
       ? 'Nomina pendiente alta. Priorizar pagos de personal.'
       : null,
@@ -114,12 +138,20 @@ export default function FinanzasPage() {
             <span className="font-semibold">{formatMoney(ingresosOperativos)}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span>Utilidad disponible</span>
-            <span className="font-semibold">{formatMoney(utilidadDisponible)}</span>
+            <span>Ganancia neta</span>
+            <span className="font-semibold">{formatMoney(gananciaNeta)}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span>Fondo operativo</span>
-            <span className="font-semibold">{formatMoney(totalFondosOperativos)}</span>
+            <span>Reinversion (40%)</span>
+            <span className="font-semibold">{formatMoney(reinversion)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Pago directivos (60%)</span>
+            <span className="font-semibold">{formatMoney(pagoDirectivos)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Transporte + corriente</span>
+            <span className="font-semibold">{formatMoney(gastoTransporte + gastoCorriente)}</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Nomina pendiente</span>
@@ -175,7 +207,7 @@ export default function FinanzasPage() {
                 Balance financiero
               </p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
-                Ventas, utilidad y fondos operativos
+                Ventas, costos y ganancia neta distribuida
               </h1>
               <p className="mt-1 text-sm text-slate-600">
                 Seccion dedicada a indicadores financieros, costos y liquidez del taller.
@@ -239,41 +271,23 @@ export default function FinanzasPage() {
           </div>
           <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Utilidad disponible</p>
+              <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Ganancia neta</p>
               <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700">
                 <Wallet className="h-4 w-4" />
               </span>
             </div>
             <p
               className={`mt-3 text-2xl font-semibold ${
-                utilidadDisponible >= 0 ? 'text-slate-900' : 'text-rose-600'
+                gananciaNeta >= 0 ? 'text-slate-900' : 'text-rose-600'
               }`}
             >
-              {formatMoney(utilidadDisponible)}
+              {formatMoney(gananciaNeta)}
             </p>
             <p className="text-xs text-slate-500">Margen neto {formatPercent(margenNeto)}</p>
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
-            <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Fondo operativo</p>
-            <p className="mt-3 text-2xl font-semibold text-slate-900">
-              {formatMoney(totalFondosOperativos)}
-            </p>
-            <p className="text-xs text-slate-500">
-              Reservado para materiales ({formatPercent(ingresosOperativos ? totalFondosOperativos / ingresosOperativos : 0)})
-            </p>
-            <div className="mt-3 h-2 rounded-full bg-slate-200/70">
-              <div
-                className="h-2 rounded-full bg-sky-500/80"
-                style={{
-                  width: `${Math.min(100, ingresosOperativos ? (totalFondosOperativos / ingresosOperativos) * 100 : 0)}%`,
-                }}
-              />
-            </div>
-          </div>
-
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Nomina</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(nominaTotal)}</p>
@@ -303,13 +317,61 @@ export default function FinanzasPage() {
               Merma estimada {formatMoney(costoMerma)} ({formatPercent(mermaRatio)})
             </p>
           </div>
+
+          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+            <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Transporte</p>
+            <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(gastoTransporte)}</p>
+            <p className="text-xs text-slate-500">
+              {formatPercent(PORC_GASTO_TRANSPORTE)} del ingreso operativo
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+            <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Corriente</p>
+            <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(gastoCorriente)}</p>
+            <p className="text-xs text-slate-500">
+              {formatPercent(PORC_GASTO_CORRIENTE)} del ingreso operativo
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+            <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+              Mantenimiento equipos
+            </p>
+            <p className="mt-3 text-2xl font-semibold text-slate-900">
+              {formatMoney(mantenimientoEquipos)}
+            </p>
+            <p className="text-xs text-slate-500">
+              {formatPercent(PORC_MANTENIMIENTO_EQUIPOS)} sobre ganancia neta
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-cyan-200/70 bg-cyan-50/50 p-4">
+            <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-700">Reinversion</p>
+            <p className="mt-3 text-2xl font-semibold text-cyan-900">{formatMoney(reinversion)}</p>
+            <p className="text-xs text-cyan-700">
+              40% de la ganancia neta para aumentar inversion
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-300/70 bg-slate-100/60 p-4">
+            <p className="text-[11px] uppercase tracking-[0.3em] text-slate-600">
+              Pago directivos y dueños
+            </p>
+            <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(pagoDirectivos)}</p>
+            <p className="text-xs text-slate-600">
+              60% de la ganancia neta para distribucion de socios
+            </p>
+          </div>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
-                Distribucion del ingreso
+                Distribucion final del ingreso
               </p>
               <span className="text-xs text-slate-500">Base {formatMoney(ingresosOperativos)}</span>
             </div>

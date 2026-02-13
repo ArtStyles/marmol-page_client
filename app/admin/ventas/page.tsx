@@ -1,17 +1,17 @@
 'use client'
 
-import React from "react"
+import React from 'react'
 import { useState } from 'react'
-import { DataTable, type Column } from '@/components/data-table'
+import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
-import { ventas as initialVentas } from '@/lib/data'
-import type { Venta } from '@/lib/types'
+import { ventas as initialVentas, dimensiones } from '@/lib/data'
+import type { Dimension, Venta } from '@/lib/types'
 import { useInventarioStore } from '@/hooks/use-inventario'
-import { Plus, Search, Eye, ShoppingCart } from 'lucide-react'
+import { useConfiguracion } from '@/hooks/use-configuracion'
+import { cn } from '@/lib/utils'
+import { Eye, Plus, Search, ShoppingCart } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -26,44 +26,101 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Card, CardContent } from '@/components/ui/card'
+
+const dimensionOptions: Dimension[] = dimensiones as Dimension[]
+
+const createEmptyMetros = (): Record<Dimension, number> => ({
+  '40x40': 0,
+  '60x40': 0,
+  '80x40': 0,
+})
 
 export default function VentasPage() {
   const { productos } = useInventarioStore()
-  const [ventas, setVentas] = useState<Venta[]>(initialVentas)
+  const { config } = useConfiguracion()
+
+  const [ventas, setVentas] = useState<Venta[]>(
+    initialVentas.map((venta) => ({ ...venta, estado: 'completada' })),
+  )
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedVenta, setSelectedVenta] = useState<Venta | null>(null)
+  const [numericTouched, setNumericTouched] = useState({
+    descuento: false,
+    metrosPorDimension: {
+      '40x40': false,
+      '60x40': false,
+      '80x40': false,
+    } as Record<Dimension, boolean>,
+  })
   const [formData, setFormData] = useState({
     productoId: '',
-    cantidadM2: 1,
     descuento: 0,
-    fondoOperativo: 0,
     clienteNombre: '',
     clienteEmail: '',
-    clienteTelefono: ''
+    clienteTelefono: '',
+    metrosPorDimension: createEmptyMetros(),
   })
 
-  const filteredVentas = ventas.filter(v => {
-    const matchesSearch = 
-      v.clienteNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.productoNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.id.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || v.estado === statusFilter
-    return matchesSearch && matchesStatus
+  const formatMoney = (value: number) => `$${Math.round(value).toLocaleString()}`
+
+  const getMetrosVenta = (venta: Venta): Record<Dimension, number> => {
+    if (venta.metrosPorDimension) {
+      return {
+        '40x40': venta.metrosPorDimension['40x40'] ?? 0,
+        '60x40': venta.metrosPorDimension['60x40'] ?? 0,
+        '80x40': venta.metrosPorDimension['80x40'] ?? 0,
+      }
+    }
+
+    const producto = productos.find((p) => p.id === venta.productoId)
+    const fallback = createEmptyMetros()
+    if (producto) {
+      fallback[producto.dimension] = venta.cantidadM2
+    }
+    return fallback
+  }
+
+  const filteredVentas = ventas.filter((venta) => {
+    const query = searchTerm.toLowerCase()
+    return (
+      venta.id.toLowerCase().includes(query) ||
+      venta.productoNombre.toLowerCase().includes(query) ||
+      venta.clienteNombre.toLowerCase().includes(query)
+    )
   })
 
-    // Estadísticas
-  const ventasCompletadas = ventas.filter(v => v.estado === 'completada')
-  const totalRevenue = ventasCompletadas.reduce((sum, v) => sum + v.total, 0)
-  const ventasPendientes = ventas.filter(v => v.estado === 'pendiente')
-  const totalM2Vendidos = ventasCompletadas.reduce((sum, v) => sum + v.cantidadM2, 0)
-  const avgSaleValue = ventasCompletadas.length > 0 
-    ? totalRevenue / ventasCompletadas.length 
-    : 0
-  const recentVentas = [...ventas]
-    .sort((a, b) => b.fecha.localeCompare(a.fecha))
-    .slice(0, 3)
+  const groupedByDate = filteredVentas.reduce<Record<string, Venta[]>>((acc, venta) => {
+    if (!acc[venta.fecha]) {
+      acc[venta.fecha] = []
+    }
+    acc[venta.fecha].push(venta)
+    return acc
+  }, {})
+
+  const fechasOrdenadas = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a))
+
+  const ventasCompletadas = ventas
+  const totalRevenue = ventasCompletadas.reduce((sum, venta) => sum + venta.total, 0)
+
+  const totalM2PorDimension = ventasCompletadas.reduce<Record<Dimension, number>>(
+    (acc, venta) => {
+      const metros = getMetrosVenta(venta)
+      acc['40x40'] += metros['40x40']
+      acc['60x40'] += metros['60x40']
+      acc['80x40'] += metros['80x40']
+      return acc
+    },
+    createEmptyMetros(),
+  )
+
+  const totalM2Vendidos =
+    totalM2PorDimension['40x40'] + totalM2PorDimension['60x40'] + totalM2PorDimension['80x40']
+
+  const avgSaleValue = ventasCompletadas.length > 0 ? totalRevenue / ventasCompletadas.length : 0
+
+  const recentVentas = [...ventas].sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 3)
 
   const rightPanel = (
     <div className="space-y-4">
@@ -71,20 +128,31 @@ export default function VentasPage() {
         <div className="space-y-3 text-sm text-slate-700">
           <div className="flex items-center justify-between">
             <span>Ingresos</span>
-            <span className="font-semibold">${totalRevenue.toLocaleString()}</span>
+            <span className="font-semibold">{formatMoney(totalRevenue)}</span>
           </div>
           <div className="flex items-center justify-between">
             <span>m2 vendidos</span>
             <span className="font-semibold">{totalM2Vendidos.toFixed(1)} m2</span>
           </div>
           <div className="flex items-center justify-between">
-            <span>Pendientes</span>
-            <span className="font-semibold">{ventasPendientes.length}</span>
+            <span>Completadas</span>
+            <span className="font-semibold">{ventasCompletadas.length}</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Promedio</span>
-            <span className="font-semibold">${Math.round(avgSaleValue).toLocaleString()}</span>
+            <span className="font-semibold">{formatMoney(avgSaleValue)}</span>
           </div>
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="m2 por dimension" meta="Ventas completadas">
+        <div className="space-y-2 text-sm text-slate-700">
+          {dimensionOptions.map((dimension) => (
+            <div key={dimension} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+              <span>{dimension}</span>
+              <span className="font-semibold text-slate-900">{totalM2PorDimension[dimension].toFixed(2)} m2</span>
+            </div>
+          ))}
         </div>
       </AdminPanelCard>
 
@@ -95,22 +163,10 @@ export default function VentasPage() {
           ) : (
             recentVentas.map((venta) => (
               <div key={venta.id} className="rounded-2xl bg-white/70 px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-slate-900">{venta.productoNombre}</p>
-                  <Badge
-                    variant="outline"
-                    className={
-                      venta.estado === 'completada'
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                        : 'border-amber-200 bg-amber-50 text-amber-700'
-                    }
-                  >
-                    {venta.estado}
-                  </Badge>
-                </div>
+                <p className="text-xs font-semibold text-slate-900">{venta.productoNombre}</p>
                 <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
                   <span>{venta.fecha}</span>
-                  <span>${venta.total.toLocaleString()}</span>
+                  <span>{formatMoney(venta.total)}</span>
                 </div>
               </div>
             ))
@@ -120,378 +176,459 @@ export default function VentasPage() {
     </div>
   )
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const producto = productos.find(p => p.id === formData.productoId)
-    if (!producto) return
+  const productoSeleccionado = productos.find((producto) => producto.id === formData.productoId)
 
-    const subtotal = formData.cantidadM2 * producto.precioM2
-    const descuentoMonto = subtotal * (formData.descuento / 100)
-    const total = subtotal - descuentoMonto + formData.fondoOperativo
+  const getPrecioDimension = (dimension: Dimension): number => {
+    if (!productoSeleccionado) return 0
+    const estado = productoSeleccionado.estado === 'Pulido' ? 'pulido' : 'crudo'
+    return config.preciosM2[dimension][estado]
+  }
+
+  const totalM2Form = dimensionOptions.reduce(
+    (sum, dimension) => sum + (formData.metrosPorDimension[dimension] || 0),
+    0,
+  )
+
+  const subtotalCalculado = dimensionOptions.reduce((sum, dimension) => {
+    const metros = formData.metrosPorDimension[dimension] || 0
+    return sum + metros * getPrecioDimension(dimension)
+  }, 0)
+
+  const descuentoCalculado = subtotalCalculado * (formData.descuento / 100)
+  const totalCalculado = subtotalCalculado - descuentoCalculado
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+
+    const producto = productos.find((p) => p.id === formData.productoId)
+    if (!producto) return
+    if (totalM2Form <= 0) return
+
+    const precioPromedio = totalM2Form > 0 ? subtotalCalculado / totalM2Form : 0
 
     const newVenta: Venta = {
       id: `V${String(ventas.length + 1).padStart(3, '0')}`,
-      productoId: formData.productoId,
+      productoId: producto.id,
       productoNombre: producto.nombre,
-      cantidadM2: formData.cantidadM2,
-      precioM2: producto.precioM2,
+      cantidadM2: totalM2Form,
+      metrosPorDimension: {
+        '40x40': formData.metrosPorDimension['40x40'] || 0,
+        '60x40': formData.metrosPorDimension['60x40'] || 0,
+        '80x40': formData.metrosPorDimension['80x40'] || 0,
+      },
+      precioM2: precioPromedio,
       descuento: formData.descuento,
-      fondoOperativo: formData.fondoOperativo,
-      subtotal,
-      total,
+      fondoOperativo: 0,
+      subtotal: subtotalCalculado,
+      total: totalCalculado,
       clienteNombre: formData.clienteNombre,
       clienteEmail: formData.clienteEmail,
       clienteTelefono: formData.clienteTelefono,
       fecha: new Date().toISOString().split('T')[0],
-      estado: 'pendiente'
+      estado: 'completada',
     }
+
     setVentas([newVenta, ...ventas])
     resetForm()
-  }
-
-  const updateStatus = (id: string, estado: Venta['estado']) => {
-    setVentas(ventas.map(v => v.id === id ? { ...v, estado } : v))
   }
 
   const resetForm = () => {
     setFormData({
       productoId: '',
-      cantidadM2: 1,
       descuento: 0,
-      fondoOperativo: 0,
       clienteNombre: '',
       clienteEmail: '',
-      clienteTelefono: ''
+      clienteTelefono: '',
+      metrosPorDimension: createEmptyMetros(),
+    })
+    setNumericTouched({
+      descuento: false,
+      metrosPorDimension: {
+        '40x40': false,
+        '60x40': false,
+        '80x40': false,
+      },
     })
     setIsDialogOpen(false)
   }
 
-  // Calcular precio en tiempo real
-  const productoSeleccionado = productos.find(p => p.id === formData.productoId)
-  const subtotalCalculado = productoSeleccionado 
-    ? formData.cantidadM2 * productoSeleccionado.precioM2 
-    : 0
-  const descuentoCalculado = subtotalCalculado * (formData.descuento / 100)
-  const totalCalculado = subtotalCalculado - descuentoCalculado + formData.fondoOperativo
-
-  const columns: Column<Venta>[] = [
-    { key: 'id', header: 'ID' },
-    { key: 'fecha', header: 'Fecha' },
-    { key: 'productoNombre', header: 'Producto' },
-    { key: 'clienteNombre', header: 'Cliente' },
-    { 
-      key: 'cantidadM2', 
-      header: 'm²',
-      render: (v) => <span className="font-medium">{v.cantidadM2} m²</span>
-    },
-    { 
-      key: 'precioM2', 
-      header: 'Precio/m²',
-      render: (v) => `$${v.precioM2}`
-    },
-    { 
-      key: 'descuento', 
-      header: 'Descuento',
-      render: (v) => v.descuento > 0 
-        ? <span className="text-green-600">-{v.descuento}%</span> 
-        : '-'
-    },
-    { 
-      key: 'fondoOperativo', 
-      header: 'Fondo Op.',
-      render: (v) => v.fondoOperativo > 0 ? `+$${v.fondoOperativo}` : '-'
-    },
-    { 
-      key: 'total', 
-      header: 'Total',
-      render: (v) => <span className="font-bold text-primary">${v.total.toLocaleString()}</span>
-    },
-    { 
-      key: 'estado', 
-      header: 'Estado',
-      render: (v) => {
-        const colors: Record<string, string> = {
-          completada: 'bg-green-100 text-green-800',
-          pendiente: 'bg-amber-100 text-amber-800',
-          cancelada: 'bg-red-100 text-red-800'
-        }
-        return <Badge className={colors[v.estado]}>{v.estado}</Badge>
-      }
-    },
-    {
-      key: 'actions',
-      header: 'Acciones',
-      render: (v) => (
-        <div className="flex gap-2">
-          <Button size="icon" variant="ghost" onClick={() => setSelectedVenta(v)}>
-            <Eye className="h-4 w-4" />
-          </Button>
-          {v.estado === 'pendiente' && (
-            <Button 
-              size="sm" 
-              variant="outline"
-              onClick={() => updateStatus(v.id, 'completada')}
-            >
-              Completar
-            </Button>
-          )}
-        </div>
-      )
-    }
-  ]
-
   return (
     <AdminShell rightPanel={rightPanel}>
       <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground font-sans">
-            Ventas
-          </h1>
-          <p className="mt-1 text-muted-foreground font-sans">
-            Las ventas se manejan en metros cuadrados. Incluyen precio, descuentos y fondo operativo.
-          </p>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={resetForm}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nueva Venta
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Registrar Nueva Venta</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Producto</Label>
-                <Select 
-                  value={formData.productoId} 
-                  onValueChange={(value) => setFormData({ ...formData, productoId: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar producto" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {productos.map((producto) => (
-                      <SelectItem key={producto.id} value={producto.id}>
-                        {producto.nombre} - ${producto.precioM2}/m² ({producto.metrosCuadrados.toFixed(1)} m² disp.)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground font-sans">Ventas</h1>
+            <p className="mt-1 text-muted-foreground font-sans">
+              Registra ventas por metros cuadrados distribuidos por dimensiones en una misma compra.
+            </p>
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={resetForm}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nueva Venta
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Registrar nueva venta</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Cantidad (m²)</Label>
-                  <Input
-                    type="number"
-                    min="0.1"
-                    step="0.1"
-                    value={formData.cantidadM2}
-                    onChange={(e) => setFormData({ ...formData, cantidadM2: Number(e.target.value) })}
-                    required
-                  />
+                  <Label>Producto base</Label>
+                  <Select
+                    value={formData.productoId}
+                    onValueChange={(value) => setFormData({ ...formData, productoId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar producto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {productos.map((producto) => (
+                        <SelectItem key={producto.id} value={producto.id}>
+                          {producto.nombre} ({producto.estado})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Metros cuadrados por dimension</Label>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {dimensionOptions.map((dimension) => (
+                      <div key={dimension} className="space-y-1.5">
+                        <Label>{dimension}</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          placeholder="0"
+                          value={
+                            numericTouched.metrosPorDimension[dimension] || formData.metrosPorDimension[dimension] > 0
+                              ? formData.metrosPorDimension[dimension]
+                              : ''
+                          }
+                          onChange={(event) => {
+                            const value = event.target.value
+                            const parsedValue = value === '' ? 0 : Number(value)
+                            setNumericTouched((prev) => ({
+                              ...prev,
+                              metrosPorDimension: {
+                                ...prev.metrosPorDimension,
+                                [dimension]: value !== '',
+                              },
+                            }))
+                            setFormData({
+                              ...formData,
+                              metrosPorDimension: {
+                                ...formData.metrosPorDimension,
+                                [dimension]: parsedValue,
+                              },
+                            })
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label>Descuento (%)</Label>
                   <Input
                     type="number"
                     min="0"
                     max="100"
-                    value={formData.descuento}
-                    onChange={(e) => setFormData({ ...formData, descuento: Number(e.target.value) })}
+                    placeholder="0"
+                    value={numericTouched.descuento || formData.descuento > 0 ? formData.descuento : ''}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setNumericTouched((prev) => ({ ...prev, descuento: value !== '' }))
+                      setFormData({ ...formData, descuento: value === '' ? 0 : Number(value) })
+                    }}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Fondo Operativo</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={formData.fondoOperativo}
-                    onChange={(e) => setFormData({ ...formData, fondoOperativo: Number(e.target.value) })}
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label>Nombre del Cliente</Label>
-                <Input
-                  value={formData.clienteNombre}
-                  onChange={(e) => setFormData({ ...formData, clienteNombre: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label>Nombre del cliente</Label>
                   <Input
-                    type="email"
-                    value={formData.clienteEmail}
-                    onChange={(e) => setFormData({ ...formData, clienteEmail: e.target.value })}
+                    value={formData.clienteNombre}
+                    onChange={(event) => setFormData({ ...formData, clienteNombre: event.target.value })}
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Teléfono</Label>
-                  <Input
-                    type="tel"
-                    value={formData.clienteTelefono}
-                    onChange={(e) => setFormData({ ...formData, clienteTelefono: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
 
-              {/* Cálculo en tiempo real */}
-              {productoSeleccionado && (
-                <div className="rounded-lg bg-muted p-4 space-y-2">
-                  <h4 className="font-medium">Resumen de Venta</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <span className="text-muted-foreground">Subtotal ({formData.cantidadM2} m² x ${productoSeleccionado.precioM2}):</span>
-                    <span className="text-right">${subtotalCalculado.toFixed(2)}</span>
-                    <span className="text-muted-foreground">Descuento ({formData.descuento}%):</span>
-                    <span className="text-right text-green-600">-${descuentoCalculado.toFixed(2)}</span>
-                    <span className="text-muted-foreground">Fondo operativo:</span>
-                    <span className="text-right">+${formData.fondoOperativo}</span>
-                    <span className="font-medium">Total:</span>
-                    <span className="text-right font-bold text-primary">${totalCalculado.toFixed(2)}</span>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      value={formData.clienteEmail}
+                      onChange={(event) => setFormData({ ...formData, clienteEmail: event.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Telefono</Label>
+                    <Input
+                      type="tel"
+                      value={formData.clienteTelefono}
+                      onChange={(event) => setFormData({ ...formData, clienteTelefono: event.target.value })}
+                      required
+                    />
                   </div>
                 </div>
-              )}
 
-              <div className="flex gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={resetForm} className="flex-1 bg-transparent">
-                  Cancelar
-                </Button>
-                <Button type="submit" className="flex-1">
-                  Registrar Venta
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+                {productoSeleccionado && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+                    <h4 className="font-medium text-slate-900">Resumen de venta</h4>
+                    <div className="mt-3 space-y-1.5 text-sm">
+                      {dimensionOptions.map((dimension) => {
+                        const metros = formData.metrosPorDimension[dimension]
+                        if (metros <= 0) return null
+                        const precio = getPrecioDimension(dimension)
+                        return (
+                          <div key={dimension} className="flex items-center justify-between text-slate-600">
+                            <span>
+                              {dimension}: {metros.toFixed(2)} m2 x {formatMoney(precio)}
+                            </span>
+                            <span>{formatMoney(metros * precio)}</span>
+                          </div>
+                        )
+                      })}
+                      <div className="mt-2 border-t border-slate-200 pt-2 text-slate-700">
+                        <div className="flex items-center justify-between">
+                          <span>Subtotal</span>
+                          <span>{formatMoney(subtotalCalculado)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Descuento ({formData.descuento}%)</span>
+                          <span className="text-emerald-700">-{formatMoney(descuentoCalculado)}</span>
+                        </div>
+                        <div className="flex items-center justify-between font-semibold text-slate-900">
+                          <span>Total</span>
+                          <span>{formatMoney(totalCalculado)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-      {/* Principio */}
-      <div className="rounded-[24px] border border-sky-200/70 bg-sky-50/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-sm">
-        <div className="flex items-start gap-3">
-          <ShoppingCart className="h-5 w-5 text-blue-600 mt-0.5" />
-          <div>
-            <h4 className="font-medium text-blue-800">Principio del Sistema</h4>
-            <p className="text-sm text-blue-700">
-              Las ventas se manejan en metros cuadrados. El dinero nunca manda sobre la realidad física, 
-              solo la refleja. No puede existir una venta sin inventario previo.
-            </p>
+                <div className="flex gap-2 pt-4">
+                  <Button type="button" variant="outline" onClick={resetForm} className="flex-1 bg-transparent">
+                    Cancelar
+                  </Button>
+                  <Button type="submit" className="flex-1" disabled={!formData.productoId || totalM2Form <= 0}>
+                    Registrar venta
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <div className="rounded-[24px] border border-sky-200/70 bg-sky-50/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-sm">
+          <div className="flex items-start gap-3">
+            <ShoppingCart className="mt-0.5 h-5 w-5 text-blue-600" />
+            <div>
+              <h4 className="font-medium text-blue-800">Principio del sistema</h4>
+              <p className="text-sm text-blue-700">
+                Una venta puede agrupar diferentes dimensiones. El registro comercial debe reflejar lo realmente
+                vendido por dimension y mantener trazabilidad de inventario.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Filters */}
-      <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+        <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</Label>
-            <div className="relative w-full">
+            <div className="relative w-full sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar ventas..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(event) => setSearchTerm(event.target.value)}
                 className="pl-9"
               />
             </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Estado</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filtrar por estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="pendiente">Pendientes</SelectItem>
-                <SelectItem value="completada">Completadas</SelectItem>
-                <SelectItem value="cancelada">Canceladas</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
-      </div>
 
-      {/* Table */}
-      <DataTable
-        data={filteredVentas}
-        columns={columns}
-        emptyMessage="No se encontraron ventas"
-      />
-
-      {/* Detail Dialog */}
-      <Dialog open={!!selectedVenta} onOpenChange={() => setSelectedVenta(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
-          {selectedVenta && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Detalle de Venta {selectedVenta.id}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Producto</p>
-                    <p className="font-medium">{selectedVenta.productoNombre}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Cantidad</p>
-                    <p className="font-medium">{selectedVenta.cantidadM2} m²</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Cliente</p>
-                    <p className="font-medium">{selectedVenta.clienteNombre}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Email</p>
-                    <p className="font-medium">{selectedVenta.clienteEmail}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Teléfono</p>
-                    <p className="font-medium">{selectedVenta.clienteTelefono}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Fecha</p>
-                    <p className="font-medium">{selectedVenta.fecha}</p>
-                  </div>
-                </div>
-                
-                <div className="border-t pt-4 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal:</span>
-                    <span>${selectedVenta.subtotal.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Descuento ({selectedVenta.descuento}%):</span>
-                    <span className="text-green-600">-${(selectedVenta.subtotal * selectedVenta.descuento / 100).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Fondo operativo:</span>
-                    <span>+${selectedVenta.fondoOperativo}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-2">
-                    <span className="font-medium">Total:</span>
-                    <span className="font-bold text-xl text-primary">${selectedVenta.total.toLocaleString()}</span>
-                  </div>
-                </div>
+        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] py-0 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+          <CardContent className="pb-4 pt-4">
+            {fechasOrdenadas.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                No se encontraron ventas
               </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+            ) : (
+              <div className="space-y-3">
+                {fechasOrdenadas.map((fecha) => {
+                  const ventasFecha = groupedByDate[fecha]
+                  const totalFecha = ventasFecha.reduce((sum, venta) => sum + venta.total, 0)
+
+                  return (
+                    <div
+                      key={fecha}
+                      className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
+                    >
+                      <div className="flex items-center justify-between border-b border-slate-200/70 px-4 py-3">
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Fecha</p>
+                          <p className="text-base font-semibold text-slate-900">{fecha}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-right">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Ventas</p>
+                            <p className="text-sm font-semibold text-slate-900">{ventasFecha.length}</p>
+                          </div>
+                          <div className="rounded-lg border border-emerald-200/70 bg-emerald-50/70 px-2.5 py-1 text-right text-emerald-700">
+                            <p className="text-[10px] uppercase tracking-[0.2em]">Total</p>
+                            <p className="text-sm font-semibold">{formatMoney(totalFecha)}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="hidden lg:grid lg:grid-cols-[90px_minmax(0,1.2fr)_minmax(0,1fr)_120px_160px] border-b border-slate-200/70 bg-slate-50/70 px-4 py-2">
+                        <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Venta</span>
+                        <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Cliente / Producto</span>
+                        <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Dimensiones</span>
+                        <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Total</span>
+                        <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Acciones</span>
+                      </div>
+
+                      <div className="divide-y divide-slate-200/60">
+                        {ventasFecha.map((venta) => {
+                          const metros = getMetrosVenta(venta)
+                          const dimensionesActivas = dimensionOptions.filter((dimension) => metros[dimension] > 0)
+
+                          return (
+                            <div key={venta.id} className="px-4 py-3">
+                              <div className="grid gap-2 lg:grid-cols-[90px_minmax(0,1.2fr)_minmax(0,1fr)_120px_160px] lg:items-center">
+                                <div className="text-sm font-semibold text-slate-900">{venta.id}</div>
+
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">{venta.clienteNombre}</p>
+                                  <p className="text-[11px] text-slate-500">{venta.productoNombre}</p>
+                                </div>
+
+                                <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/60">
+                                  <div className="grid grid-cols-[1fr_92px] border-b border-slate-200/70 px-2.5 py-1">
+                                    <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Dimension</span>
+                                    <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">M2</span>
+                                  </div>
+                                  {dimensionesActivas.map((dimension, index) => (
+                                    <div
+                                      key={`${venta.id}-${dimension}`}
+                                      className={cn(
+                                        'grid grid-cols-[1fr_92px] items-center gap-2 px-2.5 py-1.5',
+                                        index < dimensionesActivas.length - 1 && 'border-b border-slate-200/70',
+                                      )}
+                                    >
+                                      <span className="text-sm font-medium text-slate-700">{dimension}</span>
+                                      <span className="text-right text-sm font-semibold text-emerald-700">
+                                        {metros[dimension].toFixed(2)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="flex items-center justify-between text-sm lg:block lg:text-right">
+                                  <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Total</span>
+                                  <span className="font-semibold text-slate-900">{formatMoney(venta.total)}</span>
+                                </div>
+
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button size="icon" variant="ghost" onClick={() => setSelectedVenta(venta)}>
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Dialog open={!!selectedVenta} onOpenChange={() => setSelectedVenta(null)}>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
+            {selectedVenta && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Detalle de venta {selectedVenta.id}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Producto</p>
+                      <p className="font-medium">{selectedVenta.productoNombre}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Cliente</p>
+                      <p className="font-medium">{selectedVenta.clienteNombre}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Email</p>
+                      <p className="font-medium">{selectedVenta.clienteEmail}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Telefono</p>
+                      <p className="font-medium">{selectedVenta.clienteTelefono}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Fecha</p>
+                      <p className="font-medium">{selectedVenta.fecha}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Total m2</p>
+                      <p className="font-medium">{selectedVenta.cantidadM2.toFixed(2)} m2</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Metros por dimension</p>
+                    <div className="mt-2 space-y-1.5 text-sm">
+                      {dimensionOptions
+                        .filter((dimension) => getMetrosVenta(selectedVenta)[dimension] > 0)
+                        .map((dimension) => (
+                          <div key={dimension} className="flex items-center justify-between">
+                            <span className="text-slate-600">{dimension}</span>
+                            <span className="font-semibold text-slate-900">
+                              {getMetrosVenta(selectedVenta)[dimension].toFixed(2)} m2
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Subtotal:</span>
+                      <span>{formatMoney(selectedVenta.subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Descuento ({selectedVenta.descuento}%):</span>
+                      <span className="text-green-600">
+                        -{formatMoney((selectedVenta.subtotal * selectedVenta.descuento) / 100)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2">
+                      <span className="font-medium">Total:</span>
+                      <span className="text-xl font-bold text-primary">{formatMoney(selectedVenta.total)}</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminShell>
   )
 }
-
-

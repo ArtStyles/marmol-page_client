@@ -1,7 +1,7 @@
 import React from "react"
 
 // ==========================================
-// TIPOS DEL SISTEMA DE TALLER DE MÁRMOL
+// TIPOS DEL SISTEMA DE TALLER DE MÃRMOL
 // ==========================================
 
 // Dimensiones fijas permitidas
@@ -10,20 +10,24 @@ export type Dimension = '40x40' | '60x40' | '80x40'
 // Tipos de producto
 export type TipoProducto = 'Piso' | 'Plancha'
 
-// Estados de la losa
+// Estados de acabado (catÃ¡logo/comercial)
 export type EstadoLosa = 'Crudo' | 'Pulido'
+// Estados operativos de inventario
+export type EstadoInventario = 'Picado' | 'Pulido' | 'Escuadrado'
 
 // Roles del sistema (panel y personal operativo)
 export type RolTrabajador =
   | 'Administrador'
   | 'Gestor de Ventas'
-  | 'Jefe de Turno de Producción'
+  | 'Jefe de Turno de ProducciÃ³n'
   | 'Obrero'
+
+export type RolConSalarioFijo = Exclude<RolTrabajador, 'Obrero'>
 
 // Acciones sobre losas
 export type AccionLosa = 'picar' | 'pulir' | 'escuadrar'
 
-// Tarifas de pago por acción (por losa) - VALORES POR DEFECTO
+// Tarifas de pago por acciÃ³n (por losa) - VALORES POR DEFECTO
 export const TARIFAS_ACCION_DEFAULT: Record<AccionLosa, number> = {
   picar: 400,
   pulir: 250,
@@ -32,18 +36,27 @@ export const TARIFAS_ACCION_DEFAULT: Record<AccionLosa, number> = {
 
 export const TARIFAS_ACCION = TARIFAS_ACCION_DEFAULT
 
-// Precios por m² según dimensión - VALORES POR DEFECTO
+// Salarios fijos mensuales por rol (excepto obrero)
+export const SALARIOS_FIJOS_POR_ROL_DEFAULT: Record<RolConSalarioFijo, number> = {
+  'Administrador': 28000,
+  'Gestor de Ventas': 18000,
+  'Jefe de Turno de ProducciÃ³n': 22000
+}
+
+// Precios por mÂ² segÃºn dimensiÃ³n - VALORES POR DEFECTO
 export const PRECIOS_M2_DEFAULT: Record<Dimension, { crudo: number; pulido: number }> = {
   '40x40': { crudo: 120, pulido: 180 },
   '60x40': { crudo: 140, pulido: 200 },
   '80x40': { crudo: 160, pulido: 220 }
 }
 
-// Configuración del sistema
+// ConfiguraciÃ³n del sistema
 export interface ConfiguracionSistema {
   // Tarifas globales por defecto
   tarifasGlobales: Record<AccionLosa, number>
-  // Precios por m² según dimensión y estado
+  // Salarios fijos por rol (excepto obrero)
+  salariosFijosPorRol: Record<RolConSalarioFijo, number>
+  // Precios por mÂ² segÃºn dimensiÃ³n y estado
   preciosM2: Record<Dimension, { crudo: number; pulido: number }>
   // Info empresa
   nombreEmpresa: string
@@ -77,7 +90,7 @@ export interface Producto {
   id: string
   nombre: string
   tipo: TipoProducto
-  estado: EstadoLosa
+  estado: EstadoInventario
   dimension: Dimension
   origenId: string
   origenNombre: string
@@ -101,7 +114,7 @@ export interface CatalogoItem {
   imagen: string
 }
 
-// Conversión de losas a m2
+// ConversiÃ³n de losas a m2
 export function losasAMetros(losas: number, dimension: Dimension): number {
   const dimensiones: Record<Dimension, number> = {
     '40x40': 0.16,
@@ -118,8 +131,22 @@ export interface TarifasTrabajador {
   escuadrar: number
 }
 
-// Registro de producción diaria
+// Registro de producciÃ³n diaria
 export interface ProduccionDiaria {
+  id: string
+  fecha: string
+  origenId: string
+  origenNombre: string
+  tipo: TipoProducto
+  dimension: Dimension
+  cantidadPicar: number
+  cantidadPulir: number
+  cantidadEscuadrar: number
+  totalLosas: number
+  totalM2: number
+}
+
+export interface ProduccionTrabajador {
   id: string
   fecha: string
   trabajadorId: string
@@ -137,7 +164,7 @@ export interface ProduccionDiaria {
   pagado: boolean // Si ya fue incluido en un pago
 }
 
-// Registro de mermas (EN METROS CUADRADOS)
+// Registro de mermas (captura en losas + conversiÃ³n a mÂ²)
 export interface Merma {
   id: string
   fecha: string
@@ -145,7 +172,8 @@ export interface Merma {
   origenNombre: string
   tipo: TipoProducto
   dimension: Dimension
-  metrosCuadrados: number // Merma directa en m²
+  cantidadLosas: number // Registro en losas enteras
+  metrosCuadrados: number // ConversiÃ³n automÃ¡tica segÃºn dimensiÃ³n
   motivo: 'Partida al picar' | 'Partida al pulir' | 'Defecto de material' | 'Recorte aprovechable' | 'Otro'
   observaciones: string
 }
@@ -156,6 +184,7 @@ export interface Venta {
   productoId: string
   productoNombre: string
   cantidadM2: number
+  metrosPorDimension: Record<Dimension, number>
   precioM2: number
   descuento: number
   fondoOperativo: number
@@ -182,7 +211,7 @@ export interface Trabajador {
   contrasena?: string
   // Tarifas personalizadas (si son diferentes a las globales)
   tarifasPersonalizadas: TarifasTrabajador | null
-  // Estadísticas
+  // EstadÃ­sticas
   losasProducidas: number
   pagosTotales: number
   bonosTotales: number
@@ -196,7 +225,7 @@ export interface HistorialPago {
   trabajadorId: string
   trabajadorNombre: string
   fecha: string
-  produccionIds: string[] // IDs de producción incluidos
+  produccionIds: string[] // IDs de producciÃ³n incluidos
   montoAcciones: number
   montoBonos: number
   bonoExtra: number // Bono adicional en el momento del pago
@@ -216,7 +245,7 @@ export interface SystemLog {
   nivel: 'info' | 'alerta' | 'error'
 }
 
-// Tipos auxiliares para navegación y UI
+// Tipos auxiliares para navegaciÃ³n y UI
 export interface NavItem {
   label: string
   href: string
@@ -232,3 +261,6 @@ export interface StatCardType {
     isPositive: boolean
   }
 }
+
+
+

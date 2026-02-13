@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { Building, Bell, Shield, Palette } from 'lucide-react'
 import { acciones, dimensiones } from '@/lib/data'
-import type { AccionLosa, Dimension } from '@/lib/types'
+import type { AccionLosa, Dimension, RolConSalarioFijo } from '@/lib/types'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 
 export default function ConfiguracionPage() {
@@ -22,7 +22,7 @@ export default function ConfiguracionPage() {
 
   const handleSave = () => {
     saveConfig()
-    alert('Configuración guardada correctamente')
+    alert('ConfiguraciÃ³n guardada correctamente')
   }
 
   const updateTarifa = (accion: AccionLosa, value: number) => {
@@ -44,6 +44,16 @@ export default function ConfiguracionPage() {
           ...config.preciosM2[dimension],
           [tipo]: value,
         },
+      },
+    })
+  }
+
+  const updateSalarioFijo = (rol: RolConSalarioFijo, value: number) => {
+    setConfig({
+      ...config,
+      salariosFijosPorRol: {
+        ...config.salariosFijosPorRol,
+        [rol]: value,
       },
     })
   }
@@ -81,6 +91,17 @@ export default function ConfiguracionPage() {
           ))}
         </div>
       </AdminPanelCard>
+
+      <AdminPanelCard title="Salarios fijos" meta="Por rol">
+        <div className="space-y-2 text-sm text-slate-700">
+          {Object.entries(config.salariosFijosPorRol).map(([rol, salario]) => (
+            <div key={rol} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+              <span>{rol}</span>
+              <span className="font-semibold">${salario.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      </AdminPanelCard>
     </div>
   )
 
@@ -90,10 +111,10 @@ export default function ConfiguracionPage() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground font-sans">
-          Configuración
+          ConfiguraciÃ³n
         </h1>
         <p className="mt-1 text-muted-foreground font-sans">
-          Administra la configuración del sistema
+          Administra la configuraciÃ³n del sistema
         </p>
       </div>
 
@@ -103,10 +124,10 @@ export default function ConfiguracionPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Building className="h-5 w-5 text-primary" />
-              <CardTitle>Información de la Empresa</CardTitle>
+              <CardTitle>InformaciÃ³n de la Empresa</CardTitle>
             </div>
             <CardDescription>
-              Datos básicos de tu negocio
+              Datos bÃ¡sicos de tu negocio
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -128,7 +149,7 @@ export default function ConfiguracionPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">Teléfono</Label>
+              <Label htmlFor="phone">TelÃ©fono</Label>
               <Input
                 id="phone"
                 value={config.telefono}
@@ -136,7 +157,7 @@ export default function ConfiguracionPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="address">Dirección</Label>
+              <Label htmlFor="address">DirecciÃ³n</Label>
               <Textarea
                 id="address"
                 value={config.direccion}
@@ -212,12 +233,12 @@ export default function ConfiguracionPage() {
               <CardTitle>Tarifas y Precios</CardTitle>
             </div>
             <CardDescription>
-              Ajusta pagos por acción y precios por m² según dimensión
+              Ajusta pagos por acciÃ³n y precios por mÂ² segÃºn dimensiÃ³n
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-3">
-              <h4 className="font-medium">Pagos por acción (por losa)</h4>
+              <h4 className="font-medium">Pagos por acciÃ³n (por losa)</h4>
               <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
                 {acciones.map((accion) => (
                   <div key={accion} className="space-y-2">
@@ -234,7 +255,29 @@ export default function ConfiguracionPage() {
             </div>
 
             <div className="space-y-3">
-              <h4 className="font-medium">Precio por m2 según dimensión</h4>
+              <h4 className="font-medium">Salarios fijos por rol</h4>
+              <p className="text-xs text-muted-foreground">
+                Solo aplica para roles administrativos. Obrero se paga por producciÃ³n.
+              </p>
+              <div className="space-y-3">
+                {Object.entries(config.salariosFijosPorRol).map(([rol, salario]) => (
+                  <div key={rol} className="rounded-lg border border-border/60 p-4">
+                    <Label className="mb-2 block text-xs uppercase tracking-[0.2em] text-slate-500">
+                      {rol}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={salario}
+                      onChange={(e) => updateSalarioFijo(rol as RolConSalarioFijo, Number(e.target.value))}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="font-medium">Precio por m2 segÃºn dimensiÃ³n</h4>
               <div className="space-y-4">
                 {dimensiones.map((dimension) => (
                   <div key={dimension} className="rounded-lg border border-border/60 p-4">
@@ -280,7 +323,7 @@ export default function ConfiguracionPage() {
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Autenticación de Dos Factores</p>
+                <p className="font-medium">AutenticaciÃ³n de Dos Factores</p>
                 <p className="text-sm text-muted-foreground">
                   AA?ade una capa extra de seguridad
                 </p>
@@ -296,7 +339,7 @@ export default function ConfiguracionPage() {
               <div>
                 <p className="font-medium">Cierre de SesiA3n AutomA?tico</p>
                 <p className="text-sm text-muted-foreground">
-                  Cerrar sesión tras 30 min de inactividad
+                  Cerrar sesiÃ³n tras 30 min de inactividad
                 </p>
               </div>
               <Switch

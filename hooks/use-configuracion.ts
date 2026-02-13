@@ -13,6 +13,10 @@ const mergeConfiguracion = (value: Partial<ConfiguracionSistema>): Configuracion
     ...configuracionInicial.tarifasGlobales,
     ...value.tarifasGlobales,
   },
+  salariosFijosPorRol: {
+    ...configuracionInicial.salariosFijosPorRol,
+    ...value.salariosFijosPorRol,
+  },
   preciosM2: {
     ...configuracionInicial.preciosM2,
     ...value.preciosM2,
@@ -64,3 +68,4 @@ export function useConfiguracion() {
     resetConfig,
   }
 }
+

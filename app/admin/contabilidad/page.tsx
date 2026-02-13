@@ -2,7 +2,7 @@
 
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Badge } from '@/components/ui/badge'
-import { historialPagos, produccionDiaria, ventas } from '@/lib/data'
+import { historialPagos, produccionTrabajadores, ventas } from '@/lib/data'
 import { FileText, ShieldAlert } from 'lucide-react'
 
 export default function ContabilidadPage() {
@@ -18,7 +18,7 @@ export default function ContabilidadPage() {
   )
 
   const pagosRealizados = historialPagos.reduce((sum, pago) => sum + pago.totalPagado, 0)
-  const pagosPendientes = produccionDiaria
+  const pagosPendientes = produccionTrabajadores
     .filter((registro) => !registro.pagado)
     .reduce((sum, registro) => sum + registro.pagoFinal, 0)
 

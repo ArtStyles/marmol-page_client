@@ -11,9 +11,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { 
   historialPagos as initialHistorial, 
   trabajadores as initialTrabajadores,
-  produccionDiaria as initialProduccion
+  produccionTrabajadores as initialProduccion
 } from '@/lib/data'
-import type { HistorialPago, Trabajador, ProduccionDiaria } from '@/lib/types'
+import type { HistorialPago, ProduccionTrabajador, RolConSalarioFijo, Trabajador } from '@/lib/types'
 import { Search, Wallet, DollarSign, CheckCircle, Eye, Users } from 'lucide-react'
 import {
   Dialog,
@@ -21,24 +21,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
+import { useConfiguracion } from '@/hooks/use-configuracion'
+
+type AcumuladoPagoTrabajador = Trabajador & {
+  produccionesPendientes: ProduccionTrabajador[]
+  montoAcciones: number
+  montoBonos: number
+  totalPendiente: number
+  modoPago: 'produccion' | 'salario_fijo'
+}
 
 export default function PagosPage() {
+  const { config } = useConfiguracion()
   const [historial, setHistorial] = useState<HistorialPago[]>(initialHistorial)
   const [trabajadores, setTrabajadores] = useState<Trabajador[]>(initialTrabajadores)
-  const [produccion, setProduccion] = useState<ProduccionDiaria[]>(initialProduccion)
+  const [produccion, setProduccion] = useState<ProduccionTrabajador[]>(initialProduccion)
   const [searchTerm, setSearchTerm] = useState('')
   const [isPagoDialogOpen, setIsPagoDialogOpen] = useState(false)
   const [selectedTrabajador, setSelectedTrabajador] = useState<Trabajador | null>(null)
   const [selectedHistorial, setSelectedHistorial] = useState<HistorialPago | null>(null)
+  const [bonoExtraTouched, setBonoExtraTouched] = useState(false)
   const [pagoForm, setPagoForm] = useState({
     bonoExtra: 0,
     motivoBonoExtra: '',
@@ -50,22 +54,36 @@ export default function PagosPage() {
   )
 
   // Calcular acumulados pendientes por trabajador
-  const acumuladosPorTrabajador = trabajadores.map(t => {
-    const produccionesPendientes = produccion.filter(p => 
-      p.trabajadorId === t.id && !p.pagado
-    )
-    const montoAcciones = produccionesPendientes.reduce((sum, p) => sum + p.pagoTotal, 0)
-    const montoBonos = produccionesPendientes.reduce((sum, p) => sum + p.bono, 0)
-    return {
-      ...t,
-      produccionesPendientes,
-      montoAcciones,
-      montoBonos,
-      totalPendiente: montoAcciones + montoBonos
-    }
-  }).filter(t => t.estado === 'activo')
+  const acumuladosPorTrabajador: AcumuladoPagoTrabajador[] = trabajadores
+    .filter((t) => t.estado === 'activo')
+    .map((t) => {
+      if (t.rol === 'Obrero') {
+        const produccionesPendientes = produccion.filter((p) => p.trabajadorId === t.id && !p.pagado)
+        const montoAcciones = produccionesPendientes.reduce((sum, p) => sum + p.pagoTotal, 0)
+        const montoBonos = produccionesPendientes.reduce((sum, p) => sum + p.bono, 0)
 
-    // Estadísticas
+        return {
+          ...t,
+          produccionesPendientes,
+          montoAcciones,
+          montoBonos,
+          totalPendiente: montoAcciones + montoBonos,
+          modoPago: 'produccion',
+        }
+      }
+
+      const salarioFijo = config.salariosFijosPorRol[t.rol as RolConSalarioFijo] ?? 0
+      return {
+        ...t,
+        produccionesPendientes: [],
+        montoAcciones: salarioFijo,
+        montoBonos: 0,
+        totalPendiente: salarioFijo,
+        modoPago: 'salario_fijo',
+      }
+    })
+
+    // EstadÃ­sticas
   const totalPendiente = acumuladosPorTrabajador.reduce((sum, t) => sum + t.totalPendiente, 0)
   const totalPagadoHistorico = historial.reduce((sum, h) => sum + h.totalPagado, 0)
   const totalBonosHistorico = historial.reduce((sum, h) => sum + h.montoBonos + h.bonoExtra, 0)
@@ -107,7 +125,11 @@ export default function PagosPage() {
               <div key={trabajador.id} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
                 <div>
                   <p className="text-xs font-semibold text-slate-900">{trabajador.nombre}</p>
-                  <p className="text-[11px] text-slate-500">{trabajador.produccionesPendientes.length} registros</p>
+                  <p className="text-[11px] text-slate-500">
+                    {trabajador.modoPago === 'produccion'
+                      ? `${trabajador.produccionesPendientes.length} registros de producciÃ³n`
+                      : 'Salario fijo por rol'}
+                  </p>
                 </div>
                 <span className="text-xs font-semibold text-emerald-700">${trabajador.totalPendiente.toLocaleString()}</span>
               </div>
@@ -118,9 +140,10 @@ export default function PagosPage() {
     </div>
   )
 
-  const openPagoDialog = (trabajador: typeof acumuladosPorTrabajador[0]) => {
+  const openPagoDialog = (trabajador: AcumuladoPagoTrabajador) => {
     setSelectedTrabajador(trabajador)
     setPagoForm({ bonoExtra: 0, motivoBonoExtra: '', observaciones: '' })
+    setBonoExtraTouched(false)
     setIsPagoDialogOpen(true)
   }
 
@@ -129,6 +152,7 @@ export default function PagosPage() {
 
     const trabajadorData = acumuladosPorTrabajador.find(t => t.id === selectedTrabajador.id)
     if (!trabajadorData || trabajadorData.totalPendiente === 0) return
+    const esObrero = trabajadorData.rol === 'Obrero'
 
     // Crear registro de pago
     const nuevoPago: HistorialPago = {
@@ -136,9 +160,9 @@ export default function PagosPage() {
       trabajadorId: trabajadorData.id,
       trabajadorNombre: trabajadorData.nombre,
       fecha: new Date().toISOString().split('T')[0],
-      produccionIds: trabajadorData.produccionesPendientes.map(p => p.id),
+      produccionIds: esObrero ? trabajadorData.produccionesPendientes.map((p) => p.id) : [],
       montoAcciones: trabajadorData.montoAcciones,
-      montoBonos: trabajadorData.montoBonos,
+      montoBonos: esObrero ? trabajadorData.montoBonos : 0,
       bonoExtra: pagoForm.bonoExtra,
       motivoBonoExtra: pagoForm.motivoBonoExtra,
       totalPagado: trabajadorData.totalPendiente + pagoForm.bonoExtra,
@@ -148,13 +172,15 @@ export default function PagosPage() {
     // Actualizar historial
     setHistorial([nuevoPago, ...historial])
 
-    // Marcar producciones como pagadas
-    setProduccion(produccion.map(p => {
-      if (trabajadorData.produccionesPendientes.some(pp => pp.id === p.id)) {
-        return { ...p, pagado: true }
-      }
-      return p
-    }))
+    // Marcar producciones como pagadas (solo obreros)
+    if (esObrero) {
+      setProduccion(produccion.map((p) => {
+        if (trabajadorData.produccionesPendientes.some((pp) => pp.id === p.id)) {
+          return { ...p, pagado: true }
+        }
+        return p
+      }))
+    }
 
     // Actualizar trabajador
     setTrabajadores(trabajadores.map(t => {
@@ -180,11 +206,15 @@ export default function PagosPage() {
     { 
       key: 'produccionIds', 
       header: 'Producciones',
-      render: (h) => <Badge variant="outline">{h.produccionIds.length} registros</Badge>
+      render: (h) => (
+        h.produccionIds.length > 0
+          ? <Badge variant="outline">{h.produccionIds.length} registros</Badge>
+          : <Badge variant="outline">Salario fijo</Badge>
+      )
     },
     { 
       key: 'montoAcciones', 
-      header: 'Por Acciones',
+      header: 'Base',
       render: (h) => `$${h.montoAcciones.toLocaleString()}`
     },
     { 
@@ -230,7 +260,7 @@ export default function PagosPage() {
           Pagos a Trabajadores
         </h1>
         <p className="mt-1 text-muted-foreground font-sans">
-          Sistema de pagos con acumulación. Los pagos se realizan en cualquier momento y quedan registrados.
+          Obreros cobran por producción. Los demás roles cobran salario fijo definido en configuración.
         </p>
       </div>
 
@@ -252,7 +282,9 @@ export default function PagosPage() {
                 <CardTitle className="text-lg flex items-center justify-between">
                   {t.nombre}
                   {t.totalPendiente > 0 && (
-                    <Badge variant="secondary">{t.produccionesPendientes.length} prod.</Badge>
+                    <Badge variant={t.modoPago === 'produccion' ? 'secondary' : 'outline'}>
+                      {t.modoPago === 'produccion' ? `${t.produccionesPendientes.length} prod.` : 'Salario fijo'}
+                    </Badge>
                   )}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">{t.rol}</p>
@@ -260,12 +292,16 @@ export default function PagosPage() {
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <p className="text-muted-foreground">Por acciones</p>
+                    <p className="text-muted-foreground">
+                      {t.modoPago === 'produccion' ? 'Por producción' : 'Salario fijo'}
+                    </p>
                     <p className="font-medium">${t.montoAcciones.toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Bonos producción</p>
-                    <p className="font-medium text-green-600">+${t.montoBonos.toLocaleString()}</p>
+                    <p className="text-muted-foreground">Bonos producciÃ³n</p>
+                    <p className={t.montoBonos > 0 ? 'font-medium text-green-600' : 'font-medium text-muted-foreground'}>
+                      {t.montoBonos > 0 ? `+$${t.montoBonos.toLocaleString()}` : '-'}
+                    </p>
                   </div>
                 </div>
                 <div className="border-t pt-3">
@@ -334,12 +370,29 @@ export default function PagosPage() {
                     if (!data) return null
                     return (
                       <div className="grid grid-cols-2 gap-2 text-sm">
-                        <span className="text-muted-foreground">Producciones:</span>
-                        <span className="text-right">{data.produccionesPendientes.length} registros</span>
-                        <span className="text-muted-foreground">Por acciones:</span>
+                        <span className="text-muted-foreground">Esquema:</span>
+                        <span className="text-right">
+                          {data.modoPago === 'produccion' ? 'Producción' : 'Salario fijo'}
+                        </span>
+                        {data.modoPago === 'produccion' ? (
+                          <>
+                            <span className="text-muted-foreground">Producciones:</span>
+                            <span className="text-right">{data.produccionesPendientes.length} registros</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-muted-foreground">Rol:</span>
+                            <span className="text-right">{data.rol}</span>
+                          </>
+                        )}
+                        <span className="text-muted-foreground">
+                          {data.modoPago === 'produccion' ? 'Por producción:' : 'Salario base:'}
+                        </span>
                         <span className="text-right">${data.montoAcciones.toLocaleString()}</span>
                         <span className="text-muted-foreground">Bonos producción:</span>
-                        <span className="text-right text-green-600">+${data.montoBonos.toLocaleString()}</span>
+                        <span className={data.montoBonos > 0 ? 'text-right text-green-600' : 'text-right text-muted-foreground'}>
+                          {data.montoBonos > 0 ? `+$${data.montoBonos.toLocaleString()}` : '-'}
+                        </span>
                         <span className="text-muted-foreground font-medium">Subtotal:</span>
                         <span className="text-right font-medium">${data.totalPendiente.toLocaleString()}</span>
                       </div>
@@ -353,8 +406,12 @@ export default function PagosPage() {
                   <Input
                     type="number"
                     min="0"
-                    value={pagoForm.bonoExtra}
-                    onChange={(e) => setPagoForm({ ...pagoForm, bonoExtra: Number(e.target.value) })}
+                    value={bonoExtraTouched || pagoForm.bonoExtra > 0 ? pagoForm.bonoExtra : ''}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setBonoExtraTouched(value !== '')
+                      setPagoForm({ ...pagoForm, bonoExtra: value === '' ? 0 : Number(value) })
+                    }}
                     placeholder="0"
                   />
                 </div>
@@ -365,7 +422,7 @@ export default function PagosPage() {
                     <Input
                       value={pagoForm.motivoBonoExtra}
                       onChange={(e) => setPagoForm({ ...pagoForm, motivoBonoExtra: e.target.value })}
-                      placeholder="Ej: Excelente desempeño, horas extra..."
+                      placeholder="Ej: Excelente desempeÃ±o, horas extra..."
                     />
                   </div>
                 )}
@@ -425,18 +482,24 @@ export default function PagosPage() {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Producciones Incluidas</p>
-                    <p className="font-medium">{selectedHistorial.produccionIds.length} registros</p>
+                    <p className="font-medium">
+                      {selectedHistorial.produccionIds.length > 0
+                        ? `${selectedHistorial.produccionIds.length} registros`
+                        : 'No aplica (salario fijo)'}
+                    </p>
                   </div>
                 </div>
                 
                 <div className="border-t pt-4 space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Pago por acciones:</span>
+                    <span className="text-muted-foreground">Monto base:</span>
                     <span>${selectedHistorial.montoAcciones.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Bonos de producción:</span>
-                    <span className="text-green-600">+${selectedHistorial.montoBonos.toLocaleString()}</span>
+                    <span className={selectedHistorial.montoBonos > 0 ? 'text-green-600' : 'text-muted-foreground'}>
+                      {selectedHistorial.montoBonos > 0 ? `+$${selectedHistorial.montoBonos.toLocaleString()}` : '-'}
+                    </span>
                   </div>
                   {selectedHistorial.bonoExtra > 0 && (
                     <div className="flex justify-between">
@@ -467,5 +530,10 @@ export default function PagosPage() {
     </AdminShell>
   )
 }
+
+
+
+
+
 
 

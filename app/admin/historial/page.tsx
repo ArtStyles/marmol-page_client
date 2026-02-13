@@ -52,14 +52,28 @@ export default function HistorialPage() {
             <p className="text-xs text-slate-500">Sin eventos recientes.</p>
           ) : (
             recentLogs.map((log) => (
-              <div key={log.id} className="rounded-2xl bg-white/70 px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-slate-900">{log.modulo}</p>
-                  <Badge variant="outline" className="text-[10px] uppercase tracking-[0.2em]">
+              <div
+                key={log.id}
+                className={`rounded-2xl border bg-white/85 px-3 py-2 shadow-[0_10px_24px_-22px_rgba(15,23,42,0.45)] ${
+                  log.nivel === 'error'
+                    ? 'border-red-200/80'
+                    : log.nivel === 'alerta'
+                      ? 'border-amber-200/80'
+                      : 'border-slate-200/80'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-900">{log.modulo}</p>
+                    <p className="text-[10px] text-slate-500">{log.fecha}</p>
+                  </div>
+                  <Badge variant="outline" className="shrink-0 text-[10px] uppercase tracking-[0.2em]">
                     {log.nivel}
                   </Badge>
                 </div>
-                <p className="mt-1 text-[11px] text-slate-500">{log.accion}</p>
+                <div className="mt-2 border-t border-slate-200/70 pt-2">
+                  <p className="line-clamp-2 text-[11px] text-slate-600">{log.accion}</p>
+                </div>
               </div>
             ))
           )}

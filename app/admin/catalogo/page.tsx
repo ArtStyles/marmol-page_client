@@ -47,6 +47,10 @@ export default function CatalogoAdminPage() {
   const [featuredFilter, setFeaturedFilter] = useState<string>('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<CatalogoAdminItem | null>(null)
+  const [numericTouched, setNumericTouched] = useState({
+    precioM2: false,
+    stockLosas: false,
+  })
   const [formData, setFormData] = useState({
     nombre: '',
     tipo: 'Piso' as TipoProducto,
@@ -162,6 +166,10 @@ export default function CatalogoAdminPage() {
   const handleEdit = (item: CatalogoAdminItem) => {
     setEditingItem(item)
     setFormData({ ...item })
+    setNumericTouched({
+      precioM2: true,
+      stockLosas: true,
+    })
     setIsDialogOpen(true)
   }
 
@@ -192,6 +200,10 @@ export default function CatalogoAdminPage() {
       visible: true,
       descripcion: '',
       imagen: '/marble-carrara.jpg',
+    })
+    setNumericTouched({
+      precioM2: false,
+      stockLosas: false,
     })
     setIsDialogOpen(false)
   }
@@ -367,10 +379,13 @@ export default function CatalogoAdminPage() {
                   <Input
                     type="number"
                     min="0"
-                    value={formData.precioM2}
-                    onChange={(event) =>
-                      setFormData({ ...formData, precioM2: Number(event.target.value) })
-                    }
+                    placeholder="0"
+                    value={editingItem || numericTouched.precioM2 || formData.precioM2 > 0 ? formData.precioM2 : ''}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setNumericTouched((prev) => ({ ...prev, precioM2: value !== '' }))
+                      setFormData({ ...formData, precioM2: value === '' ? 0 : Number(value) })
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
@@ -378,10 +393,13 @@ export default function CatalogoAdminPage() {
                   <Input
                     type="number"
                     min="0"
-                    value={formData.stockLosas}
-                    onChange={(event) =>
-                      setFormData({ ...formData, stockLosas: Number(event.target.value) })
-                    }
+                    placeholder="0"
+                    value={editingItem || numericTouched.stockLosas || formData.stockLosas > 0 ? formData.stockLosas : ''}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setNumericTouched((prev) => ({ ...prev, stockLosas: value !== '' }))
+                      setFormData({ ...formData, stockLosas: value === '' ? 0 : Number(value) })
+                    }}
                   />
                 </div>
               </div>

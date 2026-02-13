@@ -34,6 +34,10 @@ export default function BloquesPage() {
   const [selectedBloque, setSelectedBloque] = useState<BloqueOLote | null>(null)
   const [editingBloque, setEditingBloque] = useState<BloqueOLote | null>(null)
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
+  const [numericTouched, setNumericTouched] = useState({
+    costo: false,
+    metrosComprados: false,
+  })
   const [formData, setFormData] = useState({
     nombre: '',
     tipo: 'Bloque' as 'Bloque' | 'Lote',
@@ -168,6 +172,10 @@ export default function BloquesPage() {
       metrosComprados: bloque.metrosComprados,
       proveedor: bloque.proveedor,
     })
+    setNumericTouched({
+      costo: true,
+      metrosComprados: true,
+    })
     setIsDialogOpen(true)
   }
 
@@ -196,6 +204,10 @@ export default function BloquesPage() {
       costo: 0,
       metrosComprados: 0,
       proveedor: ''
+    })
+    setNumericTouched({
+      costo: false,
+      metrosComprados: false,
     })
     setIsDialogOpen(false)
   }
@@ -335,8 +347,17 @@ export default function BloquesPage() {
                   <Input
                     type="number"
                     min="0"
-                    value={formData.costo}
-                    onChange={(e) => setFormData({ ...formData, costo: Number(e.target.value) })}
+                    placeholder="0"
+                    value={
+                      editingBloque || numericTouched.costo || formData.costo > 0
+                        ? formData.costo
+                        : ''
+                    }
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setNumericTouched((prev) => ({ ...prev, costo: value !== '' }))
+                      setFormData({ ...formData, costo: value === '' ? 0 : Number(value) })
+                    }}
                     required
                   />
                 </div>
@@ -346,8 +367,17 @@ export default function BloquesPage() {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={formData.metrosComprados}
-                    onChange={(e) => setFormData({ ...formData, metrosComprados: Number(e.target.value) })}
+                    placeholder="0"
+                    value={
+                      editingBloque || numericTouched.metrosComprados || formData.metrosComprados > 0
+                        ? formData.metrosComprados
+                        : ''
+                    }
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setNumericTouched((prev) => ({ ...prev, metrosComprados: value !== '' }))
+                      setFormData({ ...formData, metrosComprados: value === '' ? 0 : Number(value) })
+                    }}
                     required
                   />
                 </div>

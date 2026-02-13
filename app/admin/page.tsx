@@ -5,7 +5,15 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { productos, ventas, trabajadores, produccionDiaria, mermas, bloquesYLotes } from '@/lib/data'
+import {
+  bloquesYLotes,
+  mermas,
+  produccionDiaria,
+  produccionTrabajadores,
+  productos,
+  trabajadores,
+  ventas,
+} from '@/lib/data'
 import {
   ADMIN_STORAGE_KEY,
   getAccessForRole,
@@ -25,7 +33,6 @@ import {
   Users,
   TrendingUp,
 } from 'lucide-react'
-import { losasAMetros } from '@/lib/types'
 
 export default function AdminDashboard() {
   const pathname = usePathname()
@@ -42,17 +49,23 @@ export default function AdminDashboard() {
   const bloquesActivos = bloquesYLotes.filter((b) => b.estado === 'activo').length
 
   const produccionPorFecha = produccionDiaria.reduce<Record<string, number>>((acc, registro) => {
-    acc[registro.fecha] = (acc[registro.fecha] ?? 0) + losasAMetros(registro.cantidadLosas, registro.dimension)
+    acc[registro.fecha] = (acc[registro.fecha] ?? 0) + registro.totalM2
+    return acc
+  }, {})
+  const asignacionesPorFecha = produccionTrabajadores.reduce<Record<string, number>>((acc, registro) => {
+    acc[registro.fecha] = (acc[registro.fecha] ?? 0) + 1
     return acc
   }, {})
 
   const fechasOrdenadas = Object.keys(produccionPorFecha).sort()
+  const fechasAsignaciones = Object.keys(asignacionesPorFecha).sort()
   const fechaUltima = fechasOrdenadas[fechasOrdenadas.length - 1] ?? '2026-01-28'
+  const fechaUltimaAsignacion = fechasAsignaciones[fechasAsignaciones.length - 1]
   const produccionHoy = produccionDiaria.filter((p) => p.fecha === fechaUltima)
-  const totalM2Hoy = produccionHoy.reduce(
-    (sum, p) => sum + losasAMetros(p.cantidadLosas, p.dimension),
-    0,
-  )
+  const totalM2Hoy = produccionHoy.reduce((sum, p) => sum + p.totalM2, 0)
+  const totalAsignacionesHoy = fechaUltimaAsignacion
+    ? (asignacionesPorFecha[fechaUltimaAsignacion] ?? 0)
+    : 0
 
   const serieProduccion = fechasOrdenadas.slice(-7).map((fecha) => ({
     fecha,
@@ -84,6 +97,12 @@ export default function AdminDashboard() {
       label: 'Produccion',
       helper: `${totalM2Hoy.toFixed(1)} m2 hoy`,
       icon: Factory,
+    },
+    {
+      href: '/admin/asignaciones',
+      label: 'Asignaciones',
+      helper: `${totalAsignacionesHoy} hoy`,
+      icon: Users,
     },
     {
       href: '/admin/ventas',
@@ -404,17 +423,17 @@ export default function AdminDashboard() {
                 {produccionReciente.map((item) => (
                   <div key={item.id} className="rounded-2xl border border-white/60 bg-white/70 px-3 py-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-slate-900">{item.trabajadorNombre}</p>
-                      <Badge variant="secondary" className="capitalize">
-                        {item.accion}
-                      </Badge>
+                      <p className="text-sm font-medium text-slate-900">{item.origenNombre}</p>
+                      <Badge variant="secondary">{item.dimension}</Badge>
                     </div>
                     <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
                       <span>{item.fecha}</span>
-                      <span>
-                        {item.cantidadLosas} losas ?{' '}
-                        {losasAMetros(item.cantidadLosas, item.dimension).toFixed(2)} m2
-                      </span>
+                      <span>{item.totalLosas} losas / {item.totalM2.toFixed(2)} m2</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-1 text-[11px] text-slate-500">
+                      {item.cantidadPicar > 0 && <span>Picar: {item.cantidadPicar}</span>}
+                      {item.cantidadPulir > 0 && <span>Pulir: {item.cantidadPulir}</span>}
+                      {item.cantidadEscuadrar > 0 && <span>Escuadrar: {item.cantidadEscuadrar}</span>}
                     </div>
                   </div>
                 ))}

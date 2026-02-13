@@ -1,81 +1,76 @@
 'use client'
 
-import React from "react"
+import React from 'react'
 import { useState } from 'react'
-import { DataTable, type Column } from '@/components/data-table'
-import { Button } from '@/components/admin/admin-button'
+import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
-import { 
-  bloquesYLotes,
-  tiposProducto,
-  estadosLosa,
-  dimensiones
-} from '@/lib/data'
-import { losasAMetros } from '@/lib/types'
-import type { Producto, Dimension, TipoProducto, EstadoLosa } from '@/lib/types'
-import { useConfiguracion } from '@/hooks/use-configuracion'
+import { Card, CardContent } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { estadosInventario, tiposProducto } from '@/lib/data'
+import type { Producto } from '@/lib/types'
 import { useInventarioStore } from '@/hooks/use-inventario'
-import { Plus, Search, Edit, Trash2, Package } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { cn } from '@/lib/utils'
+import { Package, Search } from 'lucide-react'
+
+type OrigenGroup = {
+  origenId: string
+  origenNombre: string
+  items: Producto[]
+  totalLosas: number
+  totalM2: number
+  totalValor: number
+}
 
 export default function InventarioPage() {
-  const { config } = useConfiguracion()
-
-  const getPrecioDefault = (dimension: Dimension, estado: EstadoLosa) => {
-    const tipo = estado === 'Pulido' ? 'pulido' : 'crudo'
-    return config.preciosM2[dimension][tipo]
+  const estadoBadgeClass: Record<Producto['estado'], string> = {
+    Picado: 'border-blue-200 bg-blue-50 text-blue-700',
+    Pulido: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    Escuadrado: 'border-amber-200 bg-amber-50 text-amber-700',
   }
-
-  const { productos, setProductos } = useInventarioStore()
+  const { productos } = useInventarioStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [tipoFilter, setTipoFilter] = useState<string>('all')
   const [estadoFilter, setEstadoFilter] = useState<string>('all')
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<Producto | null>(null)
-  const [formData, setFormData] = useState({
-    nombre: '',
-    tipo: 'Piso' as TipoProducto,
-    estado: 'Crudo' as EstadoLosa,
-    dimension: '60x40' as Dimension,
-    origenId: '',
-    cantidadLosas: 0,
-    precioM2: getPrecioDefault('60x40', 'Crudo'),
-    imagen: '/marble-carrara.jpg'
-  })
 
-  const filteredProductos = productos.filter(p => {
-    const matchesSearch = p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.origenNombre.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesTipo = tipoFilter === 'all' || p.tipo === tipoFilter
-    const matchesEstado = estadoFilter === 'all' || p.estado === estadoFilter
+  const filteredProductos = productos.filter((producto) => {
+    const query = searchTerm.toLowerCase()
+    const matchesSearch =
+      producto.nombre.toLowerCase().includes(query) ||
+      producto.origenNombre.toLowerCase().includes(query) ||
+      producto.id.toLowerCase().includes(query)
+    const matchesTipo = tipoFilter === 'all' || producto.tipo === tipoFilter
+    const matchesEstado = estadoFilter === 'all' || producto.estado === estadoFilter
     return matchesSearch && matchesTipo && matchesEstado
   })
 
-  // Estadísticas
-  const totalLosas = productos.reduce((sum, p) => sum + p.cantidadLosas, 0)
-  const totalM2 = productos.reduce((sum, p) => sum + p.metrosCuadrados, 0)
-  const valorInventario = productos.reduce((sum, p) => sum + (p.metrosCuadrados * p.precioM2), 0)
-  const productosStockBajo = productos.filter(p => p.cantidadLosas < 20).length
-  const lowStockItems = productos
-    .filter(p => p.cantidadLosas < 20)
-    .sort((a, b) => a.cantidadLosas - b.cantidadLosas)
-    .slice(0, 3)
+  const totalLosas = productos.reduce((sum, item) => sum + item.cantidadLosas, 0)
+  const totalM2 = productos.reduce((sum, item) => sum + item.metrosCuadrados, 0)
+  const valorInventario = productos.reduce((sum, item) => sum + item.metrosCuadrados * item.precioM2, 0)
+  const productosStockBajo = productos.filter((item) => item.cantidadLosas < 20)
+
+  const groupedByOrigen = filteredProductos.reduce<Record<string, OrigenGroup>>((acc, item) => {
+    if (!acc[item.origenId]) {
+      acc[item.origenId] = {
+        origenId: item.origenId,
+        origenNombre: item.origenNombre,
+        items: [],
+        totalLosas: 0,
+        totalM2: 0,
+        totalValor: 0,
+      }
+    }
+
+    acc[item.origenId].items.push(item)
+    acc[item.origenId].totalLosas += item.cantidadLosas
+    acc[item.origenId].totalM2 += item.metrosCuadrados
+    acc[item.origenId].totalValor += item.metrosCuadrados * item.precioM2
+
+    return acc
+  }, {})
+
+  const origenesOrdenados = Object.values(groupedByOrigen).sort((a, b) => b.totalM2 - a.totalM2)
 
   const rightPanel = (
     <div className="space-y-4">
@@ -91,413 +86,213 @@ export default function InventarioPage() {
           </div>
           <div className="flex items-center justify-between">
             <span>Valor inventario</span>
-            <span className="font-semibold">${valorInventario.toLocaleString()}</span>
+            <span className="font-semibold">${Math.round(valorInventario).toLocaleString()}</span>
           </div>
         </div>
       </AdminPanelCard>
 
-      <AdminPanelCard
-        title="Stock bajo"
-        badge={
-          <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.2em]">
-            {productosStockBajo} alertas
-          </Badge>
-        }
-      >
+      <AdminPanelCard title="Stock bajo" meta={`${productosStockBajo.length} alertas`}>
         <div className="space-y-2 text-sm text-slate-700">
-          {lowStockItems.length === 0 ? (
+          {productosStockBajo.length === 0 ? (
             <p className="text-xs text-slate-500">Sin alertas pendientes.</p>
           ) : (
-            lowStockItems.map((item) => (
-              <div key={item.id} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
-                <div>
-                  <p className="text-xs font-semibold text-slate-900">{item.nombre}</p>
-                  <p className="text-[11px] text-slate-500">{item.origenNombre}</p>
+            productosStockBajo
+              .sort((a, b) => a.cantidadLosas - b.cantidadLosas)
+              .slice(0, 3)
+              .map((item) => (
+                <div key={item.id} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-900">{item.nombre}</p>
+                    <p className="text-[11px] text-slate-500">{item.origenNombre}</p>
+                  </div>
+                  <span className="text-xs font-semibold text-amber-700">{item.cantidadLosas} losas</span>
                 </div>
-                <span className="text-xs font-semibold text-amber-700">{item.cantidadLosas} losas</span>
-              </div>
-            ))
+              ))
           )}
         </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Fuente de datos" meta="Modo actual">
+        <p className="text-xs text-slate-600">
+          Inventario en solo lectura. Se alimenta desde produccion diaria, ventas y mermas.
+          Actualmente usa datos mock; luego vendra desde API.
+        </p>
       </AdminPanelCard>
     </div>
   )
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    const origen = bloquesYLotes.find(b => b.id === formData.origenId)
-    if (!origen) return
-
-    const metrosCuadrados = losasAMetros(formData.cantidadLosas, formData.dimension)
-
-    if (editingProduct) {
-      setProductos(productos.map(p => 
-        p.id === editingProduct.id 
-          ? { 
-              ...p, 
-              ...formData,
-              origenNombre: origen.nombre,
-              metrosCuadrados
-            } as Producto
-          : p
-      ))
-    } else {
-      const newProducto: Producto = {
-        id: `P${String(productos.length + 1).padStart(3, '0')}`,
-        nombre: formData.nombre,
-        tipo: formData.tipo,
-        estado: formData.estado,
-        dimension: formData.dimension,
-        origenId: formData.origenId,
-        origenNombre: origen.nombre,
-        cantidadLosas: formData.cantidadLosas,
-        metrosCuadrados,
-        precioM2: formData.precioM2,
-        imagen: formData.imagen
-      }
-      setProductos([...productos, newProducto])
-    }
-    resetForm()
-  }
-
-  const handleEdit = (producto: Producto) => {
-    setEditingProduct(producto)
-    setFormData({
-      nombre: producto.nombre,
-      tipo: producto.tipo,
-      estado: producto.estado,
-      dimension: producto.dimension,
-      origenId: producto.origenId,
-      cantidadLosas: producto.cantidadLosas,
-      precioM2: producto.precioM2,
-      imagen: producto.imagen
-    })
-    setIsDialogOpen(true)
-  }
-
-  const handleDelete = (id: string) => {
-    if (confirm('¿Estás seguro de eliminar este producto del inventario?')) {
-      setProductos(productos.filter(p => p.id !== id))
-    }
-  }
-
-  const resetForm = () => {
-    setEditingProduct(null)
-    setFormData({
-      nombre: '',
-      tipo: 'Piso',
-      estado: 'Crudo',
-      dimension: '60x40',
-      origenId: '',
-      cantidadLosas: 0,
-      precioM2: getPrecioDefault('60x40', 'Crudo'),
-      imagen: '/marble-carrara.jpg'
-    })
-    setIsDialogOpen(false)
-  }
-
-  // Calcular m2 en tiempo real
-  const m2Calculados = losasAMetros(formData.cantidadLosas, formData.dimension)
-
-  const columns: Column<Producto>[] = [
-    { key: 'id', header: 'ID' },
-    { key: 'nombre', header: 'Nombre' },
-    { 
-      key: 'tipo', 
-      header: 'Tipo',
-      render: (p) => <Badge variant="outline">{p.tipo}</Badge>
-    },
-    { 
-      key: 'estado', 
-      header: 'Estado',
-      render: (p) => (
-        <Badge variant={p.estado === 'Pulido' ? 'default' : 'secondary'}>
-          {p.estado}
-        </Badge>
-      )
-    },
-    { key: 'dimension', header: 'Dimensión' },
-    { key: 'origenNombre', header: 'Origen' },
-    { 
-      key: 'cantidadLosas', 
-      header: 'Losas',
-      render: (p) => (
-        <span className={p.cantidadLosas < 20 ? 'text-destructive font-bold' : 'font-medium'}>
-          {p.cantidadLosas}
-        </span>
-      )
-    },
-    { 
-      key: 'metrosCuadrados', 
-        header: 'm²',
-      render: (p) => `${p.metrosCuadrados.toFixed(1)} m²`
-    },
-    { 
-      key: 'precioM2', 
-        header: 'Precio/m²',
-      render: (p) => `$${p.precioM2}`
-    },
-    { 
-      key: 'valor', 
-      header: 'Valor Total a precio de venta',
-      render: (p) => (
-        <span className="font-bold text-primary">
-          ${(p.metrosCuadrados * p.precioM2).toLocaleString()}
-        </span>
-      )
-    },
-    {
-      key: 'actions',
-      header: 'Acciones',
-      render: (p) => (
-        <div className="flex gap-2">
-          <Button size="icon" variant="ghost" onClick={() => handleEdit(p)}>
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="ghost" onClick={() => handleDelete(p.id)}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
-        </div>
-      )
-    }
-  ]
-
   return (
     <AdminShell rightPanel={rightPanel}>
       <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground font-sans">
-            Inventario
-          </h1>
-          <p className="mt-1 text-muted-foreground font-sans">
-            Material disponible para vender. Se alimenta desde producción y se descuenta desde ventas.
-          </p>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => resetForm()}>
-              <Plus className="mr-2 h-4 w-4" />
-              Agregar al Inventario
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingProduct ? 'Editar Producto' : 'Agregar al Inventario'}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Nombre del Producto</Label>
-                <Input
-                  value={formData.nombre}
-                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                  placeholder="Piso Carrara 60x40 Pulido"
-                  required
-                />
-              </div>
-
-              <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
-                <div className="space-y-2">
-                  <Label>Tipo</Label>
-                  <Select 
-                    value={formData.tipo} 
-                    onValueChange={(value: TipoProducto) => setFormData({ ...formData, tipo: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tiposProducto.map((t) => (
-                        <SelectItem key={t} value={t}>{t}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Estado</Label>
-                  <Select 
-                    value={formData.estado} 
-                    onValueChange={(value: EstadoLosa) => setFormData((prev) => ({
-                      ...prev,
-                      estado: value,
-                      precioM2: getPrecioDefault(prev.dimension, value)
-                    }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {estadosLosa.map((e) => (
-                        <SelectItem key={e} value={e}>{e}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Dimensión</Label>
-                  <Select 
-                    value={formData.dimension} 
-                    onValueChange={(value: Dimension) => setFormData((prev) => ({
-                      ...prev,
-                      dimension: value,
-                      precioM2: getPrecioDefault(value, prev.estado)
-                    }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {dimensiones.map((d) => (
-                        <SelectItem key={d} value={d}>{d} cm</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Bloque/Lote de Origen</Label>
-                <Select 
-                  value={formData.origenId} 
-                  onValueChange={(value) => setFormData({ ...formData, origenId: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar origen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {bloquesYLotes.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.nombre} ({b.tipo})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Cantidad de Losas</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={formData.cantidadLosas}
-                    onChange={(e) => setFormData({ ...formData, cantidadLosas: Number(e.target.value) })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Precio por m²</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={formData.precioM2}
-                    onChange={(e) => setFormData({ ...formData, precioM2: Number(e.target.value) })}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Cálculo automático */}
-              <div className="rounded-lg bg-muted p-4 space-y-2">
-                <h4 className="font-medium">Conversión Automática</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Losas:</span>
-                  <span className="text-right">{formData.cantidadLosas}</span>
-                  <span className="text-muted-foreground">Metros cuadrados:</span>
-                  <span className="text-right font-bold">{m2Calculados.toFixed(2)} m²</span>
-                  <span className="text-muted-foreground">Valor total:</span>
-                  <span className="text-right font-bold text-primary">
-                    ${(m2Calculados * formData.precioM2).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={resetForm} className="flex-1 bg-transparent">
-                  Cancelar
-                </Button>
-                <Button type="submit" className="flex-1">
-                  {editingProduct ? 'Actualizar' : 'Agregar'}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Principio */}
-      <div className="rounded-[24px] border border-emerald-200/70 bg-emerald-50/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-sm">
-        <div className="flex items-start gap-3">
-          <Package className="h-5 w-5 text-green-600 mt-0.5" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h4 className="font-medium text-green-800">Principio del Sistema</h4>
-            <p className="text-sm text-green-700">
-                El inventario representa material real disponible para vender. Se alimenta únicamente 
-              desde la producción diaria y se descuenta únicamente desde las ventas.
+            <h1 className="text-3xl font-bold text-foreground font-sans">Inventario</h1>
+            <p className="mt-1 text-muted-foreground font-sans">
+              Vista de solo lectura. No se agregan productos manualmente en este modulo.
             </p>
           </div>
+          <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
+            Solo lectura
+          </Badge>
         </div>
-      </div>
 
-      {/* Filters */}
-      <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</Label>
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar productos..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
+        <div className="rounded-[24px] border border-emerald-200/70 bg-emerald-50/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-sm">
+          <div className="flex items-start gap-3">
+            <Package className="mt-0.5 h-5 w-5 text-green-600" />
+            <div>
+              <h4 className="font-medium text-green-800">Flujo operativo</h4>
+              <p className="text-sm text-green-700">
+                El inventario se calcula con entradas desde produccion diaria y salidas por ventas y mermas.
+                Esta pantalla refleja ese estado con datos mockeados temporalmente.
+              </p>
             </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Tipo</Label>
-            <Select value={tipoFilter} onValueChange={setTipoFilter}>
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {tiposProducto.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Estado</Label>
-            <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {estadosLosa.map((e) => (
-                  <SelectItem key={e} value={e}>{e}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        </div>
+
+        <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</Label>
+              <div className="relative w-full">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar productos..."
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Tipo</Label>
+              <Select value={tipoFilter} onValueChange={setTipoFilter}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {tiposProducto.map((tipo) => (
+                    <SelectItem key={tipo} value={tipo}>
+                      {tipo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Estado</Label>
+              <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {estadosInventario.map((estado) => (
+                    <SelectItem key={estado} value={estado}>
+                      {estado}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Table */}
-      <DataTable
-        data={filteredProductos}
-        columns={columns}
-        emptyMessage="No hay productos en inventario"
-      />
+        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] py-0 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+          <CardContent className="pb-4 pt-4">
+            {origenesOrdenados.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                No hay productos en inventario
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {origenesOrdenados.map((group) => (
+                  <div
+                    key={group.origenId}
+                    className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
+                  >
+                    <div className="flex flex-col gap-3 border-b border-slate-200/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Origen</p>
+                        <p className="text-base font-semibold text-slate-900">{group.origenNombre}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-right">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Losas</p>
+                          <p className="text-sm font-semibold text-slate-900">{group.totalLosas}</p>
+                        </div>
+                        <div className="rounded-lg border border-emerald-200/70 bg-emerald-50/70 px-2.5 py-1 text-right text-emerald-700">
+                          <p className="text-[10px] uppercase tracking-[0.2em]">M2</p>
+                          <p className="text-sm font-semibold">{group.totalM2.toFixed(2)}</p>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-right">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Valor</p>
+                          <p className="text-sm font-semibold text-slate-900">${Math.round(group.totalValor).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="hidden lg:grid lg:grid-cols-[minmax(0,1.4fr)_90px_110px_100px_110px_130px] border-b border-slate-200/70 bg-slate-50/70 px-4 py-2">
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Producto</span>
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Dim.</span>
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Estado</span>
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Losas</span>
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">M2</span>
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Valor</span>
+                    </div>
+
+                    <div className="divide-y divide-slate-200/60">
+                      {group.items.map((item) => {
+                        const isLowStock = item.cantidadLosas < 20
+                        const valorItem = item.metrosCuadrados * item.precioM2
+
+                        return (
+                          <div key={item.id} className="px-4 py-3">
+                            <div className="grid gap-2 lg:grid-cols-[minmax(0,1.4fr)_90px_110px_100px_110px_130px] lg:items-center">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">{item.nombre}</p>
+                                <p className="text-[11px] text-slate-500">
+                                  {item.tipo} · ${item.precioM2}/m2
+                                </p>
+                              </div>
+
+                              <div className="text-sm text-slate-700">{item.dimension}</div>
+
+                              <div>
+                                <Badge variant="outline" className={estadoBadgeClass[item.estado]}>
+                                  {item.estado}
+                                </Badge>
+                              </div>
+
+                              <div className="flex items-center justify-between text-sm lg:block lg:text-right">
+                                <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Losas</span>
+                                <span className={cn('font-semibold', isLowStock ? 'text-amber-700' : 'text-slate-900')}>
+                                  {item.cantidadLosas}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between text-sm lg:block lg:text-right">
+                                <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">M2</span>
+                                <span className="font-semibold text-emerald-700">{item.metrosCuadrados.toFixed(2)}</span>
+                              </div>
+
+                              <div className="flex items-center justify-between text-sm lg:block lg:text-right">
+                                <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Valor</span>
+                                <span className="font-semibold text-slate-900">${Math.round(valorItem).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AdminShell>
   )
 }
-
 

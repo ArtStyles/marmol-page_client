@@ -2,23 +2,30 @@ import type {
   BloqueOLote, 
   Producto, 
   ProduccionDiaria, 
+  ProduccionTrabajador,
   Merma, 
   Venta, 
   Trabajador, 
   HistorialPago,
   ConfiguracionSistema,
-  SystemLog
+  SystemLog,
+  EstadoInventario
 } from './types'
-import { TARIFAS_ACCION_DEFAULT, PRECIOS_M2_DEFAULT } from './types'
+import {
+  TARIFAS_ACCION_DEFAULT,
+  PRECIOS_M2_DEFAULT,
+  SALARIOS_FIJOS_POR_ROL_DEFAULT,
+} from './types'
 
 // ==========================================
-// CONFIGURACIÓN DEL SISTEMA
+// CONFIGURACIÃ“N DEL SISTEMA
 // ==========================================
 
 export const configuracionInicial: ConfiguracionSistema = {
   tarifasGlobales: { ...TARIFAS_ACCION_DEFAULT },
+  salariosFijosPorRol: { ...SALARIOS_FIJOS_POR_ROL_DEFAULT },
   preciosM2: { ...PRECIOS_M2_DEFAULT },
-  nombreEmpresa: 'Mármoles Elegance',
+  nombreEmpresa: 'MÃ¡rmoles Elegance',
   email: 'info@marmoleselegance.com',
   telefono: '+52 555 123 4567',
   direccion: 'Av. Principal 123, Col. Centro, CDMX',
@@ -28,7 +35,7 @@ export const configuracionInicial: ConfiguracionSistema = {
 }
 
 // ==========================================
-// DATOS DE EJEMPLO DEL TALLER DE MÁRMOL
+// DATOS DE EJEMPLO DEL TALLER DE MÃRMOL
 // ==========================================
 
 export const bloquesYLotes: BloqueOLote[] = [
@@ -39,7 +46,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     costo: 15000,
     metrosComprados: 32.0,
     fechaIngreso: '2026-01-10',
-    proveedor: 'Mármoles Italia S.A.',
+    proveedor: 'MÃ¡rmoles Italia S.A.',
     losasProducidas: 120,
     losasPerdidas: 8,
     metrosVendibles: 28.8,
@@ -53,7 +60,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     costo: 12000,
     metrosComprados: 26.5,
     fechaIngreso: '2026-01-05',
-    proveedor: 'Canteras España',
+    proveedor: 'Canteras EspaÃ±a',
     losasProducidas: 95,
     losasPerdidas: 12,
     metrosVendibles: 22.8,
@@ -81,7 +88,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     costo: 25000,
     metrosComprados: 21.0,
     fechaIngreso: '2025-12-20',
-    proveedor: 'Mármoles Italia S.A.',
+    proveedor: 'MÃ¡rmoles Italia S.A.',
     losasProducidas: 85,
     losasPerdidas: 3,
     metrosVendibles: 20.4,
@@ -106,9 +113,9 @@ export const productos: Producto[] = [
   },
   {
     id: 'P002',
-    nombre: 'Plancha Carrara 80x40 Crudo',
+    nombre: 'Plancha Carrara 80x40 Picado',
     tipo: 'Plancha',
-    estado: 'Crudo',
+    estado: 'Picado',
     dimension: '80x40',
     origenId: 'BL001',
     origenNombre: 'Bloque Carrara #1',
@@ -158,9 +165,9 @@ export const productos: Producto[] = [
   },
   {
     id: 'P006',
-    nombre: 'Piso Emperador 60x40 Crudo',
+    nombre: 'Piso Emperador 60x40 Escuadrado',
     tipo: 'Piso',
-    estado: 'Crudo',
+    estado: 'Escuadrado',
     dimension: '60x40',
     origenId: 'BL002',
     origenNombre: 'Bloque Emperador #3',
@@ -188,7 +195,7 @@ export const trabajadores: Trabajador[] = [
   },
   {
     id: 'T002',
-    nombre: 'Roberto Sánchez',
+    nombre: 'Roberto SÃ¡nchez',
     email: 'roberto.sanchez@taller.com',
     telefono: '+52 555 234 5678',
     rol: 'Obrero',
@@ -202,10 +209,10 @@ export const trabajadores: Trabajador[] = [
   },
   {
     id: 'T003',
-    nombre: 'Miguel Ángel Torres',
+    nombre: 'Miguel Ãngel Torres',
     email: 'miguel.torres@taller.com',
     telefono: '+52 555 345 6789',
-    rol: 'Jefe de Turno de Producción',
+    rol: 'Jefe de Turno de ProducciÃ³n',
     fechaIngreso: '2022-01-10',
     estado: 'activo',
     usuario: 'produccion@marmol.local',
@@ -234,7 +241,7 @@ export const trabajadores: Trabajador[] = [
   },
   {
     id: 'T005',
-    nombre: 'José García',
+    nombre: 'JosÃ© GarcÃ­a',
     email: 'jose.garcia@taller.com',
     telefono: '+52 555 567 8901',
     rol: 'Gestor de Ventas',
@@ -251,6 +258,61 @@ export const trabajadores: Trabajador[] = [
 ]
 
 export const produccionDiaria: ProduccionDiaria[] = [
+  {
+    id: 'PG001',
+    fecha: '2026-01-28',
+    origenId: 'BL001',
+    origenNombre: 'Bloque Carrara #1',
+    tipo: 'Piso',
+    dimension: '60x40',
+    cantidadPicar: 15,
+    cantidadPulir: 20,
+    cantidadEscuadrar: 0,
+    totalLosas: 35,
+    totalM2: 8.4
+  },
+  {
+    id: 'PG002',
+    fecha: '2026-01-28',
+    origenId: 'BL002',
+    origenNombre: 'Bloque Emperador #3',
+    tipo: 'Piso',
+    dimension: '40x40',
+    cantidadPicar: 0,
+    cantidadPulir: 0,
+    cantidadEscuadrar: 25,
+    totalLosas: 25,
+    totalM2: 4
+  },
+  {
+    id: 'PG003',
+    fecha: '2026-01-27',
+    origenId: 'LT001',
+    origenNombre: 'Lote Crema Marfil #15',
+    tipo: 'Piso',
+    dimension: '60x40',
+    cantidadPicar: 0,
+    cantidadPulir: 35,
+    cantidadEscuadrar: 30,
+    totalLosas: 65,
+    totalM2: 15.6
+  },
+  {
+    id: 'PG004',
+    fecha: '2026-01-26',
+    origenId: 'BL002',
+    origenNombre: 'Bloque Emperador #3',
+    tipo: 'Plancha',
+    dimension: '80x40',
+    cantidadPicar: 12,
+    cantidadPulir: 0,
+    cantidadEscuadrar: 0,
+    totalLosas: 12,
+    totalM2: 3.84
+  }
+]
+
+export const produccionTrabajadores: ProduccionTrabajador[] = [
   {
     id: 'PD001',
     fecha: '2026-01-28',
@@ -272,7 +334,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     id: 'PD002',
     fecha: '2026-01-28',
     trabajadorId: 'T002',
-    trabajadorNombre: 'Roberto Sánchez',
+    trabajadorNombre: 'Roberto SÃ¡nchez',
     accion: 'pulir',
     origenId: 'BL001',
     origenNombre: 'Bloque Carrara #1',
@@ -289,7 +351,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     id: 'PD003',
     fecha: '2026-01-28',
     trabajadorId: 'T003',
-    trabajadorNombre: 'Miguel Ángel Torres',
+    trabajadorNombre: 'Miguel Ãngel Torres',
     accion: 'escuadrar',
     origenId: 'BL002',
     origenNombre: 'Bloque Emperador #3',
@@ -340,7 +402,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     id: 'PD006',
     fecha: '2026-01-26',
     trabajadorId: 'T003',
-    trabajadorNombre: 'Miguel Ángel Torres',
+    trabajadorNombre: 'Miguel Ãngel Torres',
     accion: 'picar',
     origenId: 'BL002',
     origenNombre: 'Bloque Emperador #3',
@@ -355,7 +417,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
   }
 ]
 
-// Mermas ahora en METROS CUADRADOS directamente
+// Mermas: registro en losas con su conversiÃ³n a mÂ²
 export const mermas: Merma[] = [
   {
     id: 'M001',
@@ -364,9 +426,10 @@ export const mermas: Merma[] = [
     origenNombre: 'Bloque Carrara #1',
     tipo: 'Piso',
     dimension: '60x40',
-    metrosCuadrados: 0.45, // Parte de una losa que se perdió
+    cantidadLosas: 2,
+    metrosCuadrados: 0.48,
     motivo: 'Partida al picar',
-    observaciones: 'Vetas internas causaron fractura parcial, se recuperó parte para losa 40x40'
+    observaciones: 'Vetas internas causaron fractura, pÃ©rdida total de 2 losas'
   },
   {
     id: 'M002',
@@ -375,9 +438,10 @@ export const mermas: Merma[] = [
     origenNombre: 'Bloque Emperador #3',
     tipo: 'Piso',
     dimension: '40x40',
+    cantidadLosas: 2,
     metrosCuadrados: 0.32,
     motivo: 'Partida al pulir',
-    observaciones: 'Presión excesiva en el proceso, pérdida total de 2 losas'
+    observaciones: 'PresiÃ³n excesiva en el proceso, pÃ©rdida total de 2 losas'
   },
   {
     id: 'M003',
@@ -386,9 +450,10 @@ export const mermas: Merma[] = [
     origenNombre: 'Lote Crema Marfil #15',
     tipo: 'Piso',
     dimension: '60x40',
-    metrosCuadrados: 0.12,
+    cantidadLosas: 1,
+    metrosCuadrados: 0.24,
     motivo: 'Recorte aprovechable',
-    observaciones: 'Recorte de bordes para escuadrar, material muy pequeño para reutilizar'
+    observaciones: 'Recorte de bordes para escuadrar, pÃ©rdida equivalente a 1 losa'
   },
   {
     id: 'M004',
@@ -397,6 +462,7 @@ export const mermas: Merma[] = [
     origenNombre: 'Bloque Calacatta Gold #2',
     tipo: 'Plancha',
     dimension: '80x40',
+    cantidadLosas: 2,
     metrosCuadrados: 0.64,
     motivo: 'Defecto de material',
     observaciones: 'Grieta natural descubierta al procesar'
@@ -409,6 +475,7 @@ export const ventas: Venta[] = [
     productoId: 'P001',
     productoNombre: 'Piso Carrara 60x40 Pulido',
     cantidadM2: 5.5,
+    metrosPorDimension: { '40x40': 0, '60x40': 5.5, '80x40': 0 },
     precioM2: 200,
     descuento: 5,
     fondoOperativo: 50,
@@ -425,13 +492,14 @@ export const ventas: Venta[] = [
     productoId: 'P005',
     productoNombre: 'Plancha Calacatta 80x40 Pulido',
     cantidadM2: 3.2,
+    metrosPorDimension: { '40x40': 0, '60x40': 0, '80x40': 3.2 },
     precioM2: 320,
     descuento: 0,
     fondoOperativo: 100,
     subtotal: 1024,
     total: 1124,
-    clienteNombre: 'Diseños Interiores Premium',
-    clienteEmail: 'pedidos@diseñospremium.com',
+    clienteNombre: 'DiseÃ±os Interiores Premium',
+    clienteEmail: 'pedidos@diseÃ±ospremium.com',
     clienteTelefono: '+52 555 333 4444',
     fecha: '2026-01-27',
     estado: 'completada'
@@ -441,6 +509,7 @@ export const ventas: Venta[] = [
     productoId: 'P004',
     productoNombre: 'Piso Crema Marfil 60x40 Pulido',
     cantidadM2: 12.0,
+    metrosPorDimension: { '40x40': 0, '60x40': 12.0, '80x40': 0 },
     precioM2: 200,
     descuento: 10,
     fondoOperativo: 75,
@@ -457,6 +526,7 @@ export const ventas: Venta[] = [
     productoId: 'P003',
     productoNombre: 'Piso Emperador 40x40 Pulido',
     cantidadM2: 8.0,
+    metrosPorDimension: { '40x40': 8.0, '60x40': 0, '80x40': 0 },
     precioM2: 180,
     descuento: 0,
     fondoOperativo: 60,
@@ -488,7 +558,7 @@ export const historialPagos: HistorialPago[] = [
   {
     id: 'HP002',
     trabajadorId: 'T003',
-    trabajadorNombre: 'Miguel Ángel Torres',
+    trabajadorNombre: 'Miguel Ãngel Torres',
     fecha: '2026-01-26',
     produccionIds: ['PD006'],
     montoAcciones: 5040,
@@ -496,7 +566,7 @@ export const historialPagos: HistorialPago[] = [
     bonoExtra: 0,
     motivoBonoExtra: '',
     totalPagado: 5040,
-    observaciones: 'Pago por producción del día'
+    observaciones: 'Pago por producciÃ³n del dÃ­a'
   }
 ]
 
@@ -558,7 +628,7 @@ export const logsSistema: SystemLog[] = [
   }
 ]
 
-// Categorías para el catálogo público
+// CategorÃ­as para el catÃ¡logo pÃºblico
 export const categories = ['Todos', 'Piso', 'Plancha', 'Pulido', 'Crudo']
 
 // Dimensiones disponibles
@@ -578,6 +648,11 @@ export const tiposProducto = ['Piso', 'Plancha']
 
 // Estados de losa
 export const estadosLosa = ['Crudo', 'Pulido']
+// Estados operativos del inventario
+export const estadosInventario: EstadoInventario[] = ['Picado', 'Pulido', 'Escuadrado']
 
 // Acciones disponibles
 export const acciones = ['picar', 'pulir', 'escuadrar']
+
+
+

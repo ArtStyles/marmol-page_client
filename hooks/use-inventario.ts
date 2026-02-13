@@ -6,6 +6,24 @@ import type { Producto } from '@/lib/types'
 
 const STORAGE_KEY = 'admin_inventario_productos'
 
+const normalizeEstadoInventario = (estado: unknown): Producto['estado'] => {
+  if (estado === 'Pulido' || estado === 'Picado' || estado === 'Escuadrado') {
+    return estado
+  }
+
+  // Compatibilidad con datos persistidos antes del cambio de estados.
+  if (estado === 'Crudo') {
+    return 'Picado'
+  }
+
+  return 'Picado'
+}
+
+const normalizeProducto = (item: Producto): Producto => ({
+  ...item,
+  estado: normalizeEstadoInventario((item as { estado?: unknown }).estado),
+})
+
 const loadProductos = (): Producto[] => {
   if (typeof window === 'undefined') {
     return initialProductos
@@ -15,7 +33,7 @@ const loadProductos = (): Producto[] => {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return initialProductos
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? (parsed as Producto[]) : initialProductos
+    return Array.isArray(parsed) ? (parsed as Producto[]).map(normalizeProducto) : initialProductos
   } catch {
     return initialProductos
   }
