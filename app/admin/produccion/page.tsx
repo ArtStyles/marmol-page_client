@@ -389,14 +389,14 @@ export default function ProduccionPage() {
           </div>
         </div>
 
-        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] py-0 shadow-[var(--dash-shadow)] backdrop-blur-xl">
-          <CardContent className="pb-4 pt-4">
+        <Card className=" bg-transparent border-none outline-none shadow-none p-0 ">
+          <CardContent className="p-0">
             {fechasOrdenadas.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
                 No hay registros de produccion
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {fechasOrdenadas.map((fecha) => {
                   const registros = groupedByDate[fecha]
 

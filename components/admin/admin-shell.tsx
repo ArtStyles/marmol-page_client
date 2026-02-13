@@ -28,6 +28,7 @@ import {
   ADMIN_STORAGE_KEY,
   getAccessForRole,
   isPathAllowed,
+  type AdminRole,
   type AdminUser,
 } from '@/lib/admin-auth'
 import { WORKSHOP_STORAGE_KEY } from '@/lib/workshops'
@@ -73,7 +74,7 @@ const shellStyle = {
   backgroundImage: 'var(--dash-bg)',
 } as CSSProperties
 
-function buildDefaultNav(): AdminNavItem[] {
+function buildDefaultNav(role?: AdminRole): AdminNavItem[] {
   const totalLosasInventario = productos.reduce((sum, p) => sum + p.cantidadLosas, 0)
   const ventasCompletadas = ventas.filter((v) => v.estado === 'completada')
   const totalVentas = ventasCompletadas.reduce((sum, v) => sum + v.total, 0)
@@ -97,7 +98,7 @@ function buildDefaultNav(): AdminNavItem[] {
     ? (asignacionesPorFecha[fechaUltimaAsignacion] ?? 0)
     : 0
 
-  return [
+  const items: AdminNavItem[] = [
     {
       href: '/admin',
       label: 'Dashboard',
@@ -183,6 +184,17 @@ function buildDefaultNav(): AdminNavItem[] {
       icon: Settings,
     },
   ]
+
+  if (role === 'Obrero') {
+    items.push({
+      href: '/admin/obrero',
+      label: 'Mi panel',
+      helper: 'Obrero',
+      icon: Wallet,
+    })
+  }
+
+  return items
 }
 
 export function AdminPanelCard({ title, meta, badge, className, children }: AdminPanelCardProps) {
@@ -204,7 +216,6 @@ export function AdminPanelCard({ title, meta, badge, className, children }: Admi
 
 export function AdminShell({ children, rightPanel, navItems }: AdminShellProps) {
   const pathname = usePathname()
-  const items = navItems ?? buildDefaultNav()
   const readSessionUser = () => {
     if (typeof window === 'undefined') return null
     const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
@@ -217,6 +228,7 @@ export function AdminShell({ children, rightPanel, navItems }: AdminShellProps) 
     }
   }
   const [sessionUser, setSessionUser] = useState<AdminUser | null>(() => readSessionUser())
+  const items = navItems ?? buildDefaultNav(sessionUser?.role)
 
   useEffect(() => {
     if (sessionUser) return

@@ -2,12 +2,12 @@
 
 import React from "react"
 import { useEffect, useState } from 'react'
-import { DataTable, type Column } from '@/components/data-table'
 import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
+import { Card, CardContent } from '@/components/ui/card'
 import { bloquesYLotes as initialBloques } from '@/lib/data'
 import type { BloqueOLote } from '@/lib/types'
 import { ADMIN_STORAGE_KEY, type AdminUser } from '@/lib/admin-auth'
@@ -212,82 +212,50 @@ export default function BloquesPage() {
     setIsDialogOpen(false)
   }
 
-  const columns: Column<BloqueOLote>[] = [
-    { key: 'id', header: 'ID' },
-    { key: 'nombre', header: 'Nombre' },
-    { 
-      key: 'tipo', 
-      header: 'Tipo',
-      render: (b) => (
-        <Badge variant={b.tipo === 'Bloque' ? 'default' : 'secondary'}>
-          {b.tipo}
-        </Badge>
-      )
-    },
-    { 
-      key: 'costo', 
-      header: 'Costo',
-      render: (b) => `$${b.costo.toLocaleString()}`
-    },
-    { 
-      key: 'metrosComprados', 
-      header: 'm2 Comprados',
-      render: (b) => `${b.metrosComprados.toFixed(1)} m2`
-    },
-    { key: 'fechaIngreso', header: 'Ingreso' },
-    { key: 'proveedor', header: 'Proveedor' },
-    { 
-      key: 'estado', 
-      header: 'Estado',
-      render: (b) => (
-        <Badge variant={b.estado === 'activo' ? 'default' : 'outline'}>
-          {b.estado === 'activo' ? 'Activo' : 'Agotado'}
-        </Badge>
-      )
-    },
-    {
-      key: 'actions',
-      header: 'Acciones',
-      render: (b) => {
-        const allowed = canModify(b.fechaIngreso)
-        const blockedTitle = 'Solo administrador despues del dia'
-        return (
-          <div className="flex flex-wrap gap-2">
-            <Button size="icon" variant="ghost" onClick={() => setSelectedBloque(b)} title="Ver detalle">
-              <Eye className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => handleEdit(b)}
-              disabled={!allowed}
-              title={allowed ? 'Editar' : blockedTitle}
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => handleDelete(b)}
-              disabled={!allowed}
-              title={allowed ? 'Eliminar' : blockedTitle}
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => toggleEstado(b)}
-              disabled={!allowed}
-              title={allowed ? (b.estado === 'activo' ? 'Agotar' : 'Reactivar') : blockedTitle}
-            >
-              {b.estado === 'activo' ? 'Agotar' : 'Reactivar'}
-            </Button>
-          </div>
-        )
-      }
-    }
-  ]
+  const renderEstado = (bloque: BloqueOLote) => (
+    <Badge variant={bloque.estado === 'activo' ? 'default' : 'outline'}>
+      {bloque.estado === 'activo' ? 'Activo' : 'Agotado'}
+    </Badge>
+  )
+
+  const renderAcciones = (bloque: BloqueOLote) => {
+    const allowed = canModify(bloque.fechaIngreso)
+    const blockedTitle = 'Solo administrador despues del dia'
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button size="icon" variant="ghost" onClick={() => setSelectedBloque(bloque)} title="Ver detalle">
+          <Eye className="h-4 w-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={() => handleEdit(bloque)}
+          disabled={!allowed}
+          title={allowed ? 'Editar' : blockedTitle}
+        >
+          <Edit className="h-4 w-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={() => handleDelete(bloque)}
+          disabled={!allowed}
+          title={allowed ? 'Eliminar' : blockedTitle}
+        >
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => toggleEstado(bloque)}
+          disabled={!allowed}
+          title={allowed ? (bloque.estado === 'activo' ? 'Agotar' : 'Reactivar') : blockedTitle}
+        >
+          {bloque.estado === 'activo' ? 'Agotar' : 'Reactivar'}
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <AdminShell rightPanel={rightPanel}>
@@ -435,12 +403,69 @@ export default function BloquesPage() {
         </div>
       </div>
 
-      {/* Table */}
-      <DataTable
-        data={filteredBloques}
-        columns={columns}
-        emptyMessage="No hay bloques o lotes registrados"
-      />
+      <Card className="bg-transparent border-none outline-none shadow-none p-0">
+        <CardContent className="p-0">
+          {filteredBloques.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+              No hay bloques o lotes registrados
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="overflow-x-auto">
+                <div className="space-y-3 lg:min-w-[1160px]">
+                  <div className="hidden lg:grid lg:grid-cols-[80px_minmax(0,1.3fr)_100px_minmax(0,1fr)_120px_120px_110px_minmax(0,1.3fr)] rounded-[16px] border border-slate-200/70 bg-slate-50/70 px-4 py-2">
+                    <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">ID</span>
+                    <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Bloque/Lote</span>
+                    <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Tipo</span>
+                    <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Proveedor</span>
+                    <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">M2</span>
+                    <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Costo</span>
+                    <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Estado</span>
+                    <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Acciones</span>
+                  </div>
+
+                  <div className="divide-y divide-slate-200/60 overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+                    {filteredBloques.map((bloque) => (
+                      <div key={bloque.id} className="px-4 py-3">
+                        <div className="grid gap-2 lg:grid-cols-[80px_minmax(0,1.3fr)_100px_minmax(0,1fr)_120px_120px_110px_minmax(0,1.3fr)] lg:items-center">
+                          <div className="text-sm font-semibold text-slate-900">{bloque.id}</div>
+
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{bloque.nombre}</p>
+                            <p className="text-[11px] text-slate-500">Ingreso {bloque.fechaIngreso}</p>
+                          </div>
+
+                          <div>
+                            <Badge variant={bloque.tipo === 'Bloque' ? 'default' : 'secondary'}>
+                              {bloque.tipo}
+                            </Badge>
+                          </div>
+
+                          <div className="text-sm text-slate-700">{bloque.proveedor}</div>
+
+                          <div className="flex items-center justify-between text-sm lg:block lg:text-right">
+                            <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">M2</span>
+                            <span className="font-semibold text-slate-900">{bloque.metrosComprados.toFixed(1)} m2</span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-sm lg:block lg:text-right">
+                            <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Costo</span>
+                            <span className="font-semibold text-slate-900">${bloque.costo.toLocaleString()}</span>
+                          </div>
+
+                          <div>{renderEstado(bloque)}</div>
+
+                          <div>{renderAcciones(bloque)}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Detail Dialog */}
       <Dialog open={!!selectedBloque} onOpenChange={() => setSelectedBloque(null)}>

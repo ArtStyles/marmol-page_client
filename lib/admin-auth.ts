@@ -1,9 +1,11 @@
-export type AdminRole =
+﻿export type AdminRole =
   | 'Super Admin'
   | 'Administrador'
   | 'Contadora'
   | 'Gestor de Ventas'
-  | 'Jefe de Turno de Producción'
+  | 'Jefe de Turno de Produccion'
+  | 'Jefe de Turno de ProducciÃ³n'
+  | 'Obrero'
 
 export type AdminUser = {
   id: string
@@ -74,7 +76,17 @@ export const MOCK_ADMIN_USERS: Array<{
       id: 'PROD-001',
       name: 'Jefe de Turno',
       email: 'produccion@marmol.local',
-      role: 'Jefe de Turno de Producción',
+      role: 'Jefe de Turno de Produccion',
+    },
+  },
+  {
+    email: 'carlos.mendoza@taller.com',
+    password: 'obrero123',
+    user: {
+      id: 'OBR-001',
+      name: 'Carlos Mendoza',
+      email: 'carlos.mendoza@taller.com',
+      role: 'Obrero',
     },
   },
 ]
@@ -136,11 +148,25 @@ const ROLE_ACCESS: Record<AdminRole, AdminAccess> = {
     routes: ['/admin/ventas', '/admin/pagos'],
     canManageWorkers: false,
   },
-  'Jefe de Turno de Producción': {
-    role: 'Jefe de Turno de Producción',
+  'Jefe de Turno de Produccion': {
+    role: 'Jefe de Turno de Produccion',
     label: 'Produccion',
     home: '/admin/produccion',
     routes: ['/admin/produccion', '/admin/asignaciones', '/admin/mermas'],
+    canManageWorkers: false,
+  },
+  'Jefe de Turno de ProducciÃ³n': {
+    role: 'Jefe de Turno de ProducciÃ³n',
+    label: 'Produccion',
+    home: '/admin/produccion',
+    routes: ['/admin/produccion', '/admin/asignaciones', '/admin/mermas'],
+    canManageWorkers: false,
+  },
+  Obrero: {
+    role: 'Obrero',
+    label: 'Obrero',
+    home: '/admin/obrero',
+    routes: ['/admin/obrero'],
     canManageWorkers: false,
   },
 }
