@@ -369,7 +369,11 @@ export default function MermasPage() {
       }, {})
 
     return Object.entries(grouped)
-      .map(([motivo, valor]) => ({ motivo, valor: Number(valor.toFixed(2)) }))
+      .map(([motivo, valor]) => ({
+        motivo,
+        motivoCorto: shortLabel(motivo, 18),
+        valor: Number(valor.toFixed(2)),
+      }))
       .sort((a, b) => b.valor - a.valor)
       .slice(0, 8)
   }, [filteredItems, metricView])
@@ -387,7 +391,11 @@ export default function MermasPage() {
       }, {})
 
     return Object.values(grouped)
-      .map((item) => ({ ...item, valor: Number(item.valor.toFixed(2)) }))
+      .map((item) => ({
+        ...item,
+        origenCorto: shortLabel(item.origen, 20),
+        valor: Number(item.valor.toFixed(2)),
+      }))
       .sort((a, b) => b.valor - a.valor)
       .slice(0, 8)
   }, [filteredItems, metricView])
@@ -450,7 +458,7 @@ export default function MermasPage() {
     return Object.values(grouped)
       .map((item) => ({
         ...item,
-        origen: shortLabel(item.origen, 28),
+        origen: shortLabel(item.origen, 20),
         mermaTotal: Number(item.mermaTotal.toFixed(2)),
         reutilizable: Number(item.reutilizable.toFixed(2)),
       }))
@@ -791,7 +799,7 @@ export default function MermasPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+        <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Panorama</p>
@@ -803,10 +811,10 @@ export default function MermasPage() {
             </div>
           </div>
 
-          <ChartContainer config={motiveChartConfig} className="mt-4 h-[300px] w-full">
+          <ChartContainer config={motiveChartConfig} className="mt-4 h-[220px] w-full sm:h-[300px]">
             <BarChart data={distributionData} margin={{ top: 8, right: 10, left: 0, bottom: 8 }}>
               <CartesianGrid vertical={false} />
-              <XAxis dataKey="categoria" tickLine={false} axisLine={false} />
+              <XAxis dataKey="categoria" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
               <YAxis tickLine={false} axisLine={false} width={44} allowDecimals={metricView === 'm2'} />
               <ChartTooltip
                 cursor={false}
@@ -828,18 +836,18 @@ export default function MermasPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+          <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
             <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Motivos de merma total</p>
             <h3 className="mt-1 text-base font-semibold text-slate-900">Top motivos</h3>
 
             {motivosMermaData.length === 0 ? (
               <p className="mt-4 text-sm text-slate-500">Sin datos para mostrar.</p>
             ) : (
-              <ChartContainer config={motiveChartConfig} className="mt-4 h-[260px] w-full">
+              <ChartContainer config={motiveChartConfig} className="mt-4 h-[220px] w-full sm:h-[260px]">
                 <BarChart layout="vertical" data={motivosMermaData} margin={{ top: 4, right: 10, left: 10, bottom: 0 }}>
                   <CartesianGrid horizontal={false} />
                   <XAxis type="number" hide />
-                  <YAxis dataKey="motivo" type="category" tickLine={false} axisLine={false} width={170} />
+                  <YAxis dataKey="motivoCorto" type="category" tickLine={false} axisLine={false} width={96} tick={{ fontSize: 11 }} />
                   <ChartTooltip
                     cursor={false}
                     content={
@@ -856,18 +864,18 @@ export default function MermasPage() {
             )}
           </div>
 
-          <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+          <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
             <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Reutilizable</p>
             <h3 className="mt-1 text-base font-semibold text-slate-900">Aprovechable por bloque</h3>
 
             {reutilizableByOrigenData.length === 0 ? (
               <p className="mt-4 text-sm text-slate-500">Sin reutilizable para mostrar.</p>
             ) : (
-              <ChartContainer config={reusableChartConfig} className="mt-4 h-[260px] w-full">
+              <ChartContainer config={reusableChartConfig} className="mt-4 h-[220px] w-full sm:h-[260px]">
                 <BarChart layout="vertical" data={reutilizableByOrigenData} margin={{ top: 4, right: 10, left: 10, bottom: 0 }}>
                   <CartesianGrid horizontal={false} />
                   <XAxis type="number" hide />
-                  <YAxis dataKey="origen" type="category" tickLine={false} axisLine={false} width={170} />
+                  <YAxis dataKey="origenCorto" type="category" tickLine={false} axisLine={false} width={96} tick={{ fontSize: 11 }} />
                   <ChartTooltip
                     cursor={false}
                     content={
@@ -886,17 +894,17 @@ export default function MermasPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+          <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
             <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Tendencia</p>
             <h3 className="mt-1 text-base font-semibold text-slate-900">Merma y reutilizable por fecha</h3>
 
             {trendByDateData.length === 0 ? (
               <p className="mt-4 text-sm text-slate-500">Sin datos para mostrar.</p>
             ) : (
-              <ChartContainer config={breakdownChartConfig} className="mt-4 h-[270px] w-full">
+              <ChartContainer config={breakdownChartConfig} className="mt-4 h-[220px] w-full sm:h-[270px]">
                 <BarChart data={trendByDateData} margin={{ top: 8, right: 10, left: 0, bottom: 8 }}>
                   <CartesianGrid vertical={false} />
-                  <XAxis dataKey="fecha" tickLine={false} axisLine={false} />
+                  <XAxis dataKey="fecha" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} minTickGap={20} />
                   <YAxis tickLine={false} axisLine={false} width={44} allowDecimals={metricView === 'm2'} />
                   <ChartTooltip
                     cursor={false}
@@ -917,14 +925,14 @@ export default function MermasPage() {
             )}
           </div>
 
-          <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+          <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
             <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Bloques / lotes</p>
             <h3 className="mt-1 text-base font-semibold text-slate-900">Merma vs reutilizable por origen</h3>
 
             {origenBreakdownData.length === 0 ? (
               <p className="mt-4 text-sm text-slate-500">Sin datos para mostrar.</p>
             ) : (
-              <ChartContainer config={breakdownChartConfig} className="mt-4 h-[270px] w-full">
+              <ChartContainer config={breakdownChartConfig} className="mt-4 h-[220px] w-full sm:h-[270px]">
                 <BarChart
                   layout="vertical"
                   data={origenBreakdownData}
@@ -932,7 +940,7 @@ export default function MermasPage() {
                 >
                   <CartesianGrid horizontal={false} />
                   <XAxis type="number" hide />
-                  <YAxis dataKey="origen" type="category" tickLine={false} axisLine={false} width={170} />
+                  <YAxis dataKey="origen" type="category" tickLine={false} axisLine={false} width={96} tick={{ fontSize: 11 }} />
                   <ChartTooltip
                     cursor={false}
                     content={

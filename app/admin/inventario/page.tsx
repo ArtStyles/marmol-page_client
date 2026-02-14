@@ -316,7 +316,7 @@ export default function InventarioPage() {
           {topLosasByOrigen.length === 0 ? (
             <p className="text-xs text-slate-500">Sin datos para mostrar.</p>
           ) : (
-            <ChartContainer config={rankingLosasConfig} className="h-[210px] w-full">
+            <ChartContainer config={rankingLosasConfig} className="h-[180px] w-full sm:h-[210px]">
               <BarChart layout="vertical" data={topLosasByOrigen} margin={{ top: 4, right: 10, left: 10, bottom: 0 }}>
                 <CartesianGrid horizontal={false} />
                 <XAxis type="number" hide />
@@ -325,7 +325,8 @@ export default function InventarioPage() {
                   type="category"
                   tickLine={false}
                   axisLine={false}
-                  width={120}
+                  width={92}
+                  tick={{ fontSize: 11 }}
                 />
                 <ChartTooltip
                   cursor={false}
@@ -347,7 +348,7 @@ export default function InventarioPage() {
           {topM2ByOrigen.length === 0 ? (
             <p className="text-xs text-slate-500">Sin datos para mostrar.</p>
           ) : (
-            <ChartContainer config={rankingM2Config} className="h-[210px] w-full">
+            <ChartContainer config={rankingM2Config} className="h-[180px] w-full sm:h-[210px]">
               <BarChart layout="vertical" data={topM2ByOrigen} margin={{ top: 4, right: 10, left: 10, bottom: 0 }}>
                 <CartesianGrid horizontal={false} />
                 <XAxis type="number" hide />
@@ -356,7 +357,8 @@ export default function InventarioPage() {
                   type="category"
                   tickLine={false}
                   axisLine={false}
-                  width={120}
+                  width={92}
+                  tick={{ fontSize: 11 }}
                 />
                 <ChartTooltip
                   cursor={false}
@@ -439,7 +441,7 @@ export default function InventarioPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+        <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Stock operativo</p>
@@ -473,10 +475,10 @@ export default function InventarioPage() {
             </div>
           </div>
 
-          <ChartContainer config={inventoryChartConfig} className="mt-4 h-[360px] w-full">
+          <ChartContainer config={inventoryChartConfig} className="mt-4 h-[230px] w-full sm:h-[320px] lg:h-[360px]">
             <BarChart data={generalChartData} margin={{ top: 12, right: 12, left: 0, bottom: 8 }} barGap={10}>
               <CartesianGrid vertical={false} />
-              <XAxis dataKey="estado" tickLine={false} axisLine={false} />
+              <XAxis dataKey="estado" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
               {showLosas && <YAxis yAxisId="losas" tickLine={false} axisLine={false} width={44} allowDecimals={false} />}
               {showM2 && (
                 <YAxis
@@ -506,7 +508,7 @@ export default function InventarioPage() {
           </ChartContainer>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+        <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Constancia de partidas</p>
@@ -528,10 +530,10 @@ export default function InventarioPage() {
             </div>
           ) : (
             <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-              <ChartContainer config={breakageChartConfig} className="h-[270px] w-full">
+              <ChartContainer config={breakageChartConfig} className="h-[220px] w-full sm:h-[270px]">
                 <BarChart data={breakageChartData} margin={{ top: 10, right: 12, left: 0, bottom: 6 }}>
                   <CartesianGrid vertical={false} />
-                  <XAxis dataKey="tipo" tickLine={false} axisLine={false} />
+                  <XAxis dataKey="tipo" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
                   <YAxis tickLine={false} axisLine={false} width={44} allowDecimals={!showLosas} />
                   <ChartTooltip
                     cursor={false}
@@ -605,7 +607,7 @@ export default function InventarioPage() {
                 {groupedByOrigen.map((group) => (
                   <div
                     key={group.origenId}
-                    className="rounded-[20px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
+                    className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
@@ -617,10 +619,10 @@ export default function InventarioPage() {
                       </Badge>
                     </div>
 
-                    <ChartContainer config={inventoryChartConfig} className="mt-3 h-[230px] w-full">
+                    <ChartContainer config={inventoryChartConfig} className="mt-3 h-[200px] w-full sm:h-[230px]">
                       <BarChart data={group.chartData} margin={{ top: 10, right: 8, left: 0, bottom: 6 }} barGap={8}>
                         <CartesianGrid vertical={false} />
-                        <XAxis dataKey="estado" tickLine={false} axisLine={false} />
+                        <XAxis dataKey="estado" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
                         {showLosas && <YAxis yAxisId="losas" tickLine={false} axisLine={false} width={36} allowDecimals={false} />}
                         {showM2 && (
                           <YAxis
