@@ -6,6 +6,7 @@ import type {
   Merma, 
   Venta, 
   Trabajador, 
+  Equipo,
   HistorialPago,
   ConfiguracionSistema,
   SystemLog,
@@ -257,6 +258,57 @@ export const trabajadores: Trabajador[] = [
   }
 ]
 
+export const equipos: Equipo[] = [
+  {
+    id: 'EQ001',
+    nombre: 'Cortadora Norte 01',
+    tipo: 'Cortadora',
+    codigoInterno: 'COR-01',
+    estado: 'activo',
+    notas: 'Disco nuevo instalado',
+  },
+  {
+    id: 'EQ002',
+    nombre: 'Cortadora Norte 02',
+    tipo: 'Cortadora',
+    codigoInterno: 'COR-02',
+    estado: 'mantenimiento',
+    notas: 'Revision de motor programada',
+  },
+  {
+    id: 'EQ003',
+    nombre: 'Pulidora Central 01',
+    tipo: 'Pulidora',
+    codigoInterno: 'PUL-01',
+    estado: 'activo',
+    notas: 'Operacion estable',
+  },
+  {
+    id: 'EQ004',
+    nombre: 'Pulidora Central 02',
+    tipo: 'Pulidora',
+    codigoInterno: 'PUL-02',
+    estado: 'activo',
+    notas: 'Disponible para turno tarde',
+  },
+  {
+    id: 'EQ005',
+    nombre: 'Escuadradora Este 01',
+    tipo: 'Escuadradora',
+    codigoInterno: 'ESC-01',
+    estado: 'activo',
+    notas: 'Alineada y calibrada',
+  },
+  {
+    id: 'EQ006',
+    nombre: 'Escuadradora Este 02',
+    tipo: 'Escuadradora',
+    codigoInterno: 'ESC-02',
+    estado: 'inactivo',
+    notas: 'Pendiente de repuesto',
+  },
+]
+
 export const produccionDiaria: ProduccionDiaria[] = [
   {
     id: 'PG001',
@@ -269,7 +321,29 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadPulir: 20,
     cantidadEscuadrar: 0,
     totalLosas: 35,
-    totalM2: 8.4
+    totalM2: 8.4,
+    detallesAcciones: [
+      {
+        id: 'PGA001',
+        accion: 'picar',
+        trabajadorId: 'T001',
+        trabajadorNombre: 'Carlos Mendoza',
+        equipoId: 'EQ001',
+        equipoNombre: 'Cortadora Norte 01',
+        cantidadLosas: 15,
+        metrosCuadrados: 3.6,
+      },
+      {
+        id: 'PGA002',
+        accion: 'pulir',
+        trabajadorId: 'T002',
+        trabajadorNombre: 'Roberto SÃƒÂ¡nchez',
+        equipoId: 'EQ003',
+        equipoNombre: 'Pulidora Central 01',
+        cantidadLosas: 20,
+        metrosCuadrados: 4.8,
+      },
+    ]
   },
   {
     id: 'PG002',
@@ -282,7 +356,19 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadPulir: 0,
     cantidadEscuadrar: 25,
     totalLosas: 25,
-    totalM2: 4
+    totalM2: 4,
+    detallesAcciones: [
+      {
+        id: 'PGA003',
+        accion: 'escuadrar',
+        trabajadorId: 'T003',
+        trabajadorNombre: 'Miguel ÃƒÂngel Torres',
+        equipoId: 'EQ005',
+        equipoNombre: 'Escuadradora Este 01',
+        cantidadLosas: 25,
+        metrosCuadrados: 4,
+      },
+    ]
   },
   {
     id: 'PG003',
@@ -295,7 +381,29 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadPulir: 35,
     cantidadEscuadrar: 30,
     totalLosas: 65,
-    totalM2: 15.6
+    totalM2: 15.6,
+    detallesAcciones: [
+      {
+        id: 'PGA004',
+        accion: 'pulir',
+        trabajadorId: 'T004',
+        trabajadorNombre: 'Fernando Ruiz',
+        equipoId: 'EQ004',
+        equipoNombre: 'Pulidora Central 02',
+        cantidadLosas: 35,
+        metrosCuadrados: 8.4,
+      },
+      {
+        id: 'PGA005',
+        accion: 'escuadrar',
+        trabajadorId: 'T001',
+        trabajadorNombre: 'Carlos Mendoza',
+        equipoId: 'EQ005',
+        equipoNombre: 'Escuadradora Este 01',
+        cantidadLosas: 30,
+        metrosCuadrados: 7.2,
+      },
+    ]
   },
   {
     id: 'PG004',

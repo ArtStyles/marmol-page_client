@@ -27,6 +27,14 @@ export type RolConSalarioFijo = Exclude<RolTrabajador, 'Obrero'>
 // Acciones sobre losas
 export type AccionLosa = 'picar' | 'pulir' | 'escuadrar'
 
+export type TipoEquipo = 'Pulidora' | 'Cortadora' | 'Escuadradora'
+
+export const TIPO_EQUIPO_POR_ACCION: Record<AccionLosa, TipoEquipo> = {
+  picar: 'Cortadora',
+  pulir: 'Pulidora',
+  escuadrar: 'Escuadradora',
+}
+
 // Tarifas de pago por acciÃ³n (por losa) - VALORES POR DEFECTO
 export const TARIFAS_ACCION_DEFAULT: Record<AccionLosa, number> = {
   picar: 400,
@@ -131,6 +139,33 @@ export interface TarifasTrabajador {
   escuadrar: number
 }
 
+export interface Equipo {
+  id: string
+  nombre: string
+  tipo: TipoEquipo
+  codigoInterno: string
+  estado: 'activo' | 'mantenimiento' | 'inactivo'
+  notas: string
+}
+
+export interface ProduccionDetalleAccion {
+  id: string
+  accion: AccionLosa
+  trabajadorId: string
+  trabajadorNombre: string
+  equipoId: string
+  equipoNombre: string
+  cantidadLosas: number
+  metrosCuadrados: number
+  // Losas partidas en la accion:
+  // - merma total: perdida definitiva
+  // - reutilizables: partidas pero reaprovechables para inventario
+  losasMermaTotal?: number
+  metrosMermaTotal?: number
+  losasReutilizables?: number
+  metrosReutilizables?: number
+}
+
 // Registro de producciÃ³n diaria
 export interface ProduccionDiaria {
   id: string
@@ -144,6 +179,10 @@ export interface ProduccionDiaria {
   cantidadEscuadrar: number
   totalLosas: number
   totalM2: number
+  detallesAcciones?: ProduccionDetalleAccion[]
+  // Metadata de control de edicion (provista por API)
+  canEdit?: boolean
+  editableUntil?: string
 }
 
 export interface ProduccionTrabajador {

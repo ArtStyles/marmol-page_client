@@ -7,6 +7,7 @@ import type { CSSProperties } from 'react'
 import { Badge } from '@/components/ui/badge'
 import {
   bloquesYLotes,
+  equipos,
   mermas,
   produccionDiaria,
   produccionTrabajadores,
@@ -32,6 +33,7 @@ import {
   Package,
   Users,
   TrendingUp,
+  Wrench,
 } from 'lucide-react'
 
 export default function AdminDashboard() {
@@ -45,6 +47,7 @@ export default function AdminDashboard() {
   const totalVentas = ventasCompletadas.reduce((sum, v) => sum + v.total, 0)
 
   const activeWorkers = trabajadores.filter((w) => w.estado === 'activo').length
+  const activeEquipos = equipos.filter((equipo) => equipo.estado === 'activo').length
   const totalMermas = mermas.reduce((sum, m) => sum + m.metrosCuadrados, 0)
   const bloquesActivos = bloquesYLotes.filter((b) => b.estado === 'activo').length
 
@@ -97,6 +100,12 @@ export default function AdminDashboard() {
       label: 'Produccion',
       helper: `${totalM2Hoy.toFixed(1)} m2 hoy`,
       icon: Factory,
+    },
+    {
+      href: '/admin/equipos',
+      label: 'Equipos',
+      helper: `${activeEquipos} activos`,
+      icon: Wrench,
     },
     {
       href: '/admin/asignaciones',

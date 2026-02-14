@@ -18,6 +18,7 @@ import {
   TrendingUp,
   Users,
   Wallet,
+  Wrench,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -34,6 +35,7 @@ import {
 import { WORKSHOP_STORAGE_KEY } from '@/lib/workshops'
 import {
   bloquesYLotes,
+  equipos,
   historialPagos,
   logsSistema,
   mermas,
@@ -80,6 +82,7 @@ function buildDefaultNav(role?: AdminRole): AdminNavItem[] {
   const totalVentas = ventasCompletadas.reduce((sum, v) => sum + v.total, 0)
   const totalMermas = mermas.reduce((sum, m) => sum + m.metrosCuadrados, 0)
   const bloquesActivos = bloquesYLotes.filter((b) => b.estado === 'activo').length
+  const equiposActivos = equipos.filter((equipo) => equipo.estado === 'activo').length
   const activeWorkers = trabajadores.filter((w) => w.estado === 'activo').length
   const produccionPorFecha = produccionDiaria.reduce<Record<string, number>>((acc, registro) => {
     acc[registro.fecha] = (acc[registro.fecha] ?? 0) + registro.totalM2
@@ -116,6 +119,12 @@ function buildDefaultNav(role?: AdminRole): AdminNavItem[] {
       label: 'Produccion',
       helper: `${totalM2Hoy.toFixed(1)} m2 hoy`,
       icon: Factory,
+    },
+    {
+      href: '/admin/equipos',
+      label: 'Equipos',
+      helper: `${equiposActivos} activos`,
+      icon: Wrench,
     },
     {
       href: '/admin/asignaciones',
