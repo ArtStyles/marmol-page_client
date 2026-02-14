@@ -1,23 +1,14 @@
 'use client'
 
-import React from "react"
-import { useState } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
+import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Button } from '@/components/admin/admin-button'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Textarea } from '@/components/ui/textarea'
-import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
-import { Card, CardContent } from '@/components/ui/card'
-import { 
-  mermas as initialMermas, 
-  bloquesYLotes,
-  tiposProducto,
-  dimensiones,
-  motivosMerma
-} from '@/lib/data'
-import type { Merma, Dimension, TipoProducto } from '@/lib/types'
-import { Plus, Search, Info } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -26,110 +17,495 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
+import { useProduccionStore } from '@/hooks/use-produccion'
+import { bloquesYLotes, dimensiones, mermas as initialMermas, motivosMerma, tiposProducto } from '@/lib/data'
+import { losasAMetros, type AccionLosa, type Dimension, type Merma, type TipoProducto } from '@/lib/types'
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts'
+import { BarChart3, Plus, Search } from 'lucide-react'
 
-export default function MermasPage() {
-  const [mermas, setMermas] = useState<Merma[]>(initialMermas)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [cantidadTouched, setCantidadTouched] = useState(false)
-  const [formData, setFormData] = useState({
-    origenId: '',
-    tipo: 'Piso' as TipoProducto,
-    dimension: '60x40' as Dimension,
-    cantidadLosas: 0,
-    motivo: 'Partida al picar' as Merma['motivo'],
-    observaciones: ''
+type MetricView = 'losas' | 'm2'
+type RegistroKind = 'MermaTotal' | 'Reutilizable'
+type KindFilter = 'all' | RegistroKind
+type SourceFilter = 'all' | 'Produccion' | 'FueraProduccion'
+
+type MermaFueraProduccionRecord = Merma & {
+  kind: RegistroKind
+}
+
+type MermaFueraProduccionForm = {
+  fecha: string
+  origenId: string
+  tipo: TipoProducto
+  dimension: Dimension
+  cantidadLosas: number
+  motivo: Merma['motivo']
+  observaciones: string
+  kind: RegistroKind
+}
+
+type MermaVisualItem = {
+  id: string
+  fecha: string
+  origenId: string
+  origenNombre: string
+  tipo: Merma['tipo']
+  dimension: Merma['dimension']
+  source: 'Produccion' | 'FueraProduccion'
+  kind: 'MermaTotal' | 'Reutilizable'
+  motivo: string
+  cantidadLosas: number
+  metrosCuadrados: number
+}
+
+type DistributionRow = {
+  categoria: string
+  key: 'merma_produccion' | 'merma_fuera' | 'reutilizable'
+  valor: number
+}
+
+type TrendByDateRow = {
+  fecha: string
+  mermaTotal: number
+  reutilizable: number
+}
+
+type OrigenBreakdownRow = {
+  origen: string
+  mermaTotal: number
+  reutilizable: number
+}
+
+const tipoOptions: TipoProducto[] = tiposProducto as TipoProducto[]
+const dimensionOptions: Dimension[] = dimensiones as Dimension[]
+const motivoOptions: Merma['motivo'][] = motivosMerma as Merma['motivo'][]
+
+const distributionColor: Record<DistributionRow['key'], string> = {
+  merma_produccion: 'hsl(0, 84%, 60%)',
+  merma_fuera: 'hsl(20, 90%, 52%)',
+  reutilizable: 'hsl(205, 85%, 55%)',
+}
+
+const motiveChartConfig = {
+  valor: {
+    label: 'Valor',
+    color: 'hsl(0, 84%, 60%)',
+  },
+} satisfies ChartConfig
+
+const reusableChartConfig = {
+  valor: {
+    label: 'Valor',
+    color: 'hsl(205, 85%, 55%)',
+  },
+} satisfies ChartConfig
+
+const breakdownChartConfig = {
+  mermaTotal: {
+    label: 'Merma total',
+    color: 'hsl(0, 84%, 60%)',
+  },
+  reutilizable: {
+    label: 'Reutilizable',
+    color: 'hsl(205, 85%, 55%)',
+  },
+} satisfies ChartConfig
+
+function isMetricView(value: string): value is MetricView {
+  return value === 'losas' || value === 'm2'
+}
+
+function isKindFilter(value: string): value is KindFilter {
+  return value === 'all' || value === 'MermaTotal' || value === 'Reutilizable'
+}
+
+function isRegistroKind(value: string): value is RegistroKind {
+  return value === 'MermaTotal' || value === 'Reutilizable'
+}
+
+function isSourceFilter(value: string): value is SourceFilter {
+  return value === 'all' || value === 'Produccion' || value === 'FueraProduccion'
+}
+
+function motivoMermaProduccion(accion: AccionLosa): string {
+  if (accion === 'picar') return 'Partida al picar (produccion)'
+  if (accion === 'pulir') return 'Partida al pulir (produccion)'
+  return 'Partida al escuadrar (produccion)'
+}
+
+function formatLosas(value: number): string {
+  return Math.round(value).toLocaleString()
+}
+
+function shortLabel(value: string, maxLength = 24): string {
+  if (value.length <= maxLength) return value
+  return `${value.slice(0, maxLength - 3)}...`
+}
+
+function getTodayDateIso(): string {
+  return new Date().toISOString().split('T')[0]
+}
+
+function buildProduccionItems(produccion: ReturnType<typeof useProduccionStore>['produccion']): MermaVisualItem[] {
+  const items: MermaVisualItem[] = []
+
+  produccion.forEach((registro) => {
+    ;(registro.detallesAcciones ?? []).forEach((detalle) => {
+      const mermaLosas = detalle.losasMermaTotal ?? 0
+      const reutilizableLosas = detalle.losasReutilizables ?? 0
+
+      if (mermaLosas > 0) {
+        items.push({
+          id: `${registro.id}-${detalle.id}-merma`,
+          fecha: registro.fecha,
+          origenId: registro.origenId,
+          origenNombre: registro.origenNombre,
+          tipo: registro.tipo,
+          dimension: registro.dimension,
+          source: 'Produccion',
+          kind: 'MermaTotal',
+          motivo: motivoMermaProduccion(detalle.accion),
+          cantidadLosas: mermaLosas,
+          metrosCuadrados:
+            (detalle.metrosMermaTotal ?? 0) > 0
+              ? detalle.metrosMermaTotal ?? 0
+              : losasAMetros(mermaLosas, registro.dimension),
+        })
+      }
+
+      if (reutilizableLosas > 0) {
+        items.push({
+          id: `${registro.id}-${detalle.id}-reutilizable`,
+          fecha: registro.fecha,
+          origenId: registro.origenId,
+          origenNombre: registro.origenNombre,
+          tipo: registro.tipo,
+          dimension: registro.dimension,
+          source: 'Produccion',
+          kind: 'Reutilizable',
+          motivo: `Reutilizable en ${detalle.accion}`,
+          cantidadLosas: reutilizableLosas,
+          metrosCuadrados:
+            (detalle.metrosReutilizables ?? 0) > 0
+              ? detalle.metrosReutilizables ?? 0
+              : losasAMetros(reutilizableLosas, registro.dimension),
+        })
+      }
+    })
   })
 
-  const filteredMermas = mermas.filter(m => 
-    m.origenNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.motivo.toLowerCase().includes(searchTerm.toLowerCase())
+  return items
+}
+
+export default function MermasPage() {
+  const { produccion } = useProduccionStore()
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [cantidadTouched, setCantidadTouched] = useState(false)
+  const [manualMermas, setManualMermas] = useState<MermaFueraProduccionRecord[]>(
+    () =>
+      initialMermas.map((item) => ({
+        ...item,
+        kind: item.motivo === 'Recorte aprovechable' ? 'Reutilizable' : 'MermaTotal',
+      })),
+  )
+  const [formData, setFormData] = useState<MermaFueraProduccionForm>({
+    fecha: getTodayDateIso(),
+    origenId: bloquesYLotes[0]?.id ?? '',
+    tipo: 'Piso',
+    dimension: '60x40',
+    cantidadLosas: 0,
+    motivo: 'Partida al picar',
+    observaciones: '',
+    kind: 'MermaTotal',
+  })
+  const [searchTerm, setSearchTerm] = useState('')
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all')
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
+  const [metricView, setMetricView] = useState<MetricView>('losas')
+
+  const resetForm = () => {
+    setFormData({
+      fecha: getTodayDateIso(),
+      origenId: bloquesYLotes[0]?.id ?? '',
+      tipo: 'Piso',
+      dimension: '60x40',
+      cantidadLosas: 0,
+      motivo: 'Partida al picar',
+      observaciones: '',
+      kind: 'MermaTotal',
+    })
+    setCantidadTouched(false)
+  }
+
+  const handleRegisterMermaFueraProduccion = (event: FormEvent) => {
+    event.preventDefault()
+
+    if (!formData.origenId) return
+
+    const origen = bloquesYLotes.find((item) => item.id === formData.origenId)
+    if (!origen) return
+
+    const cantidadEntera = Math.trunc(formData.cantidadLosas)
+    if (!Number.isInteger(cantidadEntera) || cantidadEntera <= 0) return
+
+    const nextSequence =
+      manualMermas.reduce((max, item) => {
+        const value = Number(item.id.replace(/\D/g, ''))
+        return Number.isFinite(value) ? Math.max(max, value) : max
+      }, 0) + 1
+
+    const newMerma: MermaFueraProduccionRecord = {
+      id: `M${String(nextSequence).padStart(3, '0')}`,
+      fecha: formData.fecha || getTodayDateIso(),
+      origenId: formData.origenId,
+      origenNombre: origen.nombre,
+      tipo: formData.tipo,
+      dimension: formData.dimension,
+      cantidadLosas: cantidadEntera,
+      metrosCuadrados: Number(losasAMetros(cantidadEntera, formData.dimension).toFixed(2)),
+      motivo: formData.motivo,
+      observaciones: formData.observaciones.trim(),
+      kind: formData.kind,
+    }
+
+    setManualMermas((prev) => [newMerma, ...prev])
+    setIsDialogOpen(false)
+    resetForm()
+  }
+
+  const metrosCuadradosForm = useMemo(
+    () => Number(losasAMetros(formData.cantidadLosas || 0, formData.dimension).toFixed(2)),
+    [formData.cantidadLosas, formData.dimension],
   )
 
-  const groupedByDate = filteredMermas.reduce<Record<string, Merma[]>>((acc, item) => {
-    if (!acc[item.fecha]) {
-      acc[item.fecha] = []
-    }
-    acc[item.fecha].push(item)
-    return acc
-  }, {})
+  const mermasFueraProduccion = useMemo<MermaVisualItem[]>(() => {
+    return manualMermas.map((item) => {
+      return {
+        id: item.id,
+        fecha: item.fecha,
+        origenId: item.origenId,
+        origenNombre: item.origenNombre,
+        tipo: item.tipo,
+        dimension: item.dimension,
+        source: 'FueraProduccion',
+        kind: item.kind,
+        motivo: item.motivo,
+        cantidadLosas: item.cantidadLosas,
+        metrosCuadrados: item.metrosCuadrados,
+      }
+    })
+  }, [manualMermas])
 
-  const fechasOrdenadas = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a))
+  const mermasProduccion = useMemo(() => buildProduccionItems(produccion), [produccion])
 
-  // Estadísticas
-  const totalLosasPerdidas = mermas.reduce((sum, m) => sum + m.cantidadLosas, 0)
-  const totalM2Perdidos = mermas.reduce((sum, m) => sum + m.metrosCuadrados, 0)
-  
-  const mermasPorMotivo = mermas.reduce((acc, m) => {
-    if (!acc[m.motivo]) {
-      acc[m.motivo] = { losas: 0, m2: 0 }
-    }
-    acc[m.motivo].losas += m.cantidadLosas
-    acc[m.motivo].m2 += m.metrosCuadrados
-    return acc
-  }, {} as Record<string, { losas: number; m2: number }>)
-  const motivosOrdenados = Object.entries(mermasPorMotivo)
-    .sort((a, b) => b[1].m2 - a[1].m2)
-    .slice(0, 3)
+  const allItems = useMemo(
+    () => [...mermasProduccion, ...mermasFueraProduccion].sort((a, b) => b.fecha.localeCompare(a.fecha)),
+    [mermasProduccion, mermasFueraProduccion],
+  )
+
+  const filteredItems = useMemo(() => {
+    const query = searchTerm.toLowerCase().trim()
+
+    return allItems.filter((item) => {
+      const matchesSearch =
+        item.origenNombre.toLowerCase().includes(query) ||
+        item.motivo.toLowerCase().includes(query) ||
+        item.fecha.includes(query)
+      const matchesKind = kindFilter === 'all' || item.kind === kindFilter
+      const matchesSource = sourceFilter === 'all' || item.source === sourceFilter
+      return matchesSearch && matchesKind && matchesSource
+    })
+  }, [allItems, searchTerm, kindFilter, sourceFilter])
+
+  const totals = useMemo(() => {
+    return filteredItems.reduce(
+      (acc, item) => {
+        if (item.kind === 'MermaTotal') {
+          acc.mermaLosas += item.cantidadLosas
+          acc.mermaM2 += item.metrosCuadrados
+        } else {
+          acc.reutilizableLosas += item.cantidadLosas
+          acc.reutilizableM2 += item.metrosCuadrados
+        }
+        return acc
+      },
+      { mermaLosas: 0, mermaM2: 0, reutilizableLosas: 0, reutilizableM2: 0 },
+    )
+  }, [filteredItems])
+
+  const distributionData = useMemo<DistributionRow[]>(() => {
+    const mermaProduccion = filteredItems
+      .filter((item) => item.source === 'Produccion' && item.kind === 'MermaTotal')
+      .reduce((sum, item) => sum + (metricView === 'losas' ? item.cantidadLosas : item.metrosCuadrados), 0)
+
+    const mermaFuera = filteredItems
+      .filter((item) => item.source === 'FueraProduccion' && item.kind === 'MermaTotal')
+      .reduce((sum, item) => sum + (metricView === 'losas' ? item.cantidadLosas : item.metrosCuadrados), 0)
+
+    const reutilizable = filteredItems
+      .filter((item) => item.kind === 'Reutilizable')
+      .reduce((sum, item) => sum + (metricView === 'losas' ? item.cantidadLosas : item.metrosCuadrados), 0)
+
+    return [
+      { categoria: 'Merma en produccion', key: 'merma_produccion', valor: Number(mermaProduccion.toFixed(2)) },
+      { categoria: 'Merma fuera produccion', key: 'merma_fuera', valor: Number(mermaFuera.toFixed(2)) },
+      { categoria: 'Reutilizable', key: 'reutilizable', valor: Number(reutilizable.toFixed(2)) },
+    ]
+  }, [filteredItems, metricView])
+
+  const motivosMermaData = useMemo(() => {
+    const grouped = filteredItems
+      .filter((item) => item.kind === 'MermaTotal')
+      .reduce<Record<string, number>>((acc, item) => {
+        const value = metricView === 'losas' ? item.cantidadLosas : item.metrosCuadrados
+        acc[item.motivo] = (acc[item.motivo] ?? 0) + value
+        return acc
+      }, {})
+
+    return Object.entries(grouped)
+      .map(([motivo, valor]) => ({ motivo, valor: Number(valor.toFixed(2)) }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 8)
+  }, [filteredItems, metricView])
+
+  const reutilizableByOrigenData = useMemo(() => {
+    const grouped = filteredItems
+      .filter((item) => item.kind === 'Reutilizable')
+      .reduce<Record<string, { origen: string; valor: number }>>((acc, item) => {
+        const value = metricView === 'losas' ? item.cantidadLosas : item.metrosCuadrados
+        if (!acc[item.origenId]) {
+          acc[item.origenId] = { origen: item.origenNombre, valor: 0 }
+        }
+        acc[item.origenId].valor += value
+        return acc
+      }, {})
+
+    return Object.values(grouped)
+      .map((item) => ({ ...item, valor: Number(item.valor.toFixed(2)) }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 8)
+  }, [filteredItems, metricView])
+
+  const groupedByDate = useMemo(() => {
+    return filteredItems.reduce<Record<string, TrendByDateRow>>((acc, item) => {
+      const value = metricView === 'losas' ? item.cantidadLosas : item.metrosCuadrados
+
+      if (!acc[item.fecha]) {
+        acc[item.fecha] = {
+          fecha: item.fecha,
+          mermaTotal: 0,
+          reutilizable: 0,
+        }
+      }
+
+      if (item.kind === 'MermaTotal') {
+        acc[item.fecha].mermaTotal += value
+      } else {
+        acc[item.fecha].reutilizable += value
+      }
+
+      return acc
+    }, {})
+  }, [filteredItems, metricView])
+
+  const trendByDateData = useMemo(
+    () =>
+      Object.values(groupedByDate)
+        .map((item) => ({
+          fecha: item.fecha,
+          mermaTotal: Number(item.mermaTotal.toFixed(2)),
+          reutilizable: Number(item.reutilizable.toFixed(2)),
+        }))
+        .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+    [groupedByDate],
+  )
+
+  const origenBreakdownData = useMemo<OrigenBreakdownRow[]>(() => {
+    const grouped = filteredItems.reduce<Record<string, OrigenBreakdownRow>>((acc, item) => {
+      const value = metricView === 'losas' ? item.cantidadLosas : item.metrosCuadrados
+
+      if (!acc[item.origenId]) {
+        acc[item.origenId] = {
+          origen: item.origenNombre,
+          mermaTotal: 0,
+          reutilizable: 0,
+        }
+      }
+
+      if (item.kind === 'MermaTotal') {
+        acc[item.origenId].mermaTotal += value
+      } else {
+        acc[item.origenId].reutilizable += value
+      }
+
+      return acc
+    }, {})
+
+    return Object.values(grouped)
+      .map((item) => ({
+        ...item,
+        origen: shortLabel(item.origen, 28),
+        mermaTotal: Number(item.mermaTotal.toFixed(2)),
+        reutilizable: Number(item.reutilizable.toFixed(2)),
+      }))
+      .filter((item) => item.mermaTotal > 0 || item.reutilizable > 0)
+      .sort((a, b) => b.mermaTotal + b.reutilizable - (a.mermaTotal + a.reutilizable))
+      .slice(0, 8)
+  }, [filteredItems, metricView])
+
+  const formatMetricValue = (value: number) =>
+    metricView === 'losas'
+      ? `${formatLosas(value)} losas`
+      : `${Number(value).toFixed(2)} m2`
 
   const rightPanel = (
     <div className="space-y-4">
-      <AdminPanelCard title="Resumen mermas" meta={`${mermas.length} registros`}>
+      <AdminPanelCard title="Resumen visual" meta={`${filteredItems.length} registros`}>
         <div className="space-y-3 text-sm text-slate-700">
           <div className="flex items-center justify-between">
-            <span>Total losas</span>
-            <span className="font-semibold">{formatLosas(totalLosasPerdidas)}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span>Total m2</span>
-            <span className="font-semibold">{totalM2Perdidos.toFixed(2)} m2</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span>Motivos</span>
-            <span className="font-semibold">{Object.keys(mermasPorMotivo).length}</span>
-          </div>
-        </div>
-      </AdminPanelCard>
-
-      <AdminPanelCard title="Detalle por proceso" meta="Losas y m2">
-        <div className="space-y-2 text-sm text-slate-700">
-          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
-            <span>Por picar</span>
-            <span className="font-semibold">
-              {formatLosas(mermasPorMotivo['Partida al picar']?.losas || 0)} losas / {(mermasPorMotivo['Partida al picar']?.m2 || 0).toFixed(2)} m2
+            <span>Merma total</span>
+            <span className="font-semibold text-rose-700">
+              {formatLosas(totals.mermaLosas)} / {totals.mermaM2.toFixed(2)} m2
             </span>
           </div>
-          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
-            <span>Por pulir</span>
-            <span className="font-semibold">
-              {formatLosas(mermasPorMotivo['Partida al pulir']?.losas || 0)} losas / {(mermasPorMotivo['Partida al pulir']?.m2 || 0).toFixed(2)} m2
-            </span>
-          </div>
-          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
-            <span>Recortes</span>
-            <span className="font-semibold">
-              {formatLosas(mermasPorMotivo['Recorte aprovechable']?.losas || 0)} losas / {(mermasPorMotivo['Recorte aprovechable']?.m2 || 0).toFixed(2)} m2
+          <div className="flex items-center justify-between">
+            <span>Reutilizable</span>
+            <span className="font-semibold text-sky-700">
+              {formatLosas(totals.reutilizableLosas)} / {totals.reutilizableM2.toFixed(2)} m2
             </span>
           </div>
         </div>
       </AdminPanelCard>
 
-      <AdminPanelCard title="Motivos principales" meta="Top 3">
+      <AdminPanelCard title="Distribucion" meta={`Vista en ${metricView}`}>
+        <div className="space-y-2 text-[12px] text-slate-700">
+          {distributionData.map((item) => (
+            <div key={item.key} className="flex items-center justify-between">
+              <span>{item.categoria}</span>
+              <span className="font-semibold" style={{ color: distributionColor[item.key] }}>
+                {formatMetricValue(item.valor)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Top motivos" meta="Merma total">
         <div className="space-y-2 text-sm text-slate-700">
-          {motivosOrdenados.length === 0 ? (
-            <p className="text-xs text-slate-500">Sin registros.</p>
+          {motivosMermaData.length === 0 ? (
+            <p className="text-xs text-slate-500">Sin datos.</p>
           ) : (
-            motivosOrdenados.map(([motivo, total]) => (
-              <div key={motivo} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
-                <span className="text-xs font-semibold text-slate-900">{motivo}</span>
+            motivosMermaData.slice(0, 4).map((item) => (
+              <div key={item.motivo} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+                <span className="text-xs font-semibold text-slate-900">{item.motivo}</span>
                 <span className="text-xs font-semibold text-rose-700">
-                  {formatLosas(total.losas)} losas / {total.m2.toFixed(2)} m2
+                  {formatMetricValue(item.valor)}
                 </span>
               </div>
             ))
@@ -139,337 +515,438 @@ export default function MermasPage() {
     </div>
   )
 
-  function formatLosas(value: number) {
-    return Math.trunc(value).toString()
-  }
-
-  // Referencia de m² por dimensión de losa
-  const m2PorDimension: Record<Dimension, number> = {
-    '40x40': 0.16,
-    '60x40': 0.24,
-    '80x40': 0.32
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    const origen = bloquesYLotes.find(b => b.id === formData.origenId)
-    if (!origen || !Number.isInteger(formData.cantidadLosas) || formData.cantidadLosas <= 0) return
-
-    const metrosCuadrados = Number((formData.cantidadLosas * m2PorDimension[formData.dimension]).toFixed(2))
-
-    const newMerma: Merma = {
-      id: `M${String(mermas.length + 1).padStart(3, '0')}`,
-      fecha: new Date().toISOString().split('T')[0],
-      origenId: formData.origenId,
-      origenNombre: origen.nombre,
-      tipo: formData.tipo,
-      dimension: formData.dimension,
-      cantidadLosas: formData.cantidadLosas,
-      metrosCuadrados,
-      motivo: formData.motivo,
-      observaciones: formData.observaciones
-    }
-
-    setMermas([newMerma, ...mermas])
-    resetForm()
-  }
-
-  const resetForm = (closeDialog = true) => {
-    setFormData({
-      origenId: '',
-      tipo: 'Piso',
-      dimension: '60x40',
-      cantidadLosas: 0,
-      motivo: 'Partida al picar',
-      observaciones: ''
-    })
-    setCantidadTouched(false)
-    if (closeDialog) {
-      setIsDialogOpen(false)
-    }
-  }
-
-  const metrosCuadradosCalculados = formData.cantidadLosas * m2PorDimension[formData.dimension]
-
-  const motivoColors: Record<Merma['motivo'], string> = {
-    'Partida al picar': 'bg-blue-100 text-blue-800',
-    'Partida al pulir': 'bg-green-100 text-green-800',
-    'Defecto de material': 'bg-amber-100 text-amber-800',
-    'Recorte aprovechable': 'bg-purple-100 text-purple-800',
-    'Otro': 'bg-gray-100 text-gray-800',
-  }
-
   return (
     <AdminShell rightPanel={rightPanel}>
       <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground font-sans">
-            Control de Mermas
-          </h1>
-          <p className="mt-1 text-muted-foreground font-sans">
-              Registra pérdidas en losas con conversión automática a m2
-          </p>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="destructive" onClick={() => resetForm()}>
-              <Plus className="mr-2 h-4 w-4" />
-              Registrar Merma
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Registrar Merma (Pérdida)</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Bloque/Lote de Origen</Label>
-                <Select 
-                  value={formData.origenId} 
-                  onValueChange={(value) => setFormData({ ...formData, origenId: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar origen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {bloquesYLotes.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.nombre} ({b.tipo})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Tipo de Producto</Label>
-                  <Select 
-                    value={formData.tipo} 
-                    onValueChange={(value: TipoProducto) => setFormData({ ...formData, tipo: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tiposProducto.map((t) => (
-                        <SelectItem key={t} value={t}>{t}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Dimensión de Referencia</Label>
-                  <Select 
-                    value={formData.dimension} 
-                    onValueChange={(value: Dimension) => setFormData({ ...formData, dimension: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {dimensiones.map((d) => (
-                        <SelectItem key={d} value={d}>{d} cm ({m2PorDimension[d as Dimension]} m²/losa)</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Cantidad de Losas Perdidas</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  step="1"
-                  placeholder="0"
-                  value={cantidadTouched || formData.cantidadLosas > 0 ? formData.cantidadLosas : ''}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    const parsed = Number.parseInt(value, 10)
-                    setCantidadTouched(value !== '')
-                    setFormData({ ...formData, cantidadLosas: Number.isFinite(parsed) ? parsed : 0 })
-                  }}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  Registra la cantidad de losas enteras perdidas. El sistema calcula m2 automáticamente según la dimensión.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Motivo</Label>
-                <Select 
-                  value={formData.motivo} 
-                  onValueChange={(value: Merma['motivo']) => setFormData({ ...formData, motivo: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {motivosMerma.map((m) => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Observaciones</Label>
-                <Textarea
-                  value={formData.observaciones}
-                  onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
-                  placeholder="Describe las circunstancias. Si parte del material se recuperó para otra medida, indícalo aquí..."
-                  rows={3}
-                />
-              </div>
-
-              {/* Cálculo en tiempo real */}
-              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 space-y-2">
-                <h4 className="font-medium text-destructive">Resumen de Pérdida</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Losas ({formData.dimension}):</span>
-                  <span className="text-right font-bold text-destructive">{formatLosas(formData.cantidadLosas)} losas</span>
-                  <span className="text-muted-foreground">Conversión automática:</span>
-                  <span className="text-right text-muted-foreground">{metrosCuadradosCalculados.toFixed(2)} m²</span>
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={()=>resetForm()} className="flex-1 bg-transparent">
-                  Cancelar
-                </Button>
-                <Button type="submit" variant="destructive" className="flex-1">
-                  Registrar Merma
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Info Box */}
-      <div className="rounded-[24px] border border-sky-200/70 bg-sky-50/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-sm">
-        <div className="flex items-start gap-3">
-          <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h4 className="font-medium text-blue-800">Registro en Losas con Conversión Automática</h4>
-            <p className="text-sm text-blue-700">
-              Las mermas se registran en <strong>losas</strong> y el sistema convierte a m2 en tiempo real según la dimensión.
-              El registro se realiza solo con números enteros.
+            <h1 className="text-3xl font-bold text-foreground font-sans">Mermas</h1>
+            <p className="mt-1 text-muted-foreground font-sans">
+              Visualizacion de mermas y reutilizables. Las mermas fuera de produccion se registran aqui (mock).
             </p>
           </div>
-        </div>
-      </div>
-
-      {/* Search */}
-      <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
-        <div className="space-y-1">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</p>
-          <div className="relative w-full sm:max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por origen o motivo..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-        </div>
-      </div>
-
-      <Card className="bg-transparent border-none outline-none shadow-none p-0">
-        <CardContent className="p-0">
-          {fechasOrdenadas.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-              No hay registros de mermas
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {fechasOrdenadas.map((fecha) => {
-                const registros = groupedByDate[fecha]
-                const totalLosasFecha = registros.reduce((sum, item) => sum + item.cantidadLosas, 0)
-                const totalM2Fecha = registros.reduce((sum, item) => sum + item.metrosCuadrados, 0)
-
-                return (
-                  <div
-                    key={fecha}
-                    className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
-                  >
-                    <div className="flex items-center justify-between border-b border-slate-200/70 px-4 py-3">
-                      <div className="space-y-0.5">
-                        <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Fecha</p>
-                        <p className="text-base font-semibold text-slate-900">{fecha}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-right">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Registros</p>
-                          <p className="text-sm font-semibold text-slate-900">{registros.length}</p>
-                        </div>
-                        <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-right">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Losas</p>
-                          <p className="text-sm font-semibold text-slate-900">{formatLosas(totalLosasFecha)}</p>
-                        </div>
-                        <div className="rounded-lg border border-rose-200/70 bg-rose-50/70 px-2.5 py-1 text-right text-rose-700">
-                          <p className="text-[10px] uppercase tracking-[0.2em]">M2</p>
-                          <p className="text-sm font-semibold">{totalM2Fecha.toFixed(2)}</p>
-                        </div>
-                      </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
+              Registro manual: fuera produccion
+            </Badge>
+            <Dialog
+              open={isDialogOpen}
+              onOpenChange={(open) => {
+                setIsDialogOpen(open)
+                if (!open) resetForm()
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Registrar fuera produccion
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[88vh] w-[96vw] max-w-[680px] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Registrar merma fuera de produccion</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleRegisterMermaFueraProduccion} className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Fecha</Label>
+                      <Input
+                        type="date"
+                        value={formData.fecha}
+                        onChange={(event) => setFormData({ ...formData, fecha: event.target.value })}
+                        required
+                      />
                     </div>
-
-                    <div className="hidden lg:grid lg:grid-cols-[minmax(0,1.3fr)_160px_190px_100px_100px_minmax(0,1fr)] border-b border-slate-200/70 bg-slate-50/70 px-4 py-2">
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Bloque/Lote</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Tipo / Dim.</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Motivo</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Losas</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">M2</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Observaciones</span>
-                    </div>
-
-                    <div className="divide-y divide-slate-200/60">
-                      {registros.map((item) => (
-                        <div key={item.id} className="px-4 py-3">
-                          <div className="grid gap-2 lg:grid-cols-[minmax(0,1.3fr)_160px_190px_100px_100px_minmax(0,1fr)] lg:items-center">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">{item.origenNombre}</p>
-                              <p className="text-[11px] text-slate-500">ID {item.id}</p>
-                            </div>
-
-                            <div className="text-sm text-slate-700">
-                              {item.tipo} / {item.dimension}
-                            </div>
-
-                            <div>
-                              <Badge className={motivoColors[item.motivo]}>{item.motivo}</Badge>
-                            </div>
-
-                            <div className="flex items-center justify-between text-sm lg:block lg:text-right">
-                              <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Losas</span>
-                              <span className="font-semibold text-slate-900">{formatLosas(item.cantidadLosas)}</span>
-                            </div>
-
-                            <div className="flex items-center justify-between text-sm lg:block lg:text-right">
-                              <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">M2</span>
-                              <span className="font-semibold text-rose-700">{item.metrosCuadrados.toFixed(2)}</span>
-                            </div>
-
-                            <div className="text-sm text-slate-600">
-                              {item.observaciones || '-'}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="space-y-2">
+                      <Label>Bloque / Lote</Label>
+                      <Select
+                        value={formData.origenId}
+                        onValueChange={(value) => setFormData({ ...formData, origenId: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar origen" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {bloquesYLotes.map((bloque) => (
+                            <SelectItem key={bloque.id} value={bloque.id}>
+                              {bloque.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                )
-              })}
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Tipo</Label>
+                      <Select
+                        value={formData.tipo}
+                        onValueChange={(value) => setFormData({ ...formData, tipo: value as TipoProducto })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tipoOptions.map((tipo) => (
+                            <SelectItem key={tipo} value={tipo}>
+                              {tipo}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Dimension</Label>
+                      <Select
+                        value={formData.dimension}
+                        onValueChange={(value) => setFormData({ ...formData, dimension: value as Dimension })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {dimensionOptions.map((dimension) => (
+                            <SelectItem key={dimension} value={dimension}>
+                              {dimension}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Clasificacion</Label>
+                      <Select
+                        value={formData.kind}
+                        onValueChange={(value) => {
+                          if (!isRegistroKind(value)) return
+                          setFormData({
+                            ...formData,
+                            kind: value,
+                            motivo:
+                              value === 'Reutilizable'
+                                ? 'Recorte aprovechable'
+                                : formData.motivo === 'Recorte aprovechable'
+                                  ? 'Partida al picar'
+                                  : formData.motivo,
+                          })
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MermaTotal">Merma total</SelectItem>
+                          <SelectItem value="Reutilizable">Reutilizable</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Motivo</Label>
+                      <Select
+                        value={formData.motivo}
+                        onValueChange={(value) => setFormData({ ...formData, motivo: value as Merma['motivo'] })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {motivoOptions.map((motivo) => (
+                            <SelectItem key={motivo} value={motivo}>
+                              {motivo}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Cantidad de losas (entero)</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="0"
+                      value={cantidadTouched || formData.cantidadLosas > 0 ? formData.cantidadLosas : ''}
+                      onChange={(event) => {
+                        const value = event.target.value
+                        setCantidadTouched(value !== '')
+                        setFormData({
+                          ...formData,
+                          cantidadLosas: value === '' ? 0 : Math.trunc(Number(value)),
+                        })
+                      }}
+                    />
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm">
+                    <div className="flex items-center justify-between text-slate-700">
+                      <span>Conversion automatica</span>
+                      <span className="font-semibold text-slate-900">{metrosCuadradosForm.toFixed(2)} m2</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Observaciones (opcional)</Label>
+                    <Textarea
+                      value={formData.observaciones}
+                      onChange={(event) => setFormData({ ...formData, observaciones: event.target.value })}
+                      placeholder="Detalle breve..."
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsDialogOpen(false)
+                        resetForm()
+                      }}
+                      className="flex-1 bg-transparent"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button type="submit" className="flex-1" disabled={!formData.origenId || formData.cantidadLosas <= 0}>
+                      Guardar registro
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+          <div className="grid gap-3 sm:grid-cols-[minmax(240px,1fr)_150px_170px_auto] sm:items-end">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</Label>
+              <div className="relative w-full">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por origen, motivo o fecha..."
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="pl-9"
+                />
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Tipo</Label>
+              <Select
+                value={kindFilter}
+                onValueChange={(value) => {
+                  if (isKindFilter(value)) setKindFilter(value)
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="MermaTotal">Merma total</SelectItem>
+                  <SelectItem value="Reutilizable">Reutilizable</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Fuente</Label>
+              <Select
+                value={sourceFilter}
+                onValueChange={(value) => {
+                  if (isSourceFilter(value)) setSourceFilter(value)
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="Produccion">Produccion</SelectItem>
+                  <SelectItem value="FueraProduccion">Fuera produccion</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <ToggleGroup
+              type="single"
+              value={metricView}
+              onValueChange={(value) => {
+                if (isMetricView(value)) setMetricView(value)
+              }}
+              variant="outline"
+              size="sm"
+              className="bg-white/80"
+            >
+              <ToggleGroupItem value="losas" className="px-3 text-xs">Losas</ToggleGroupItem>
+              <ToggleGroupItem value="m2" className="px-3 text-xs">m2</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Panorama</p>
+              <h2 className="text-lg font-semibold text-slate-900">Merma y reutilizable por flujo</h2>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <BarChart3 className="h-4 w-4" />
+              Vista en {metricView}
+            </div>
+          </div>
+
+          <ChartContainer config={motiveChartConfig} className="mt-4 h-[300px] w-full">
+            <BarChart data={distributionData} margin={{ top: 8, right: 10, left: 0, bottom: 8 }}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="categoria" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} width={44} allowDecimals={metricView === 'm2'} />
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    formatter={(value) => {
+                      return formatMetricValue(Number(value ?? 0))
+                    }}
+                  />
+                }
+              />
+              <Bar dataKey="valor" radius={[8, 8, 0, 0]}>
+                {distributionData.map((item) => (
+                  <Cell key={item.key} fill={distributionColor[item.key]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ChartContainer>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Motivos de merma total</p>
+            <h3 className="mt-1 text-base font-semibold text-slate-900">Top motivos</h3>
+
+            {motivosMermaData.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">Sin datos para mostrar.</p>
+            ) : (
+              <ChartContainer config={motiveChartConfig} className="mt-4 h-[260px] w-full">
+                <BarChart layout="vertical" data={motivosMermaData} margin={{ top: 4, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid horizontal={false} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="motivo" type="category" tickLine={false} axisLine={false} width={170} />
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) => {
+                          return formatMetricValue(Number(value ?? 0))
+                        }}
+                      />
+                    }
+                  />
+                  <Bar dataKey="valor" fill="var(--color-valor)" radius={[0, 8, 8, 0]} />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Reutilizable</p>
+            <h3 className="mt-1 text-base font-semibold text-slate-900">Aprovechable por bloque</h3>
+
+            {reutilizableByOrigenData.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">Sin reutilizable para mostrar.</p>
+            ) : (
+              <ChartContainer config={reusableChartConfig} className="mt-4 h-[260px] w-full">
+                <BarChart layout="vertical" data={reutilizableByOrigenData} margin={{ top: 4, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid horizontal={false} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="origen" type="category" tickLine={false} axisLine={false} width={170} />
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) => {
+                          return formatMetricValue(Number(value ?? 0))
+                        }}
+                      />
+                    }
+                  />
+                  <Bar dataKey="valor" fill="var(--color-valor)" radius={[0, 8, 8, 0]} />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Tendencia</p>
+            <h3 className="mt-1 text-base font-semibold text-slate-900">Merma y reutilizable por fecha</h3>
+
+            {trendByDateData.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">Sin datos para mostrar.</p>
+            ) : (
+              <ChartContainer config={breakdownChartConfig} className="mt-4 h-[270px] w-full">
+                <BarChart data={trendByDateData} margin={{ top: 8, right: 10, left: 0, bottom: 8 }}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="fecha" tickLine={false} axisLine={false} />
+                  <YAxis tickLine={false} axisLine={false} width={44} allowDecimals={metricView === 'm2'} />
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent formatter={(value) => formatMetricValue(Number(value ?? 0))} />
+                    }
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Bar dataKey="mermaTotal" name="Merma total" fill="var(--color-mermaTotal)" radius={[8, 8, 0, 0]} />
+                  <Bar
+                    dataKey="reutilizable"
+                    name="Reutilizable"
+                    fill="var(--color-reutilizable)"
+                    radius={[8, 8, 0, 0]}
+                  />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Bloques / lotes</p>
+            <h3 className="mt-1 text-base font-semibold text-slate-900">Merma vs reutilizable por origen</h3>
+
+            {origenBreakdownData.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">Sin datos para mostrar.</p>
+            ) : (
+              <ChartContainer config={breakdownChartConfig} className="mt-4 h-[270px] w-full">
+                <BarChart
+                  layout="vertical"
+                  data={origenBreakdownData}
+                  margin={{ top: 4, right: 10, left: 10, bottom: 0 }}
+                >
+                  <CartesianGrid horizontal={false} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="origen" type="category" tickLine={false} axisLine={false} width={170} />
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent formatter={(value) => formatMetricValue(Number(value ?? 0))} />
+                    }
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Bar dataKey="mermaTotal" name="Merma total" stackId="total" fill="var(--color-mermaTotal)" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="reutilizable" name="Reutilizable" stackId="total" fill="var(--color-reutilizable)" radius={[0, 8, 8, 0]} />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </div>
+        </div>
       </div>
     </AdminShell>
   )
