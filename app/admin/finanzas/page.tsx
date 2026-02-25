@@ -19,9 +19,9 @@ export default function FinanzasPage() {
   const ingresosOperativos = totalSubtotal - totalDescuentos
   const ingresosTotales = ventasCompletadas.reduce((sum, venta) => sum + venta.total, 0)
   const totalMetrosVendidos = ventasCompletadas.reduce((sum, venta) => sum + venta.cantidadM2, 0)
+  const produccionTotalM2 = produccionDiaria.reduce((sum, registro) => sum + registro.totalM2, 0)
 
   const PORC_RESERVA_FIJOS_MANTENIMIENTO = 0.11
-  const PORC_GASTO_TRANSPORTE = 0.04
   const PORC_GASTO_CORRIENTE = 0.06
   const PORC_GASTO_AGUA = 0.02
   const PORC_GASTO_OTROS = 0.03
@@ -29,8 +29,12 @@ export default function FinanzasPage() {
   const PORC_PAGO_DIRECTIVOS = 0.6
 
   const totalCostoBloques = bloquesYLotes.reduce((sum, bloque) => sum + bloque.costo, 0)
-  const totalMetrosComprados = bloquesYLotes.reduce((sum, bloque) => sum + bloque.metrosComprados, 0)
-  const costoMaterialM2 = totalMetrosComprados ? totalCostoBloques / totalMetrosComprados : 0
+  const totalCostoTransporteMateriaPrima = bloquesYLotes.reduce(
+    (sum, bloque) => sum + bloque.costoTransporte,
+    0,
+  )
+  const metrosReferenciaCosteo = produccionTotalM2 > 0 ? produccionTotalM2 : totalMetrosVendidos
+  const costoMaterialM2 = metrosReferenciaCosteo ? totalCostoBloques / metrosReferenciaCosteo : 0
   const costoBloque = totalMetrosVendidos * costoMaterialM2
 
   const trabajadoresPorId = new Map(trabajadores.map((trabajador) => [trabajador.id, trabajador]))
@@ -57,7 +61,7 @@ export default function FinanzasPage() {
   const reservaFijosMantenimiento = ingresosOperativos * PORC_RESERVA_FIJOS_MANTENIMIENTO
   const baseDespuesReserva = ingresosOperativos - reservaFijosMantenimiento
 
-  const gastoTransporte = ingresosOperativos * PORC_GASTO_TRANSPORTE
+  const gastoTransporte = totalCostoTransporteMateriaPrima
   const gastoCorriente = ingresosOperativos * PORC_GASTO_CORRIENTE
   const gastoAgua = ingresosOperativos * PORC_GASTO_AGUA
   const gastoOtros = ingresosOperativos * PORC_GASTO_OTROS
@@ -75,9 +79,7 @@ export default function FinanzasPage() {
 
   const totalMermas = mermas.reduce((sum, merma) => sum + merma.metrosCuadrados, 0)
   const costoMerma = totalMermas * costoMaterialM2
-  const mermaRatio = totalMetrosComprados ? totalMermas / totalMetrosComprados : 0
-
-  const produccionTotalM2 = produccionDiaria.reduce((sum, registro) => sum + registro.totalM2, 0)
+  const mermaRatio = metrosReferenciaCosteo ? totalMermas / metrosReferenciaCosteo : 0
   const ratioVentaProduccion = produccionTotalM2 ? totalMetrosVendidos / produccionTotalM2 : 0
 
   const serieVentas = [...ventasCompletadas]
@@ -121,7 +123,7 @@ export default function FinanzasPage() {
     {
       label: 'Transporte',
       value: gastoTransporte,
-      helper: `${formatPercent(PORC_GASTO_TRANSPORTE)} del ingreso operativo`,
+      helper: 'Costo acumulado definido en Materia Prima',
       gradient: 'from-sky-400 to-sky-500',
     },
     {
@@ -347,7 +349,7 @@ export default function FinanzasPage() {
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Costo del bloque</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(costoBloque)}</p>
             <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-              <span>{totalMetrosComprados.toFixed(1)} m2 comprados</span>
+              <span>{metrosReferenciaCosteo.toFixed(1)} m2 referencia</span>
               <span>{totalMetrosVendidos.toFixed(1)} m2 vendidos</span>
             </div>
             <p className="mt-2 text-xs text-slate-500">
@@ -359,7 +361,7 @@ export default function FinanzasPage() {
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Transporte</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(gastoTransporte)}</p>
             <p className="text-xs text-slate-500">
-              {formatPercent(PORC_GASTO_TRANSPORTE)} del ingreso operativo
+              Definido por bloque/lote en Materia Prima
             </p>
           </div>
 
@@ -479,7 +481,7 @@ export default function FinanzasPage() {
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Eficiencia de materiales</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatPercent(1 - mermaRatio)}</p>
             <p className="text-xs text-slate-500">
-              {totalMermas.toFixed(2)} m2 perdidos de {totalMetrosComprados.toFixed(1)} m2 comprados
+              {totalMermas.toFixed(2)} m2 perdidos de {metrosReferenciaCosteo.toFixed(1)} m2 referencia
             </p>
           </div>
 

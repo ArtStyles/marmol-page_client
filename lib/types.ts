@@ -82,7 +82,9 @@ export interface BloqueOLote {
   id: string
   nombre: string
   tipo: 'Bloque' | 'Lote'
+  dimensionBase: Dimension
   costo: number
+  costoTransporte: number
   metrosComprados: number
   fechaIngreso: string
   proveedor: string
@@ -151,8 +153,14 @@ export interface Equipo {
 export interface ProduccionDetalleAccion {
   id: string
   accion: AccionLosa
-  trabajadorId: string
-  trabajadorNombre: string
+  // Legacy: registro por un solo trabajador
+  trabajadorId?: string
+  trabajadorNombre?: string
+  // Nuevo modelo: un equipo puede tener varios trabajadores
+  trabajadores?: Array<{
+    id: string
+    nombre: string
+  }>
   equipoId: string
   equipoNombre: string
   cantidadLosas: number
@@ -218,10 +226,23 @@ export interface Merma {
 }
 
 // Venta (en metros cuadrados)
+export interface VentaDetalleProducto {
+  productoId: string
+  productoNombre: string
+  origenId: string
+  origenNombre: string
+  dimension: Dimension
+  estado: EstadoInventario
+  metrosCuadrados: number
+  precioM2: number
+  subtotal: number
+}
+
 export interface Venta {
   id: string
   productoId: string
   productoNombre: string
+  detallesProductos?: VentaDetalleProducto[]
   cantidadM2: number
   metrosPorDimension: Record<Dimension, number>
   precioM2: number

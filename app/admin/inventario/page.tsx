@@ -18,8 +18,8 @@ import {
 } from '@/components/ui/chart'
 import { useInventarioStore } from '@/hooks/use-inventario'
 import { useProduccionStore } from '@/hooks/use-produccion'
-import { estadosInventario, tiposProducto } from '@/lib/data'
-import { losasAMetros, type Producto } from '@/lib/types'
+import { dimensiones, estadosInventario, tiposProducto } from '@/lib/data'
+import { losasAMetros, type Dimension, type Producto } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { BarChart3, Search } from 'lucide-react'
@@ -49,6 +49,13 @@ type PartidasOrigenGroup = {
   mermaM2: number
   reutilizableLosas: number
   reutilizableM2: number
+}
+
+type AccionFiltroResumenRow = {
+  estado: Producto['estado']
+  productos: number
+  losas: number
+  m2: number
 }
 
 const estadoOrden: Producto['estado'][] = ['Picado', 'Pulido', 'Escuadrado']
@@ -128,6 +135,7 @@ export default function InventarioPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [tipoFilter, setTipoFilter] = useState<string>('all')
   const [estadoFilter, setEstadoFilter] = useState<string>('all')
+  const [dimensionFilter, setDimensionFilter] = useState<string>('all')
   const [metricView, setMetricView] = useState<MetricView>('both')
 
   const showLosas = metricView !== 'm2'
@@ -149,11 +157,26 @@ export default function InventarioPage() {
         producto.id.toLowerCase().includes(query)
       const matchesTipo = tipoFilter === 'all' || producto.tipo === tipoFilter
       const matchesEstado = estadoFilter === 'all' || producto.estado === estadoFilter
-      return matchesSearch && matchesTipo && matchesEstado
+      const matchesDimension = dimensionFilter === 'all' || producto.dimension === dimensionFilter
+      return matchesSearch && matchesTipo && matchesEstado && matchesDimension
     })
-  }, [productos, searchTerm, tipoFilter, estadoFilter])
+  }, [productos, searchTerm, tipoFilter, estadoFilter, dimensionFilter])
 
   const generalChartData = useMemo(() => buildEstadoRows(filteredProductos), [filteredProductos])
+
+  const accionResumenFiltro = useMemo<AccionFiltroResumenRow[]>(
+    () =>
+      estadoOrden.map((estado) => {
+        const itemsEstado = filteredProductos.filter((item) => item.estado === estado)
+        return {
+          estado,
+          productos: itemsEstado.length,
+          losas: itemsEstado.reduce((sum, item) => sum + item.cantidadLosas, 0),
+          m2: itemsEstado.reduce((sum, item) => sum + item.metrosCuadrados, 0),
+        }
+      }),
+    [filteredProductos],
+  )
 
   const groupedByOrigen = useMemo(() => {
     const grouped = filteredProductos.reduce<Record<string, Omit<OrigenChartGroup, 'chartData' | 'estadoDominante'>>>(
@@ -291,6 +314,28 @@ export default function InventarioPage() {
 
   const rightPanel = (
     <div className="space-y-4">
+      <AdminPanelCard
+        title="Filtro por accion"
+        meta={`Tipo ${tipoFilter === 'all' ? 'Todos' : tipoFilter} | Estado ${
+          estadoFilter === 'all' ? 'Todos' : estadoFilter
+        } | Dim ${dimensionFilter === 'all' ? 'Todas' : dimensionFilter}`}
+      >
+        <div className="space-y-2 text-sm text-slate-700">
+          {accionResumenFiltro.map((row) => (
+            <div key={row.estado} className="rounded-2xl bg-white/70 px-3 py-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-900">{row.estado}</span>
+                <span className="text-xs text-slate-500">{row.productos} item(s)</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-xs">
+                <span>{row.losas.toLocaleString()} losas</span>
+                <span>{row.m2.toFixed(2)} m2</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </AdminPanelCard>
+
       <AdminPanelCard title="Losas partidas" meta="Desde produccion">
         <div className="space-y-3 text-sm text-slate-700">
           <div className="flex items-center justify-between">
@@ -393,7 +438,7 @@ export default function InventarioPage() {
         </div>
 
         <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
             <div className="space-y-1">
               <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</Label>
               <div className="relative w-full">
@@ -433,6 +478,22 @@ export default function InventarioPage() {
                   {estadosInventario.map((estado) => (
                     <SelectItem key={estado} value={estado}>
                       {estado}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Dimension</Label>
+              <Select value={dimensionFilter} onValueChange={setDimensionFilter}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Dimension" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {(dimensiones as Dimension[]).map((dimension) => (
+                    <SelectItem key={dimension} value={dimension}>
+                      {dimension}
                     </SelectItem>
                   ))}
                 </SelectContent>

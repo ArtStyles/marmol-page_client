@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "lib/types.ts",
+    "app/admin/produccion/page.tsx",
+    "app/admin/asignaciones/page.tsx"
+  ],
+  "exclude": [".next", "node_modules"]
+}
