@@ -452,7 +452,7 @@ export default function BloquesPage() {
               <h4 className="font-medium text-blue-800">Principio del Sistema</h4>
               <p className="text-sm text-blue-700">
                 Cada bloque/lote define dimension base, costo de material y costo de transporte.
-                La captura en m2 se eliminó en esta vista para evitar duplicidad operativa.
+                La captura en m2 se eliminÃ³ en esta vista para evitar duplicidad operativa.
               </p>
             </div>
           </div>
