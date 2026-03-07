@@ -1,0 +1,196 @@
+import type {
+  ProduccionRepositoryPort,
+  ProduccionTrabajadorRepositoryPort,
+} from '../../../domain/ports/index.js'
+import type { ProduccionDiaria, ProduccionTrabajador } from '../../../domain/entities/index.js'
+import { getPool } from './connection.js'
+import { nextId } from './helpers.js'
+
+function rowToProduccion(r: Record<string, unknown>): ProduccionDiaria {
+  return {
+    id: r.id as string,
+    fecha: String(r.fecha).split('T')[0],
+    origenId: r.origen_id as string,
+    origenNombre: r.origen_nombre as string,
+    tipo: r.tipo as ProduccionDiaria['tipo'],
+    dimension: r.dimension as ProduccionDiaria['dimension'],
+    cantidadPicar: Number(r.cantidad_picar),
+    cantidadPulir: Number(r.cantidad_pulir),
+    cantidadEscuadrar: Number(r.cantidad_escuadrar),
+    totalLosas: Number(r.total_losas),
+    totalM2: Number(r.total_m2),
+    detallesAcciones: r.detalles_acciones as ProduccionDiaria['detallesAcciones'],
+    canEdit: r.can_edit as boolean | undefined,
+    editableUntil: r.editable_until != null ? String(r.editable_until) : undefined,
+  }
+}
+
+export class PostgresProduccionRepository implements ProduccionRepositoryPort {
+  async findAll(): Promise<ProduccionDiaria[]> {
+    const pool = getPool()
+    const r = await pool.query('SELECT * FROM produccion ORDER BY fecha DESC, id')
+    return r.rows.map(rowToProduccion)
+  }
+
+  async findById(id: string): Promise<ProduccionDiaria | null> {
+    const pool = getPool()
+    const r = await pool.query('SELECT * FROM produccion WHERE id = $1', [id])
+    if (r.rows.length === 0) return null
+    return rowToProduccion(r.rows[0])
+  }
+
+  async create(data: Omit<ProduccionDiaria, 'id'>): Promise<ProduccionDiaria> {
+    const pool = getPool()
+    const id = await nextId(pool, 'PG', 'produccion')
+    await pool.query(
+      `INSERT INTO produccion (id, fecha, origen_id, origen_nombre, tipo, dimension, cantidad_picar, cantidad_pulir, cantidad_escuadrar, total_losas, total_m2, detalles_acciones, can_edit, editable_until)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [
+        id,
+        data.fecha,
+        data.origenId,
+        data.origenNombre,
+        data.tipo,
+        data.dimension,
+        data.cantidadPicar,
+        data.cantidadPulir,
+        data.cantidadEscuadrar,
+        data.totalLosas,
+        data.totalM2,
+        data.detallesAcciones ? JSON.stringify(data.detallesAcciones) : null,
+        data.canEdit ?? null,
+        data.editableUntil ?? null,
+      ]
+    )
+    return this.findById(id) as Promise<ProduccionDiaria>
+  }
+
+  async update(id: string, data: Partial<ProduccionDiaria>): Promise<ProduccionDiaria | null> {
+    const current = await this.findById(id)
+    if (!current) return null
+    const merged = { ...current, ...data }
+    const pool = getPool()
+    await pool.query(
+      `UPDATE produccion SET fecha=$2, origen_id=$3, origen_nombre=$4, tipo=$5, dimension=$6, cantidad_picar=$7, cantidad_pulir=$8, cantidad_escuadrar=$9, total_losas=$10, total_m2=$11, detalles_acciones=$12, can_edit=$13, editable_until=$14 WHERE id=$1`,
+      [
+        id,
+        merged.fecha,
+        merged.origenId,
+        merged.origenNombre,
+        merged.tipo,
+        merged.dimension,
+        merged.cantidadPicar,
+        merged.cantidadPulir,
+        merged.cantidadEscuadrar,
+        merged.totalLosas,
+        merged.totalM2,
+        merged.detallesAcciones ? JSON.stringify(merged.detallesAcciones) : null,
+        merged.canEdit ?? null,
+        merged.editableUntil ?? null,
+      ]
+    )
+    return this.findById(id)
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const pool = getPool()
+    const r = await pool.query('DELETE FROM produccion WHERE id = $1', [id])
+    return (r.rowCount ?? 0) > 0
+  }
+}
+
+function rowToProduccionTrabajador(r: Record<string, unknown>): ProduccionTrabajador {
+  return {
+    id: r.id as string,
+    fecha: String(r.fecha).split('T')[0],
+    trabajadorId: r.trabajador_id as string,
+    trabajadorNombre: r.trabajador_nombre as string,
+    accion: r.accion as ProduccionTrabajador['accion'],
+    origenId: r.origen_id as string,
+    origenNombre: r.origen_nombre as string,
+    tipo: r.tipo as ProduccionTrabajador['tipo'],
+    dimension: r.dimension as ProduccionTrabajador['dimension'],
+    cantidadLosas: Number(r.cantidad_losas),
+    pagoPorLosa: Number(r.pago_por_losa),
+    pagoTotal: Number(r.pago_total),
+    bono: Number(r.bono),
+    pagoFinal: Number(r.pago_final),
+    pagado: Boolean(r.pagado),
+  }
+}
+
+export class PostgresProduccionTrabajadorRepository implements ProduccionTrabajadorRepositoryPort {
+  async findAll(): Promise<ProduccionTrabajador[]> {
+    const pool = getPool()
+    const r = await pool.query('SELECT * FROM produccion_trabajadores ORDER BY fecha DESC, id')
+    return r.rows.map(rowToProduccionTrabajador)
+  }
+
+  async findById(id: string): Promise<ProduccionTrabajador | null> {
+    const pool = getPool()
+    const r = await pool.query('SELECT * FROM produccion_trabajadores WHERE id = $1', [id])
+    if (r.rows.length === 0) return null
+    return rowToProduccionTrabajador(r.rows[0])
+  }
+
+  async create(data: Omit<ProduccionTrabajador, 'id'>): Promise<ProduccionTrabajador> {
+    const pool = getPool()
+    const id = await nextId(pool, 'PD', 'produccion_trabajadores')
+    await pool.query(
+      `INSERT INTO produccion_trabajadores (id, fecha, trabajador_id, trabajador_nombre, accion, origen_id, origen_nombre, tipo, dimension, cantidad_losas, pago_por_losa, pago_total, bono, pago_final, pagado)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      [
+        id,
+        data.fecha,
+        data.trabajadorId,
+        data.trabajadorNombre,
+        data.accion,
+        data.origenId,
+        data.origenNombre,
+        data.tipo,
+        data.dimension,
+        data.cantidadLosas,
+        data.pagoPorLosa,
+        data.pagoTotal,
+        data.bono,
+        data.pagoFinal,
+        data.pagado,
+      ]
+    )
+    return this.findById(id) as Promise<ProduccionTrabajador>
+  }
+
+  async update(id: string, data: Partial<ProduccionTrabajador>): Promise<ProduccionTrabajador | null> {
+    const current = await this.findById(id)
+    if (!current) return null
+    const merged = { ...current, ...data }
+    const pool = getPool()
+    await pool.query(
+      `UPDATE produccion_trabajadores SET fecha=$2, trabajador_id=$3, trabajador_nombre=$4, accion=$5, origen_id=$6, origen_nombre=$7, tipo=$8, dimension=$9, cantidad_losas=$10, pago_por_losa=$11, pago_total=$12, bono=$13, pago_final=$14, pagado=$15 WHERE id=$1`,
+      [
+        id,
+        merged.fecha,
+        merged.trabajadorId,
+        merged.trabajadorNombre,
+        merged.accion,
+        merged.origenId,
+        merged.origenNombre,
+        merged.tipo,
+        merged.dimension,
+        merged.cantidadLosas,
+        merged.pagoPorLosa,
+        merged.pagoTotal,
+        merged.bono,
+        merged.pagoFinal,
+        merged.pagado,
+      ]
+    )
+    return this.findById(id)
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const pool = getPool()
+    const r = await pool.query('DELETE FROM produccion_trabajadores WHERE id = $1', [id])
+    return (r.rowCount ?? 0) > 0
+  }
+}

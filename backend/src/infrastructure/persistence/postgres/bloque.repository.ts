@@ -1,0 +1,97 @@
+import type { BloqueRepositoryPort } from '../../../domain/ports/index.js'
+import type { BloqueOLote } from '../../../domain/entities/index.js'
+import { getPool } from './connection.js'
+import { nextId } from './helpers.js'
+
+function rowToBloque(r: Record<string, unknown>): BloqueOLote {
+  return {
+    id: r.id as string,
+    nombre: r.nombre as string,
+    tipo: r.tipo as 'Bloque' | 'Lote',
+    dimensionBase: r.dimension_base as BloqueOLote['dimensionBase'],
+    costo: Number(r.costo),
+    costoTransporte: Number(r.costo_transporte),
+    metrosComprados: Number(r.metros_comprados),
+    fechaIngreso: String(r.fecha_ingreso).split('T')[0],
+    proveedor: r.proveedor as string,
+    losasProducidas: Number(r.losas_producidas),
+    losasPerdidas: Number(r.losas_perdidas),
+    metrosVendibles: Number(r.metros_vendibles),
+    gananciaReal: Number(r.ganancia_real),
+    estado: r.estado as 'activo' | 'agotado',
+  }
+}
+
+export class PostgresBloqueRepository implements BloqueRepositoryPort {
+  async findAll(): Promise<BloqueOLote[]> {
+    const pool = getPool()
+    const r = await pool.query('SELECT * FROM bloques ORDER BY id')
+    return r.rows.map(rowToBloque)
+  }
+
+  async findById(id: string): Promise<BloqueOLote | null> {
+    const pool = getPool()
+    const r = await pool.query('SELECT * FROM bloques WHERE id = $1', [id])
+    if (r.rows.length === 0) return null
+    return rowToBloque(r.rows[0])
+  }
+
+  async create(data: Omit<BloqueOLote, 'id'>): Promise<BloqueOLote> {
+    const pool = getPool()
+    const id = await nextId(pool, 'BL', 'bloques')
+    await pool.query(
+      `INSERT INTO bloques (id, nombre, tipo, dimension_base, costo, costo_transporte, metros_comprados, fecha_ingreso, proveedor, losas_producidas, losas_perdidas, metros_vendibles, ganancia_real, estado)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [
+        id,
+        data.nombre,
+        data.tipo,
+        data.dimensionBase,
+        data.costo,
+        data.costoTransporte,
+        data.metrosComprados,
+        data.fechaIngreso,
+        data.proveedor,
+        data.losasProducidas,
+        data.losasPerdidas,
+        data.metrosVendibles,
+        data.gananciaReal,
+        data.estado,
+      ]
+    )
+    return this.findById(id) as Promise<BloqueOLote>
+  }
+
+  async update(id: string, data: Partial<BloqueOLote>): Promise<BloqueOLote | null> {
+    const current = await this.findById(id)
+    if (!current) return null
+    const merged = { ...current, ...data }
+    const pool = getPool()
+    await pool.query(
+      `UPDATE bloques SET nombre=$2, tipo=$3, dimension_base=$4, costo=$5, costo_transporte=$6, metros_comprados=$7, fecha_ingreso=$8, proveedor=$9, losas_producidas=$10, losas_perdidas=$11, metros_vendibles=$12, ganancia_real=$13, estado=$14 WHERE id=$1`,
+      [
+        id,
+        merged.nombre,
+        merged.tipo,
+        merged.dimensionBase,
+        merged.costo,
+        merged.costoTransporte,
+        merged.metrosComprados,
+        merged.fechaIngreso,
+        merged.proveedor,
+        merged.losasProducidas,
+        merged.losasPerdidas,
+        merged.metrosVendibles,
+        merged.gananciaReal,
+        merged.estado,
+      ]
+    )
+    return this.findById(id)
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const pool = getPool()
+    const r = await pool.query('DELETE FROM bloques WHERE id = $1', [id])
+    return (r.rowCount ?? 0) > 0
+  }
+}
