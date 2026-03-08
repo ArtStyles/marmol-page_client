@@ -2,6 +2,7 @@ import type { TrabajadorRepositoryPort } from '../../../domain/ports/index.js'
 import type { Trabajador } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
 import { nextId } from './helpers.js'
+import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToTrabajador(r: Record<string, unknown>): Trabajador {
   return {
@@ -25,25 +26,34 @@ function rowToTrabajador(r: Record<string, unknown>): Trabajador {
 export class PostgresTrabajadorRepository implements TrabajadorRepositoryPort {
   async findAll(): Promise<Trabajador[]> {
     const pool = getPool()
-    const r = await pool.query('SELECT * FROM trabajadores ORDER BY id')
+    const workshopId = getCurrentWorkshopId()
+    const r = await pool.query('SELECT * FROM trabajadores WHERE workshop_id = $1 ORDER BY id', [
+      workshopId,
+    ])
     return r.rows.map(rowToTrabajador)
   }
 
   async findById(id: string): Promise<Trabajador | null> {
     const pool = getPool()
-    const r = await pool.query('SELECT * FROM trabajadores WHERE id = $1', [id])
+    const workshopId = getCurrentWorkshopId()
+    const r = await pool.query('SELECT * FROM trabajadores WHERE id = $1 AND workshop_id = $2', [
+      id,
+      workshopId,
+    ])
     if (r.rows.length === 0) return null
     return rowToTrabajador(r.rows[0])
   }
 
   async create(data: Omit<Trabajador, 'id'>): Promise<Trabajador> {
     const pool = getPool()
+    const workshopId = getCurrentWorkshopId()
     const id = await nextId(pool, 'T', 'trabajadores')
     await pool.query(
-      `INSERT INTO trabajadores (id, nombre, email, telefono, rol, fecha_ingreso, estado, usuario, contrasena, tarifas_personalizadas, losas_producidas, pagos_totales, bonos_totales, acumulado_pendiente)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      `INSERT INTO trabajadores (id, workshop_id, nombre, email, telefono, rol, fecha_ingreso, estado, usuario, contrasena, tarifas_personalizadas, losas_producidas, pagos_totales, bonos_totales, acumulado_pendiente)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
       [
         id,
+        workshopId,
         data.nombre,
         data.email,
         data.telefono ?? '',
@@ -67,8 +77,9 @@ export class PostgresTrabajadorRepository implements TrabajadorRepositoryPort {
     if (!current) return null
     const merged = { ...current, ...data }
     const pool = getPool()
+    const workshopId = getCurrentWorkshopId()
     await pool.query(
-      `UPDATE trabajadores SET nombre=$2, email=$3, telefono=$4, rol=$5, fecha_ingreso=$6, estado=$7, usuario=$8, contrasena=$9, tarifas_personalizadas=$10, losas_producidas=$11, pagos_totales=$12, bonos_totales=$13, acumulado_pendiente=$14 WHERE id=$1`,
+      `UPDATE trabajadores SET nombre=$2, email=$3, telefono=$4, rol=$5, fecha_ingreso=$6, estado=$7, usuario=$8, contrasena=$9, tarifas_personalizadas=$10, losas_producidas=$11, pagos_totales=$12, bonos_totales=$13, acumulado_pendiente=$14 WHERE id=$1 AND workshop_id=$15`,
       [
         id,
         merged.nombre,
@@ -84,6 +95,7 @@ export class PostgresTrabajadorRepository implements TrabajadorRepositoryPort {
         merged.pagosTotales,
         merged.bonosTotales,
         merged.acumuladoPendiente,
+        workshopId,
       ]
     )
     return this.findById(id)
@@ -91,7 +103,11 @@ export class PostgresTrabajadorRepository implements TrabajadorRepositoryPort {
 
   async delete(id: string): Promise<boolean> {
     const pool = getPool()
-    const r = await pool.query('DELETE FROM trabajadores WHERE id = $1', [id])
+    const workshopId = getCurrentWorkshopId()
+    const r = await pool.query('DELETE FROM trabajadores WHERE id = $1 AND workshop_id = $2', [
+      id,
+      workshopId,
+    ])
     return (r.rowCount ?? 0) > 0
   }
 }

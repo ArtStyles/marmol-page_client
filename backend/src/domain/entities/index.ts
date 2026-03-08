@@ -62,6 +62,20 @@ export interface Producto {
   imagen: string
 }
 
+export interface CatalogoItem {
+  id: string
+  nombre: string
+  tipo: TipoProducto
+  acabado: EstadoLosa
+  dimension: Dimension
+  precioM2: number
+  stockLosas: number
+  destacado: boolean
+  descripcion: string
+  imagen: string
+  visible: boolean
+}
+
 export interface TarifasTrabajador {
   picar: number
   pulir: number
@@ -220,6 +234,27 @@ export interface SystemLog {
   nivel: 'info' | 'alerta' | 'error'
 }
 
+export type GastoTipo =
+  | 'Materia prima'
+  | 'Transporte'
+  | 'Servicios'
+  | 'Mantenimiento'
+  | 'Nomina'
+  | 'Operacion'
+  | 'Imprevisto'
+
+export type GastoFlujo = 'Produccion' | 'Inventario' | 'Ventas' | 'Administracion' | 'General'
+
+export interface Gasto {
+  id: string
+  fecha: string
+  costo: number
+  tipo: GastoTipo
+  flujo: GastoFlujo
+  descripcion: string
+  encargado: string
+}
+
 export type WorkshopStatus = 'activo' | 'en-implementacion' | 'pausado'
 
 export interface WorkshopTenant {
@@ -254,4 +289,5 @@ export interface AdminUser {
   name: string
   email: string
   role: AdminRole
+  workshopId: string
 }

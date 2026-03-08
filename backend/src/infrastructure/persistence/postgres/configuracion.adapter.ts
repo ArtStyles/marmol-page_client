@@ -1,6 +1,7 @@
 import type { ConfiguracionPort } from '../../../domain/ports/index.js'
 import type { ConfiguracionSistema } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
+import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToConfig(r: Record<string, unknown>): ConfiguracionSistema {
   return {
@@ -20,16 +21,28 @@ function rowToConfig(r: Record<string, unknown>): ConfiguracionSistema {
 export class PostgresConfiguracionAdapter implements ConfiguracionPort {
   async get(): Promise<ConfiguracionSistema> {
     const pool = getPool()
-    const r = await pool.query("SELECT * FROM configuracion WHERE id = 'default'")
-    if (r.rows.length === 0) throw new Error('Configuracion not found')
+    const workshopId = getCurrentWorkshopId()
+    const configId = `default:${workshopId}`
+    const r = await pool.query('SELECT * FROM configuracion WHERE id = $1', [configId])
+    if (r.rows.length === 0) {
+      const fallback = await pool.query(
+        'SELECT * FROM configuracion ORDER BY updated_at DESC NULLS LAST LIMIT 1',
+      )
+      if (fallback.rows.length === 0) throw new Error('Configuracion not found')
+      const seeded = rowToConfig(fallback.rows[0])
+      await this.save(seeded)
+      return seeded
+    }
     return rowToConfig(r.rows[0])
   }
 
   async save(config: ConfiguracionSistema): Promise<ConfiguracionSistema> {
     const pool = getPool()
+    const workshopId = getCurrentWorkshopId()
+    const configId = `default:${workshopId}`
     await pool.query(
-      `INSERT INTO configuracion (id, tarifas_globales, salarios_fijos_por_rol, precios_m2, nombre_empresa, email, telefono, direccion, notificaciones_email, alertas_stock_bajo, reportes_ventas)
-       VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO configuracion (id, workshop_id, tarifas_globales, salarios_fijos_por_rol, precios_m2, nombre_empresa, email, telefono, direccion, notificaciones_email, alertas_stock_bajo, reportes_ventas)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT (id) DO UPDATE SET
          tarifas_globales = EXCLUDED.tarifas_globales,
          salarios_fijos_por_rol = EXCLUDED.salarios_fijos_por_rol,
@@ -43,6 +56,8 @@ export class PostgresConfiguracionAdapter implements ConfiguracionPort {
          reportes_ventas = EXCLUDED.reportes_ventas,
          updated_at = NOW()`,
       [
+        configId,
+        workshopId,
         JSON.stringify(config.tarifasGlobales),
         JSON.stringify(config.salariosFijosPorRol),
         JSON.stringify(config.preciosM2),

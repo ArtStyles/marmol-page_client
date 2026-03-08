@@ -24,6 +24,13 @@ import {
   DeleteProductoUseCase,
 } from '../application/use-cases/productos/producto.use-cases.js'
 import {
+  GetCatalogoItemsUseCase,
+  GetCatalogoItemByIdUseCase,
+  CreateCatalogoItemUseCase,
+  UpdateCatalogoItemUseCase,
+  DeleteCatalogoItemUseCase,
+} from '../application/use-cases/catalogo/catalogo.use-cases.js'
+import {
   GetTrabajadoresUseCase,
   GetTrabajadorByIdUseCase,
   CreateTrabajadorUseCase,
@@ -64,6 +71,13 @@ import {
   DeleteVentaUseCase,
 } from '../application/use-cases/ventas/venta.use-cases.js'
 import {
+  GetGastosUseCase,
+  GetGastoByIdUseCase,
+  CreateGastoUseCase,
+  UpdateGastoUseCase,
+  DeleteGastoUseCase,
+} from '../application/use-cases/gastos/gasto.use-cases.js'
+import {
   GetHistorialPagosUseCase,
   GetHistorialPagoByIdUseCase,
   CreateHistorialPagoUseCase,
@@ -91,6 +105,9 @@ const bloqueRepo = usePostgres
 const productoRepo = usePostgres
   ? new postgres.PostgresProductoRepository()
   : new inMemory.InMemoryProductoRepository()
+const catalogoRepo = usePostgres
+  ? new postgres.PostgresCatalogoRepository()
+  : new inMemory.InMemoryCatalogoRepository()
 const trabajadorRepo = usePostgres
   ? new postgres.PostgresTrabajadorRepository()
   : new inMemory.InMemoryTrabajadorRepository()
@@ -109,6 +126,9 @@ const mermaRepo = usePostgres
 const ventaRepo = usePostgres
   ? new postgres.PostgresVentaRepository()
   : new inMemory.InMemoryVentaRepository()
+const gastoRepo = usePostgres
+  ? new postgres.PostgresGastoRepository()
+  : new inMemory.InMemoryGastoRepository()
 const historialPagoRepo = usePostgres
   ? new postgres.PostgresHistorialPagoRepository()
   : new inMemory.InMemoryHistorialPagoRepository()
@@ -137,6 +157,12 @@ export const createProductoUseCase = new CreateProductoUseCase(productoRepo)
 export const updateProductoUseCase = new UpdateProductoUseCase(productoRepo)
 export const deleteProductoUseCase = new DeleteProductoUseCase(productoRepo)
 
+export const getCatalogoItemsUseCase = new GetCatalogoItemsUseCase(catalogoRepo)
+export const getCatalogoItemByIdUseCase = new GetCatalogoItemByIdUseCase(catalogoRepo)
+export const createCatalogoItemUseCase = new CreateCatalogoItemUseCase(catalogoRepo)
+export const updateCatalogoItemUseCase = new UpdateCatalogoItemUseCase(catalogoRepo)
+export const deleteCatalogoItemUseCase = new DeleteCatalogoItemUseCase(catalogoRepo)
+
 export const getTrabajadoresUseCase = new GetTrabajadoresUseCase(trabajadorRepo)
 export const getTrabajadorByIdUseCase = new GetTrabajadorByIdUseCase(trabajadorRepo)
 export const createTrabajadorUseCase = new CreateTrabajadorUseCase(trabajadorRepo)
@@ -151,7 +177,11 @@ export const deleteEquipoUseCase = new DeleteEquipoUseCase(equipoRepo)
 
 export const getProduccionUseCase = new GetProduccionUseCase(produccionRepo)
 export const getProduccionByIdUseCase = new GetProduccionByIdUseCase(produccionRepo)
-export const createProduccionUseCase = new CreateProduccionUseCase(produccionRepo)
+export const createProduccionUseCase = new CreateProduccionUseCase(
+  produccionRepo,
+  bloqueRepo,
+  productoRepo,
+)
 export const updateProduccionUseCase = new UpdateProduccionUseCase(produccionRepo)
 export const deleteProduccionUseCase = new DeleteProduccionUseCase(produccionRepo)
 
@@ -163,19 +193,29 @@ export const deleteProduccionTrabajadorUseCase = new DeleteProduccionTrabajadorU
 
 export const getMermasUseCase = new GetMermasUseCase(mermaRepo)
 export const getMermaByIdUseCase = new GetMermaByIdUseCase(mermaRepo)
-export const createMermaUseCase = new CreateMermaUseCase(mermaRepo)
+export const createMermaUseCase = new CreateMermaUseCase(mermaRepo, bloqueRepo, productoRepo)
 export const updateMermaUseCase = new UpdateMermaUseCase(mermaRepo)
 export const deleteMermaUseCase = new DeleteMermaUseCase(mermaRepo)
 
 export const getVentasUseCase = new GetVentasUseCase(ventaRepo)
 export const getVentaByIdUseCase = new GetVentaByIdUseCase(ventaRepo)
-export const createVentaUseCase = new CreateVentaUseCase(ventaRepo)
+export const createVentaUseCase = new CreateVentaUseCase(ventaRepo, productoRepo)
 export const updateVentaUseCase = new UpdateVentaUseCase(ventaRepo)
 export const deleteVentaUseCase = new DeleteVentaUseCase(ventaRepo)
 
+export const getGastosUseCase = new GetGastosUseCase(gastoRepo)
+export const getGastoByIdUseCase = new GetGastoByIdUseCase(gastoRepo)
+export const createGastoUseCase = new CreateGastoUseCase(gastoRepo)
+export const updateGastoUseCase = new UpdateGastoUseCase(gastoRepo)
+export const deleteGastoUseCase = new DeleteGastoUseCase(gastoRepo)
+
 export const getHistorialPagosUseCase = new GetHistorialPagosUseCase(historialPagoRepo)
 export const getHistorialPagoByIdUseCase = new GetHistorialPagoByIdUseCase(historialPagoRepo)
-export const createHistorialPagoUseCase = new CreateHistorialPagoUseCase(historialPagoRepo)
+export const createHistorialPagoUseCase = new CreateHistorialPagoUseCase(
+  historialPagoRepo,
+  produccionTrabajadorRepo,
+  trabajadorRepo,
+)
 export const updateHistorialPagoUseCase = new UpdateHistorialPagoUseCase(historialPagoRepo)
 export const deleteHistorialPagoUseCase = new DeleteHistorialPagoUseCase(historialPagoRepo)
 

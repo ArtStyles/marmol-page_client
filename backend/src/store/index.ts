@@ -1,7 +1,9 @@
 import type {
   BloqueOLote,
+  CatalogoItem,
   ConfiguracionSistema,
   Equipo,
+  Gasto,
   HistorialPago,
   Merma,
   ProduccionDiaria,
@@ -14,36 +16,81 @@ import type {
   AdminUser,
 } from '../domain/entities/index.js'
 import type { WorkshopCreateInput } from '../domain/ports/index.js'
+import { getActiveWorkshopId } from '../infrastructure/tenant/tenant-context.js'
 import {
   configuracionInicial,
   bloquesYLotes,
   productos,
+  catalogoItems,
   trabajadores,
   equipos,
   produccionDiaria,
   produccionTrabajadores,
   mermas,
   ventas,
+  gastos,
   historialPagos,
   logsSistema,
   workshops,
 } from './seed.js'
 
-// Mutable in-memory store (cloned from seed so we can reset)
-const state = {
-  configuracion: { ...configuracionInicial } as ConfiguracionSistema,
-  bloques: [...bloquesYLotes],
-  productos: [...productos],
-  trabajadores: [...trabajadores],
-  equipos: [...equipos],
-  produccion: [...produccionDiaria],
-  produccionTrabajadores: [...produccionTrabajadores],
-  mermas: [...mermas],
-  ventas: [...ventas],
-  historialPagos: [...historialPagos],
-  logs: [...logsSistema],
-  workshops: [...workshops],
+interface StoreState {
+  configuracion: ConfiguracionSistema
+  bloques: BloqueOLote[]
+  productos: Producto[]
+  catalogo: CatalogoItem[]
+  trabajadores: Trabajador[]
+  equipos: Equipo[]
+  produccion: ProduccionDiaria[]
+  produccionTrabajadores: ProduccionTrabajador[]
+  mermas: Merma[]
+  ventas: Venta[]
+  gastos: Gasto[]
+  historialPagos: HistorialPago[]
+  logs: SystemLog[]
+  workshops: WorkshopTenant[]
 }
+
+function cloneInitialState(): StoreState {
+  return {
+    configuracion: { ...configuracionInicial },
+    bloques: [...bloquesYLotes],
+    productos: [...productos],
+    catalogo: [...catalogoItems],
+    trabajadores: [...trabajadores],
+    equipos: [...equipos],
+    produccion: [...produccionDiaria],
+    produccionTrabajadores: [...produccionTrabajadores],
+    mermas: [...mermas],
+    ventas: [...ventas],
+    gastos: [...gastos],
+    historialPagos: [...historialPagos],
+    logs: [...logsSistema],
+    workshops: [...workshops],
+  }
+}
+
+const tenantStates = new Map<string, StoreState>()
+
+function getTenantState(): StoreState {
+  const workshopId = getActiveWorkshopId()
+  const current = tenantStates.get(workshopId)
+  if (current) return current
+
+  const next = cloneInitialState()
+  tenantStates.set(workshopId, next)
+  return next
+}
+
+const state = new Proxy({} as StoreState, {
+  get(_target, prop: string | symbol) {
+    return (getTenantState() as unknown as Record<string | symbol, unknown>)[prop]
+  },
+  set(_target, prop: string | symbol, value: unknown) {
+    ;(getTenantState() as unknown as Record<string | symbol, unknown>)[prop] = value
+    return true
+  },
+})
 
 // --- Configuracion ---
 export function getConfiguracion(): ConfiguracionSistema {
@@ -103,6 +150,32 @@ export function deleteProducto(id: string): boolean {
   const i = state.productos.findIndex((p) => p.id === id)
   if (i === -1) return false
   state.productos.splice(i, 1)
+  return true
+}
+
+// --- Catalogo ---
+export function getCatalogoItems(): CatalogoItem[] {
+  return state.catalogo
+}
+export function getCatalogoItemById(id: string): CatalogoItem | undefined {
+  return state.catalogo.find((item) => item.id === id)
+}
+export function createCatalogoItem(data: Omit<CatalogoItem, 'id'>): CatalogoItem {
+  const id = `C${String(state.catalogo.length + 1).padStart(3, '0')}`
+  const item: CatalogoItem = { ...data, id }
+  state.catalogo.push(item)
+  return item
+}
+export function updateCatalogoItem(id: string, data: Partial<CatalogoItem>): CatalogoItem | null {
+  const i = state.catalogo.findIndex((item) => item.id === id)
+  if (i === -1) return null
+  state.catalogo[i] = { ...state.catalogo[i], ...data }
+  return state.catalogo[i]
+}
+export function deleteCatalogoItem(id: string): boolean {
+  const i = state.catalogo.findIndex((item) => item.id === id)
+  if (i === -1) return false
+  state.catalogo.splice(i, 1)
   return true
 }
 
@@ -262,6 +335,32 @@ export function deleteVenta(id: string): boolean {
   return true
 }
 
+// --- Gastos ---
+export function getGastos(): Gasto[] {
+  return state.gastos
+}
+export function getGastoById(id: string): Gasto | undefined {
+  return state.gastos.find((g) => g.id === id)
+}
+export function createGasto(data: Omit<Gasto, 'id'>): Gasto {
+  const id = `G${String(state.gastos.length + 1).padStart(3, '0')}`
+  const item: Gasto = { ...data, id }
+  state.gastos.push(item)
+  return item
+}
+export function updateGasto(id: string, data: Partial<Gasto>): Gasto | null {
+  const i = state.gastos.findIndex((g) => g.id === id)
+  if (i === -1) return null
+  state.gastos[i] = { ...state.gastos[i], ...data }
+  return state.gastos[i]
+}
+export function deleteGasto(id: string): boolean {
+  const i = state.gastos.findIndex((g) => g.id === id)
+  if (i === -1) return false
+  state.gastos.splice(i, 1)
+  return true
+}
+
 // --- Historial Pagos ---
 export function getHistorialPagos(): HistorialPago[] {
   return state.historialPagos
@@ -339,17 +438,101 @@ export function deleteWorkshop(id: string): boolean {
 
 // --- Auth (mock users, no persistence)
 const MOCK_ADMIN_USERS: Array<{ email: string; password: string; user: AdminUser }> = [
-  { email: 'superadmin@marmol.local', password: 'super123', user: { id: 'SUP-001', name: 'Super Admin', email: 'superadmin@marmol.local', role: 'Super Admin' } },
-  { email: 'admin@marmol.local', password: 'admin123', user: { id: 'ADM-001', name: 'Admin Principal', email: 'admin@marmol.local', role: 'Administrador' } },
-  { email: 'contadora@marmol.local', password: 'conta123', user: { id: 'CONT-001', name: 'Contadora General', email: 'contadora@marmol.local', role: 'Contadora' } },
-  { email: 'ventas@marmol.local', password: 'ventas123', user: { id: 'VEN-001', name: 'Gestor de Ventas', email: 'ventas@marmol.local', role: 'Gestor de Ventas' } },
-  { email: 'produccion@marmol.local', password: 'prod123', user: { id: 'PROD-001', name: 'Jefe de Turno', email: 'produccion@marmol.local', role: 'Jefe de Turno de Produccion' } },
-  { email: 'carlos.mendoza@taller.com', password: 'obrero123', user: { id: 'OBR-001', name: 'Carlos Mendoza', email: 'carlos.mendoza@taller.com', role: 'Obrero' } },
+  {
+    email: 'superadmin@marmol.local',
+    password: 'super123',
+    user: {
+      id: 'SUP-001',
+      name: 'Super Admin',
+      email: 'superadmin@marmol.local',
+      role: 'Super Admin',
+      workshopId: 'TLR-001',
+    },
+  },
+  {
+    email: 'admin@marmol.local',
+    password: 'admin123',
+    user: {
+      id: 'ADM-001',
+      name: 'Admin Principal',
+      email: 'admin@marmol.local',
+      role: 'Administrador',
+      workshopId: 'TLR-001',
+    },
+  },
+  {
+    email: 'contadora@marmol.local',
+    password: 'conta123',
+    user: {
+      id: 'CONT-001',
+      name: 'Contadora General',
+      email: 'contadora@marmol.local',
+      role: 'Contadora',
+      workshopId: 'TLR-001',
+    },
+  },
+  {
+    email: 'ventas@marmol.local',
+    password: 'ventas123',
+    user: {
+      id: 'VEN-001',
+      name: 'Gestor de Ventas',
+      email: 'ventas@marmol.local',
+      role: 'Gestor de Ventas',
+      workshopId: 'TLR-001',
+    },
+  },
+  {
+    email: 'produccion@marmol.local',
+    password: 'prod123',
+    user: {
+      id: 'PROD-001',
+      name: 'Jefe de Turno',
+      email: 'produccion@marmol.local',
+      role: 'Jefe de Turno de Produccion',
+      workshopId: 'TLR-001',
+    },
+  },
+  {
+    email: 'carlos.mendoza@taller.com',
+    password: 'obrero123',
+    user: {
+      id: 'OBR-001',
+      name: 'Carlos Mendoza',
+      email: 'carlos.mendoza@taller.com',
+      role: 'Obrero',
+      workshopId: 'TLR-001',
+    },
+  },
+  {
+    email: 'admin.gdl@marmol.local',
+    password: 'admingdl123',
+    user: {
+      id: 'ADM-002',
+      name: 'Admin Guadalajara',
+      email: 'admin.gdl@marmol.local',
+      role: 'Administrador',
+      workshopId: 'TLR-002',
+    },
+  },
+  {
+    email: 'admin.mty@marmol.local',
+    password: 'adminmty123',
+    user: {
+      id: 'ADM-003',
+      name: 'Admin Monterrey',
+      email: 'admin.mty@marmol.local',
+      role: 'Administrador',
+      workshopId: 'TLR-003',
+    },
+  },
 ]
 
-export function loginAdmin(email: string, password: string): AdminUser | null {
+export function loginAdmin(email: string, password: string, workshopId?: string): AdminUser | null {
   const entry = MOCK_ADMIN_USERS.find(
     (e) => e.email.toLowerCase() === email.toLowerCase() && e.password === password
   )
-  return entry ? entry.user : null
+  if (!entry) return null
+  if (workshopId && entry.user.workshopId !== workshopId) return null
+  return entry.user
 }

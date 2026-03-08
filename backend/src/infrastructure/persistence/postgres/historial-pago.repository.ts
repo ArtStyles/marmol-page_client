@@ -2,6 +2,7 @@ import type { HistorialPagoRepositoryPort } from '../../../domain/ports/index.js
 import type { HistorialPago } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
 import { nextId } from './helpers.js'
+import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToHistorialPago(r: Record<string, unknown>): HistorialPago {
   return {
@@ -22,25 +23,35 @@ function rowToHistorialPago(r: Record<string, unknown>): HistorialPago {
 export class PostgresHistorialPagoRepository implements HistorialPagoRepositoryPort {
   async findAll(): Promise<HistorialPago[]> {
     const pool = getPool()
-    const r = await pool.query('SELECT * FROM historial_pagos ORDER BY fecha DESC, id')
+    const workshopId = getCurrentWorkshopId()
+    const r = await pool.query(
+      'SELECT * FROM historial_pagos WHERE workshop_id = $1 ORDER BY fecha DESC, id',
+      [workshopId],
+    )
     return r.rows.map(rowToHistorialPago)
   }
 
   async findById(id: string): Promise<HistorialPago | null> {
     const pool = getPool()
-    const r = await pool.query('SELECT * FROM historial_pagos WHERE id = $1', [id])
+    const workshopId = getCurrentWorkshopId()
+    const r = await pool.query(
+      'SELECT * FROM historial_pagos WHERE id = $1 AND workshop_id = $2',
+      [id, workshopId],
+    )
     if (r.rows.length === 0) return null
     return rowToHistorialPago(r.rows[0])
   }
 
   async create(data: Omit<HistorialPago, 'id'>): Promise<HistorialPago> {
     const pool = getPool()
+    const workshopId = getCurrentWorkshopId()
     const id = await nextId(pool, 'HP', 'historial_pagos')
     await pool.query(
-      `INSERT INTO historial_pagos (id, trabajador_id, trabajador_nombre, fecha, produccion_ids, monto_acciones, monto_bonos, bono_extra, motivo_bono_extra, total_pagado, observaciones)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      `INSERT INTO historial_pagos (id, workshop_id, trabajador_id, trabajador_nombre, fecha, produccion_ids, monto_acciones, monto_bonos, bono_extra, motivo_bono_extra, total_pagado, observaciones)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [
         id,
+        workshopId,
         data.trabajadorId,
         data.trabajadorNombre,
         data.fecha,
@@ -61,8 +72,9 @@ export class PostgresHistorialPagoRepository implements HistorialPagoRepositoryP
     if (!current) return null
     const merged = { ...current, ...data }
     const pool = getPool()
+    const workshopId = getCurrentWorkshopId()
     await pool.query(
-      `UPDATE historial_pagos SET trabajador_id=$2, trabajador_nombre=$3, fecha=$4, produccion_ids=$5, monto_acciones=$6, monto_bonos=$7, bono_extra=$8, motivo_bono_extra=$9, total_pagado=$10, observaciones=$11 WHERE id=$1`,
+      `UPDATE historial_pagos SET trabajador_id=$2, trabajador_nombre=$3, fecha=$4, produccion_ids=$5, monto_acciones=$6, monto_bonos=$7, bono_extra=$8, motivo_bono_extra=$9, total_pagado=$10, observaciones=$11 WHERE id=$1 AND workshop_id=$12`,
       [
         id,
         merged.trabajadorId,
@@ -75,6 +87,7 @@ export class PostgresHistorialPagoRepository implements HistorialPagoRepositoryP
         merged.motivoBonoExtra ?? '',
         merged.totalPagado,
         merged.observaciones ?? '',
+        workshopId,
       ]
     )
     return this.findById(id)
@@ -82,7 +95,11 @@ export class PostgresHistorialPagoRepository implements HistorialPagoRepositoryP
 
   async delete(id: string): Promise<boolean> {
     const pool = getPool()
-    const r = await pool.query('DELETE FROM historial_pagos WHERE id = $1', [id])
+    const workshopId = getCurrentWorkshopId()
+    const r = await pool.query(
+      'DELETE FROM historial_pagos WHERE id = $1 AND workshop_id = $2',
+      [id, workshopId],
+    )
     return (r.rowCount ?? 0) > 0
   }
 }

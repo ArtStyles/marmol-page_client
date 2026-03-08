@@ -4,6 +4,7 @@
 -- Configuración del sistema (una sola fila)
 CREATE TABLE IF NOT EXISTS configuracion (
   id TEXT PRIMARY KEY DEFAULT 'default',
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   tarifas_globales JSONB NOT NULL DEFAULT '{"picar":400,"pulir":250,"escuadrar":100}',
   salarios_fijos_por_rol JSONB NOT NULL DEFAULT '{}',
   precios_m2 JSONB NOT NULL DEFAULT '{}',
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS configuracion (
 -- Bloques y lotes
 CREATE TABLE IF NOT EXISTS bloques (
   id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   nombre TEXT NOT NULL,
   tipo TEXT NOT NULL CHECK (tipo IN ('Bloque', 'Lote')),
   dimension_base TEXT NOT NULL CHECK (dimension_base IN ('40x40', '60x40', '80x40')),
@@ -39,6 +41,7 @@ CREATE TABLE IF NOT EXISTS bloques (
 -- Productos
 CREATE TABLE IF NOT EXISTS productos (
   id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   nombre TEXT NOT NULL,
   tipo TEXT NOT NULL CHECK (tipo IN ('Piso', 'Plancha')),
   estado TEXT NOT NULL CHECK (estado IN ('Picado', 'Pulido', 'Escuadrado')),
@@ -52,9 +55,27 @@ CREATE TABLE IF NOT EXISTS productos (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Catalogo comercial (landing)
+CREATE TABLE IF NOT EXISTS catalogo_items (
+  id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
+  nombre TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('Piso', 'Plancha')),
+  acabado TEXT NOT NULL CHECK (acabado IN ('Crudo', 'Pulido')),
+  dimension TEXT NOT NULL CHECK (dimension IN ('40x40', '60x40', '80x40')),
+  precio_m2 NUMERIC(10,2) NOT NULL,
+  stock_losas INTEGER NOT NULL DEFAULT 0,
+  destacado BOOLEAN NOT NULL DEFAULT false,
+  descripcion TEXT NOT NULL DEFAULT '',
+  imagen TEXT NOT NULL DEFAULT '',
+  visible BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Trabajadores
 CREATE TABLE IF NOT EXISTS trabajadores (
   id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   nombre TEXT NOT NULL,
   email TEXT NOT NULL,
   telefono TEXT NOT NULL DEFAULT '',
@@ -74,6 +95,7 @@ CREATE TABLE IF NOT EXISTS trabajadores (
 -- Equipos
 CREATE TABLE IF NOT EXISTS equipos (
   id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   nombre TEXT NOT NULL,
   tipo TEXT NOT NULL CHECK (tipo IN ('Pulidora', 'Cortadora', 'Escuadradora')),
   codigo_interno TEXT NOT NULL,
@@ -85,6 +107,7 @@ CREATE TABLE IF NOT EXISTS equipos (
 -- Producción diaria
 CREATE TABLE IF NOT EXISTS produccion (
   id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   fecha DATE NOT NULL,
   origen_id TEXT NOT NULL,
   origen_nombre TEXT NOT NULL,
@@ -104,6 +127,7 @@ CREATE TABLE IF NOT EXISTS produccion (
 -- Producción por trabajador
 CREATE TABLE IF NOT EXISTS produccion_trabajadores (
   id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   fecha DATE NOT NULL,
   trabajador_id TEXT NOT NULL,
   trabajador_nombre TEXT NOT NULL,
@@ -124,6 +148,7 @@ CREATE TABLE IF NOT EXISTS produccion_trabajadores (
 -- Mermas
 CREATE TABLE IF NOT EXISTS mermas (
   id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   fecha DATE NOT NULL,
   origen_id TEXT NOT NULL,
   origen_nombre TEXT NOT NULL,
@@ -139,6 +164,7 @@ CREATE TABLE IF NOT EXISTS mermas (
 -- Ventas
 CREATE TABLE IF NOT EXISTS ventas (
   id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   producto_id TEXT NOT NULL,
   producto_nombre TEXT NOT NULL,
   detalles_productos JSONB,
@@ -157,9 +183,23 @@ CREATE TABLE IF NOT EXISTS ventas (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Gastos operativos
+CREATE TABLE IF NOT EXISTS gastos (
+  id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
+  fecha DATE NOT NULL,
+  costo NUMERIC(14,2) NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('Materia prima', 'Transporte', 'Servicios', 'Mantenimiento', 'Nomina', 'Operacion', 'Imprevisto')),
+  flujo TEXT NOT NULL CHECK (flujo IN ('Produccion', 'Inventario', 'Ventas', 'Administracion', 'General')),
+  descripcion TEXT NOT NULL,
+  encargado TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Historial de pagos
 CREATE TABLE IF NOT EXISTS historial_pagos (
   id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   trabajador_id TEXT NOT NULL,
   trabajador_nombre TEXT NOT NULL,
   fecha DATE NOT NULL,
@@ -176,6 +216,7 @@ CREATE TABLE IF NOT EXISTS historial_pagos (
 -- Logs del sistema
 CREATE TABLE IF NOT EXISTS system_logs (
   id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   fecha TEXT NOT NULL,
   usuario TEXT NOT NULL,
   accion TEXT NOT NULL,
@@ -210,30 +251,86 @@ CREATE TABLE IF NOT EXISTS admin_users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Compatibilidad para bases existentes sin workshop_id
+ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE bloques ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE catalogo_items ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE trabajadores ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE equipos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE produccion_trabajadores ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE mermas ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE gastos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE historial_pagos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE system_logs ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+
+CREATE INDEX IF NOT EXISTS idx_configuracion_workshop_id ON configuracion(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_bloques_workshop_id ON bloques(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_productos_workshop_id ON productos(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_catalogo_items_workshop_id ON catalogo_items(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_trabajadores_workshop_id ON trabajadores(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_equipos_workshop_id ON equipos(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_produccion_workshop_id ON produccion(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_produccion_trabajadores_workshop_id ON produccion_trabajadores(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_mermas_workshop_id ON mermas(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_ventas_workshop_id ON ventas(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_gastos_workshop_id ON gastos(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_historial_pagos_workshop_id ON historial_pagos(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_system_logs_workshop_id ON system_logs(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_admin_users_workshop_id ON admin_users(workshop_id);
+
 -- Usuarios de ejemplo (mismas credenciales que el mock del front; password en texto plano solo desarrollo)
-INSERT INTO admin_users (id, name, email, password_hash, role) VALUES
-  ('SUP-001', 'Super Admin', 'superadmin@marmol.local', 'super123', 'Super Admin'),
-  ('ADM-001', 'Admin Principal', 'admin@marmol.local', 'admin123', 'Administrador'),
-  ('CONT-001', 'Contadora General', 'contadora@marmol.local', 'conta123', 'Contadora'),
-  ('VEN-001', 'Gestor de Ventas', 'ventas@marmol.local', 'ventas123', 'Gestor de Ventas'),
-  ('PROD-001', 'Jefe de Turno', 'produccion@marmol.local', 'prod123', 'Jefe de Turno de Produccion'),
-  ('OBR-001', 'Carlos Mendoza', 'carlos.mendoza@taller.com', 'obrero123', 'Obrero')
+INSERT INTO workshops (
+  id, nombre, ciudad, direccion, encargado, telefono, correo, estado, empleados,
+  capacidad_m2_mes, ventas_mes, produccion_mes_m2, margen_operativo, ordenes_activas, ultima_actualizacion
+) VALUES
+  ('TLR-001', 'Taller Central CDMX', 'Ciudad de Mexico', 'Av. Principal 123, Col. Centro', 'Fernando Ruiz', '+52 555 456 7890', 'cdmx@marmol.local', 'activo', 18, 1600, 245000, 1280, 0.26, 14, '2026-02-05'),
+  ('TLR-002', 'Taller Guadalajara', 'Guadalajara', 'Carr. Chapala 980, Zona Industrial', 'Lucia Herrera', '+52 333 210 9988', 'gdl@marmol.local', 'activo', 12, 1100, 162000, 940, 0.22, 9, '2026-02-04'),
+  ('TLR-003', 'Taller Monterrey', 'Monterrey', 'Av. Lazaro Cardenas 1340, Sur', 'Marco Salinas', '+52 818 555 3020', 'mty@marmol.local', 'en-implementacion', 9, 780, 98000, 520, 0.18, 6, '2026-02-02')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO admin_users (id, name, email, workshop_id, password_hash, role) VALUES
+  ('SUP-001', 'Super Admin', 'superadmin@marmol.local', 'TLR-001', 'super123', 'Super Admin'),
+  ('ADM-001', 'Admin Principal', 'admin@marmol.local', 'TLR-001', 'admin123', 'Administrador'),
+  ('CONT-001', 'Contadora General', 'contadora@marmol.local', 'TLR-001', 'conta123', 'Contadora'),
+  ('VEN-001', 'Gestor de Ventas', 'ventas@marmol.local', 'TLR-001', 'ventas123', 'Gestor de Ventas'),
+  ('PROD-001', 'Jefe de Turno', 'produccion@marmol.local', 'TLR-001', 'prod123', 'Jefe de Turno de Produccion'),
+  ('OBR-001', 'Carlos Mendoza', 'carlos.mendoza@taller.com', 'TLR-001', 'obrero123', 'Obrero'),
+  ('ADM-002', 'Admin Guadalajara', 'admin.gdl@marmol.local', 'TLR-002', 'admingdl123', 'Administrador'),
+  ('ADM-003', 'Admin Monterrey', 'admin.mty@marmol.local', 'TLR-003', 'adminmty123', 'Administrador')
 ON CONFLICT (email) DO NOTHING;
 
--- Secuencias para IDs (opcional; también se pueden generar en app)
--- INSERT inicial de configuración si no existe
-INSERT INTO configuracion (id, tarifas_globales, salarios_fijos_por_rol, precios_m2, nombre_empresa, email, telefono, direccion)
-SELECT 'default',
+-- Secuencias para IDs (opcional; tambien se pueden generar en app)
+-- INSERT inicial de configuracion si no existe
+INSERT INTO configuracion (id, workshop_id, tarifas_globales, salarios_fijos_por_rol, precios_m2, nombre_empresa, email, telefono, direccion)
+SELECT 'default:TLR-001',
+  'TLR-001',
   '{"picar":400,"pulir":250,"escuadrar":100}'::jsonb,
-  '{"Administrador":28000,"Gestor de Ventas":18000,"Jefe de Turno de Producción":22000}'::jsonb,
+  '{"Administrador":28000,"Gestor de Ventas":18000,"Jefe de Turno de Produccion":22000}'::jsonb,
   '{"40x40":{"crudo":120,"pulido":180},"60x40":{"crudo":140,"pulido":200},"80x40":{"crudo":160,"pulido":220}}'::jsonb,
-  'Mármoles Elegance',
+  'Marmoles Elegance',
   'info@marmoleselegance.com',
   '+52 555 123 4567',
   'Av. Principal 123, Col. Centro, CDMX'
-WHERE NOT EXISTS (SELECT 1 FROM configuracion WHERE id = 'default');
+WHERE NOT EXISTS (SELECT 1 FROM configuracion WHERE id = 'default:TLR-001');
+
+INSERT INTO catalogo_items (id, workshop_id, nombre, tipo, acabado, dimension, precio_m2, stock_losas, destacado, descripcion, imagen, visible) VALUES
+  ('C001', 'TLR-001', 'Marmol Carrara Select 60x40', 'Piso', 'Pulido', '60x40', 210, 120, true, 'Veta suave y elegante, ideal para salas, cocinas premium y proyectos residenciales.', '/marble-carrara.jpg', true),
+  ('C002', 'TLR-001', 'Calacatta Gold Signature 80x40', 'Plancha', 'Pulido', '80x40', 340, 48, true, 'Alta demanda en barras y muros de impacto. Tonos dorados con vetas definidas.', '/marble-calacatta.jpg', true),
+  ('C003', 'TLR-001', 'Emperador Dark 60x40', 'Piso', 'Crudo', '60x40', 170, 90, false, 'Acabado natural para proyectos boutique y espacios comerciales con alto trafico.', '/marble-emperador.jpg', true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO gastos (id, workshop_id, fecha, costo, tipo, flujo, descripcion, encargado) VALUES
+  ('G001', 'TLR-001', '2026-02-24', 1400, 'Transporte', 'Inventario', 'Traslado de bloque BL002 desde proveedor principal.', 'Fernando Ruiz'),
+  ('G002', 'TLR-001', '2026-02-25', 950, 'Servicios', 'Produccion', 'Pago de energia electrica en turno extendido de pulido.', 'Miguel Angel Torres'),
+  ('G003', 'TLR-001', '2026-02-27', 650, 'Mantenimiento', 'Produccion', 'Cambio de disco y ajuste preventivo de cortadora.', 'Carlos Mendoza')
+ON CONFLICT (id) DO NOTHING;

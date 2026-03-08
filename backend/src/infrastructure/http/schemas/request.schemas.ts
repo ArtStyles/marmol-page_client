@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 const dimensionSchema = z.enum(['40x40', '60x40', '80x40'])
 const tipoProductoSchema = z.enum(['Piso', 'Plancha'])
+const estadoCatalogoSchema = z.enum(['Crudo', 'Pulido'])
 const estadoInventarioSchema = z.enum(['Picado', 'Pulido', 'Escuadrado'])
 const tipoEquipoSchema = z.enum(['Pulidora', 'Cortadora', 'Escuadradora'])
 const accionLosaSchema = z.enum(['picar', 'pulir', 'escuadrar'])
@@ -18,6 +19,16 @@ const motivoMermaSchema = z.enum([
   'Recorte aprovechable',
   'Otro',
 ])
+const gastoTipoSchema = z.enum([
+  'Materia prima',
+  'Transporte',
+  'Servicios',
+  'Mantenimiento',
+  'Nomina',
+  'Operacion',
+  'Imprevisto',
+])
+const gastoFlujoSchema = z.enum(['Produccion', 'Inventario', 'Ventas', 'Administracion', 'General'])
 
 const tarifasTrabajadorSchema = z.object({
   picar: z.number(),
@@ -58,6 +69,21 @@ export const createProductoSchema = z.object({
 
 export const updateProductoSchema = createProductoSchema.partial()
 
+export const createCatalogoItemSchema = z.object({
+  nombre: z.string().min(1),
+  tipo: tipoProductoSchema,
+  acabado: estadoCatalogoSchema,
+  dimension: dimensionSchema,
+  precioM2: z.number().nonnegative(),
+  stockLosas: z.number().int().nonnegative(),
+  destacado: z.boolean(),
+  descripcion: z.string(),
+  imagen: z.string(),
+  visible: z.boolean().optional(),
+})
+
+export const updateCatalogoItemSchema = createCatalogoItemSchema.partial()
+
 export const createTrabajadorSchema = z.object({
   nombre: z.string().min(1),
   email: z.string().email(),
@@ -89,6 +115,7 @@ export const updateEquipoSchema = createEquipoSchema.partial()
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  workshopId: z.string().min(1).optional(),
 })
 
 export const createWorkshopSchema = z.object({
@@ -134,6 +161,21 @@ export const updateMermaSchema = createMermaSchema.partial()
 export const createVentaSchema = z.object({
   productoId: z.string(),
   productoNombre: z.string(),
+  detallesProductos: z
+    .array(
+      z.object({
+        productoId: z.string(),
+        productoNombre: z.string(),
+        origenId: z.string(),
+        origenNombre: z.string(),
+        dimension: dimensionSchema,
+        estado: estadoInventarioSchema,
+        metrosCuadrados: z.number().positive(),
+        precioM2: z.number().nonnegative(),
+        subtotal: z.number().nonnegative(),
+      }),
+    )
+    .optional(),
   cantidadM2: z.number(),
   metrosPorDimension: z.object({
     '40x40': z.number(),
@@ -153,6 +195,17 @@ export const createVentaSchema = z.object({
 })
 
 export const updateVentaSchema = createVentaSchema.partial()
+
+export const createGastoSchema = z.object({
+  fecha: z.string(),
+  costo: z.number().positive(),
+  tipo: gastoTipoSchema,
+  flujo: gastoFlujoSchema,
+  descripcion: z.string().min(6),
+  encargado: z.string().min(1),
+})
+
+export const updateGastoSchema = createGastoSchema.partial()
 
 export const createLogSchema = z.object({
   fecha: z.string(),

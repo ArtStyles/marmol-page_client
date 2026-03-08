@@ -2,6 +2,7 @@ import type { ProductoRepositoryPort } from '../../../domain/ports/index.js'
 import type { Producto } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
 import { nextId } from './helpers.js'
+import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToProducto(r: Record<string, unknown>): Producto {
   return {
@@ -22,25 +23,32 @@ function rowToProducto(r: Record<string, unknown>): Producto {
 export class PostgresProductoRepository implements ProductoRepositoryPort {
   async findAll(): Promise<Producto[]> {
     const pool = getPool()
-    const r = await pool.query('SELECT * FROM productos ORDER BY id')
+    const workshopId = getCurrentWorkshopId()
+    const r = await pool.query('SELECT * FROM productos WHERE workshop_id = $1 ORDER BY id', [workshopId])
     return r.rows.map(rowToProducto)
   }
 
   async findById(id: string): Promise<Producto | null> {
     const pool = getPool()
-    const r = await pool.query('SELECT * FROM productos WHERE id = $1', [id])
+    const workshopId = getCurrentWorkshopId()
+    const r = await pool.query('SELECT * FROM productos WHERE id = $1 AND workshop_id = $2', [
+      id,
+      workshopId,
+    ])
     if (r.rows.length === 0) return null
     return rowToProducto(r.rows[0])
   }
 
   async create(data: Omit<Producto, 'id'>): Promise<Producto> {
     const pool = getPool()
+    const workshopId = getCurrentWorkshopId()
     const id = await nextId(pool, 'P', 'productos')
     await pool.query(
-      `INSERT INTO productos (id, nombre, tipo, estado, dimension, origen_id, origen_nombre, cantidad_losas, metros_cuadrados, precio_m2, imagen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      `INSERT INTO productos (id, workshop_id, nombre, tipo, estado, dimension, origen_id, origen_nombre, cantidad_losas, metros_cuadrados, precio_m2, imagen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [
         id,
+        workshopId,
         data.nombre,
         data.tipo,
         data.estado,
@@ -61,8 +69,9 @@ export class PostgresProductoRepository implements ProductoRepositoryPort {
     if (!current) return null
     const merged = { ...current, ...data }
     const pool = getPool()
+    const workshopId = getCurrentWorkshopId()
     await pool.query(
-      `UPDATE productos SET nombre=$2, tipo=$3, estado=$4, dimension=$5, origen_id=$6, origen_nombre=$7, cantidad_losas=$8, metros_cuadrados=$9, precio_m2=$10, imagen=$11 WHERE id=$1`,
+      `UPDATE productos SET nombre=$2, tipo=$3, estado=$4, dimension=$5, origen_id=$6, origen_nombre=$7, cantidad_losas=$8, metros_cuadrados=$9, precio_m2=$10, imagen=$11 WHERE id=$1 AND workshop_id=$12`,
       [
         id,
         merged.nombre,
@@ -75,6 +84,7 @@ export class PostgresProductoRepository implements ProductoRepositoryPort {
         merged.metrosCuadrados,
         merged.precioM2,
         merged.imagen ?? '',
+        workshopId,
       ]
     )
     return this.findById(id)
@@ -82,7 +92,11 @@ export class PostgresProductoRepository implements ProductoRepositoryPort {
 
   async delete(id: string): Promise<boolean> {
     const pool = getPool()
-    const r = await pool.query('DELETE FROM productos WHERE id = $1', [id])
+    const workshopId = getCurrentWorkshopId()
+    const r = await pool.query('DELETE FROM productos WHERE id = $1 AND workshop_id = $2', [
+      id,
+      workshopId,
+    ])
     return (r.rowCount ?? 0) > 0
   }
 }

@@ -1,7 +1,9 @@
 import type {
   BloqueOLote,
+  CatalogoItem,
   ConfiguracionSistema,
   Equipo,
+  Gasto,
   HistorialPago,
   Merma,
   ProduccionDiaria,
@@ -176,6 +178,51 @@ export const productos: Producto[] = [
     metrosCuadrados: 8.4,
     precioM2: 140,
     imagen: '/marble-emperador.jpg',
+  },
+]
+
+export const catalogoItems: CatalogoItem[] = [
+  {
+    id: 'C001',
+    nombre: 'Marmol Carrara Select 60x40',
+    tipo: 'Piso',
+    acabado: 'Pulido',
+    dimension: '60x40',
+    precioM2: 210,
+    stockLosas: 120,
+    destacado: true,
+    descripcion:
+      'Veta suave y elegante, ideal para salas, cocinas premium y proyectos residenciales.',
+    imagen: '/marble-carrara.jpg',
+    visible: true,
+  },
+  {
+    id: 'C002',
+    nombre: 'Calacatta Gold Signature 80x40',
+    tipo: 'Plancha',
+    acabado: 'Pulido',
+    dimension: '80x40',
+    precioM2: 340,
+    stockLosas: 48,
+    destacado: true,
+    descripcion:
+      'Alta demanda en barras y muros de impacto. Tonos dorados con vetas definidas.',
+    imagen: '/marble-calacatta.jpg',
+    visible: true,
+  },
+  {
+    id: 'C003',
+    nombre: 'Emperador Dark 60x40',
+    tipo: 'Piso',
+    acabado: 'Crudo',
+    dimension: '60x40',
+    precioM2: 170,
+    stockLosas: 90,
+    destacado: false,
+    descripcion:
+      'Acabado natural para proyectos boutique y espacios comerciales con alto trafico.',
+    imagen: '/marble-emperador.jpg',
+    visible: true,
   },
 ]
 
@@ -368,6 +415,36 @@ export const logsSistema: SystemLog[] = [
   { id: 'LOG004', fecha: '2026-02-02 18:10', usuario: 'admin@marmol.local', accion: 'Cambio de estado', modulo: 'Bloques', descripcion: 'Bloque Calacatta Gold #2 marcado como agotado', nivel: 'info' },
   { id: 'LOG005', fecha: '2026-02-01 13:22', usuario: 'produccion@marmol.local', accion: 'Merma registrada', modulo: 'Mermas', descripcion: 'Merma por partida al pulir (0.32 m2)', nivel: 'alerta' },
   { id: 'LOG006', fecha: '2026-02-01 14:05', usuario: 'admin@marmol.local', accion: 'Error de registro', modulo: 'Inventario', descripcion: 'Intento de registrar producto sin origen valido', nivel: 'error' },
+]
+
+export const gastos: Gasto[] = [
+  {
+    id: 'G001',
+    fecha: '2026-02-24',
+    costo: 1400,
+    tipo: 'Transporte',
+    flujo: 'Inventario',
+    descripcion: 'Traslado de bloque BL002 desde proveedor principal.',
+    encargado: 'Fernando Ruiz',
+  },
+  {
+    id: 'G002',
+    fecha: '2026-02-25',
+    costo: 950,
+    tipo: 'Servicios',
+    flujo: 'Produccion',
+    descripcion: 'Pago de energia electrica en turno extendido de pulido.',
+    encargado: 'Miguel Angel Torres',
+  },
+  {
+    id: 'G003',
+    fecha: '2026-02-27',
+    costo: 650,
+    tipo: 'Mantenimiento',
+    flujo: 'Produccion',
+    descripcion: 'Cambio de disco y ajuste preventivo de cortadora.',
+    encargado: 'Carlos Mendoza',
+  },
 ]
 
 export const workshops: WorkshopTenant[] = [
