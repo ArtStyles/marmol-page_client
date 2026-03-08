@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Button } from '@/components/admin/admin-button'
 import { Badge } from '@/components/ui/badge'
@@ -25,8 +25,8 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 import { useProduccionStore } from '@/hooks/use-produccion'
-import { bloquesYLotes, dimensiones, mermas as initialMermas, motivosMerma, tiposProducto } from '@/lib/data'
-import { losasAMetros, type AccionLosa, type Dimension, type Merma, type TipoProducto } from '@/lib/types'
+import { createMerma, getBloques, getMermas } from '@/lib/resources-api'
+import { losasAMetros, type AccionLosa, type BloqueOLote, type Dimension, type Merma, type TipoProducto } from '@/lib/types'
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts'
 import { BarChart3, Plus, Search } from 'lucide-react'
 
@@ -82,9 +82,15 @@ type OrigenBreakdownRow = {
   reutilizable: number
 }
 
-const tipoOptions: TipoProducto[] = tiposProducto as TipoProducto[]
-const dimensionOptions: Dimension[] = dimensiones as Dimension[]
-const motivoOptions: Merma['motivo'][] = motivosMerma as Merma['motivo'][]
+const tipoOptions: TipoProducto[] = ['Piso', 'Plancha']
+const dimensionOptions: Dimension[] = ['40x40', '60x40', '80x40']
+const motivoOptions: Merma['motivo'][] = [
+  'Partida al picar',
+  'Partida al pulir',
+  'Defecto de material',
+  'Recorte aprovechable',
+  'Otro',
+]
 
 const distributionColor: Record<DistributionRow['key'], string> = {
   merma_produccion: 'hsl(0, 84%, 60%)',
@@ -205,18 +211,16 @@ function buildProduccionItems(produccion: ReturnType<typeof useProduccionStore>[
 
 export default function MermasPage() {
   const { produccion } = useProduccionStore()
+  const [bloquesYLotes, setBloquesYLotes] = useState<BloqueOLote[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [cantidadTouched, setCantidadTouched] = useState(false)
-  const [manualMermas, setManualMermas] = useState<MermaFueraProduccionRecord[]>(
-    () =>
-      initialMermas.map((item) => ({
-        ...item,
-        kind: item.motivo === 'Recorte aprovechable' ? 'Reutilizable' : 'MermaTotal',
-      })),
-  )
+  const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [manualMermas, setManualMermas] = useState<MermaFueraProduccionRecord[]>([])
   const [formData, setFormData] = useState<MermaFueraProduccionForm>({
     fecha: getTodayDateIso(),
-    origenId: bloquesYLotes[0]?.id ?? '',
+    origenId: '',
     tipo: 'Piso',
     dimension: '60x40',
     cantidadLosas: 0,
@@ -228,6 +232,42 @@ export default function MermasPage() {
   const [kindFilter, setKindFilter] = useState<KindFilter>('all')
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const [metricView, setMetricView] = useState<MetricView>('losas')
+
+  useEffect(() => {
+    let alive = true
+
+    const load = async () => {
+      setLoading(true)
+      setSyncError(null)
+      try {
+        const [bloquesData, mermasData] = await Promise.all([getBloques(), getMermas()])
+        if (!alive) return
+        setBloquesYLotes(bloquesData)
+        setManualMermas(
+          mermasData.map((item) => ({
+            ...item,
+            kind: item.motivo === 'Recorte aprovechable' ? 'Reutilizable' : 'MermaTotal',
+          })),
+        )
+      } catch (error) {
+        if (!alive) return
+        setSyncError(error instanceof Error ? error.message : 'No se pudieron cargar mermas.')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!bloquesYLotes.length) return
+    setFormData((prev) => (prev.origenId ? prev : { ...prev, origenId: bloquesYLotes[0].id }))
+  }, [bloquesYLotes])
 
   const resetForm = () => {
     setFormData({
@@ -243,8 +283,9 @@ export default function MermasPage() {
     setCantidadTouched(false)
   }
 
-  const handleRegisterMermaFueraProduccion = (event: FormEvent) => {
+  const handleRegisterMermaFueraProduccion = async (event: FormEvent) => {
     event.preventDefault()
+    setSyncError(null)
 
     if (!formData.origenId) return
 
@@ -254,29 +295,33 @@ export default function MermasPage() {
     const cantidadEntera = Math.trunc(formData.cantidadLosas)
     if (!Number.isInteger(cantidadEntera) || cantidadEntera <= 0) return
 
-    const nextSequence =
-      manualMermas.reduce((max, item) => {
-        const value = Number(item.id.replace(/\D/g, ''))
-        return Number.isFinite(value) ? Math.max(max, value) : max
-      }, 0) + 1
+    setIsSaving(true)
+    try {
+      const created = await createMerma({
+        fecha: formData.fecha || getTodayDateIso(),
+        origenId: formData.origenId,
+        origenNombre: origen.nombre,
+        tipo: formData.tipo,
+        dimension: formData.dimension,
+        cantidadLosas: cantidadEntera,
+        metrosCuadrados: Number(losasAMetros(cantidadEntera, formData.dimension).toFixed(2)),
+        motivo: formData.motivo,
+        observaciones: formData.observaciones.trim(),
+      })
 
-    const newMerma: MermaFueraProduccionRecord = {
-      id: `M${String(nextSequence).padStart(3, '0')}`,
-      fecha: formData.fecha || getTodayDateIso(),
-      origenId: formData.origenId,
-      origenNombre: origen.nombre,
-      tipo: formData.tipo,
-      dimension: formData.dimension,
-      cantidadLosas: cantidadEntera,
-      metrosCuadrados: Number(losasAMetros(cantidadEntera, formData.dimension).toFixed(2)),
-      motivo: formData.motivo,
-      observaciones: formData.observaciones.trim(),
-      kind: formData.kind,
+      const nextRecord: MermaFueraProduccionRecord = {
+        ...created,
+        kind: formData.kind,
+      }
+
+      setManualMermas((prev) => [nextRecord, ...prev])
+      setIsDialogOpen(false)
+      resetForm()
+    } catch (error) {
+      setSyncError(error instanceof Error ? error.message : 'No se pudo guardar la merma.')
+    } finally {
+      setIsSaving(false)
     }
-
-    setManualMermas((prev) => [newMerma, ...prev])
-    setIsDialogOpen(false)
-    resetForm()
   }
 
   const metrosCuadradosForm = useMemo(
@@ -530,8 +575,10 @@ export default function MermasPage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground font-sans">Mermas</h1>
             <p className="mt-1 text-muted-foreground font-sans">
-              Visualizacion de mermas y reutilizables. Las mermas fuera de produccion se registran aqui (mock).
+              Visualizacion de mermas y reutilizables. Las mermas fuera de produccion se registran aqui.
             </p>
+            {syncError ? <p className="mt-2 text-sm text-destructive">{syncError}</p> : null}
+            {loading ? <p className="mt-2 text-sm text-muted-foreground">Cargando mermas...</p> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
@@ -720,8 +767,12 @@ export default function MermasPage() {
                     >
                       Cancelar
                     </Button>
-                    <Button type="submit" className="flex-1" disabled={!formData.origenId || formData.cantidadLosas <= 0}>
-                      Guardar registro
+                    <Button
+                      type="submit"
+                      className="flex-1"
+                      disabled={isSaving || !formData.origenId || formData.cantidadLosas <= 0}
+                    >
+                      {isSaving ? 'Guardando...' : 'Guardar registro'}
                     </Button>
                   </div>
                 </form>

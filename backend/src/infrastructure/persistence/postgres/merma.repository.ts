@@ -1,13 +1,13 @@
 import type { MermaRepositoryPort } from '../../../domain/ports/index.js'
 import type { Merma } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
-import { nextId } from './helpers.js'
+import { nextId, toDateOnly } from './helpers.js'
 import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToMerma(r: Record<string, unknown>): Merma {
   return {
     id: r.id as string,
-    fecha: String(r.fecha).split('T')[0],
+    fecha: toDateOnly(r.fecha),
     origenId: r.origen_id as string,
     origenNombre: r.origen_nombre as string,
     tipo: r.tipo as Merma['tipo'],

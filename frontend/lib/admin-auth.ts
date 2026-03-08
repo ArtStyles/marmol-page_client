@@ -12,6 +12,7 @@ export type AdminUser = {
   name: string
   email: string
   role: AdminRole
+  workshopId: string
 }
 
 export type AdminAccess = {
@@ -23,6 +24,7 @@ export type AdminAccess = {
 }
 
 export const ADMIN_STORAGE_KEY = 'marble-admin-user'
+export const ADMIN_TOKEN_STORAGE_KEY = 'marble-admin-token'
 
 export const MOCK_ADMIN_USERS: Array<{
   email: string
@@ -37,6 +39,7 @@ export const MOCK_ADMIN_USERS: Array<{
       name: 'Super Admin',
       email: 'superadmin@marmol.local',
       role: 'Super Admin',
+      workshopId: 'TLR-001',
     },
   },
   {
@@ -47,6 +50,7 @@ export const MOCK_ADMIN_USERS: Array<{
       name: 'Admin Principal',
       email: 'admin@marmol.local',
       role: 'Administrador',
+      workshopId: 'TLR-001',
     },
   },
   {
@@ -57,6 +61,7 @@ export const MOCK_ADMIN_USERS: Array<{
       name: 'Contadora General',
       email: 'contadora@marmol.local',
       role: 'Contadora',
+      workshopId: 'TLR-001',
     },
   },
   {
@@ -67,6 +72,7 @@ export const MOCK_ADMIN_USERS: Array<{
       name: 'Gestor de Ventas',
       email: 'ventas@marmol.local',
       role: 'Gestor de Ventas',
+      workshopId: 'TLR-001',
     },
   },
   {
@@ -77,6 +83,7 @@ export const MOCK_ADMIN_USERS: Array<{
       name: 'Jefe de Turno',
       email: 'produccion@marmol.local',
       role: 'Jefe de Turno de Produccion',
+      workshopId: 'TLR-001',
     },
   },
   {
@@ -87,6 +94,29 @@ export const MOCK_ADMIN_USERS: Array<{
       name: 'Carlos Mendoza',
       email: 'carlos.mendoza@taller.com',
       role: 'Obrero',
+      workshopId: 'TLR-001',
+    },
+  },
+  {
+    email: 'admin.gdl@marmol.local',
+    password: 'admingdl123',
+    user: {
+      id: 'ADM-002',
+      name: 'Admin Guadalajara',
+      email: 'admin.gdl@marmol.local',
+      role: 'Administrador',
+      workshopId: 'TLR-002',
+    },
+  },
+  {
+    email: 'admin.mty@marmol.local',
+    password: 'adminmty123',
+    user: {
+      id: 'ADM-003',
+      name: 'Admin Monterrey',
+      email: 'admin.mty@marmol.local',
+      role: 'Administrador',
+      workshopId: 'TLR-003',
     },
   },
 ]

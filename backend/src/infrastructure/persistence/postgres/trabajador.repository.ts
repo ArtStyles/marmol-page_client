@@ -1,7 +1,7 @@
 import type { TrabajadorRepositoryPort } from '../../../domain/ports/index.js'
 import type { Trabajador } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
-import { nextId } from './helpers.js'
+import { nextId, toDateOnly } from './helpers.js'
 import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToTrabajador(r: Record<string, unknown>): Trabajador {
@@ -11,7 +11,7 @@ function rowToTrabajador(r: Record<string, unknown>): Trabajador {
     email: r.email as string,
     telefono: (r.telefono as string) ?? '',
     rol: r.rol as Trabajador['rol'],
-    fechaIngreso: String(r.fecha_ingreso).split('T')[0],
+    fechaIngreso: toDateOnly(r.fecha_ingreso),
     estado: r.estado as 'activo' | 'inactivo',
     usuario: r.usuario as string | undefined,
     contrasena: r.contrasena as string | undefined,

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ADMIN_STORAGE_KEY,
+  ADMIN_TOKEN_STORAGE_KEY,
   getAccessForRole,
   isPathAllowed,
   type AdminUser,
@@ -13,6 +14,8 @@ import type { AdminNavItem } from '../model/types'
 
 const readSessionUser = (): AdminUser | null => {
   if (typeof window === 'undefined') return null
+  const token = window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)
+  if (!token) return null
   const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
   if (!raw) return null
   try {
@@ -50,6 +53,7 @@ export const useAdminShellSession = (navItems?: AdminNavItem[]): UseAdminShellSe
   const handleLogout = () => {
     if (typeof window === 'undefined') return
     window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY)
     window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
     window.location.assign('/admin')
   }

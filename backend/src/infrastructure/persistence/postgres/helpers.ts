@@ -19,3 +19,25 @@ export async function nextId(pool: Pool, prefix: string, tableName: string): Pro
   const pad = prefix.endsWith('-') ? 3 : 3
   return `${prefix}${String(num + 1).padStart(pad, '0')}`
 }
+
+/**
+ * Normaliza valores date/date-like a formato YYYY-MM-DD.
+ * Soporta Date, string ISO y strings de driver.
+ */
+export function toDateOnly(value: unknown): string {
+  if (value == null) return ''
+  if (value instanceof Date) return value.toISOString().slice(0, 10)
+
+  const raw = String(value).trim()
+  if (!raw) return ''
+
+  const isoLike = /^(\d{4}-\d{2}-\d{2})/.exec(raw)
+  if (isoLike) return isoLike[1]
+
+  const parsed = new Date(raw)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10)
+  }
+
+  return raw
+}

@@ -12,20 +12,25 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import {
   ADMIN_STORAGE_KEY,
+  ADMIN_TOKEN_STORAGE_KEY,
   MOCK_ADMIN_USERS,
   getAccessForRole,
-  getUserByCredentials,
   isPathAllowed,
   type AdminUser,
 } from '@/lib/admin-auth'
 import {
   WORKSHOP_STORAGE_KEY,
-  MOCK_WORKSHOPS,
-  createMockWorkshop,
-  getAssignedWorkshopId,
   type WorkshopCreateInput,
   type WorkshopTenant,
 } from '@/lib/workshops'
+import {
+  createWorkshop,
+  deleteWorkshop,
+  getWorkshops,
+  loginAdmin,
+  updateWorkshop,
+} from '@/lib/admin-api'
+import { setStoredAccessToken } from '@/lib/api-client'
 
 export default function AdminLayout({
   children,
@@ -38,18 +43,27 @@ export default function AdminLayout({
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [selectedWorkshopId, setSelectedWorkshopId] = useState<string | null>(null)
-  const [workshops, setWorkshops] = useState<WorkshopTenant[]>(MOCK_WORKSHOPS)
+  const [workshops, setWorkshops] = useState<WorkshopTenant[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+    const token = window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)
     if (raw) {
       try {
-        setAuthUser(JSON.parse(raw) as AdminUser)
+        if (!token) {
+          window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+        } else {
+          const parsed = JSON.parse(raw) as AdminUser
+          setAuthUser(parsed)
+          setSelectedWorkshopId(parsed.workshopId ?? null)
+        }
       } catch {
         window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+        window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY)
       }
     }
     const storedWorkshop = window.localStorage.getItem(WORKSHOP_STORAGE_KEY)
@@ -59,29 +73,59 @@ export default function AdminLayout({
     setIsReady(true)
   }, [])
 
-  const access = useMemo(() => (authUser ? getAccessForRole(authUser.role) : null), [authUser])
-
-  const handleLogin = (event: React.FormEvent) => {
-    event.preventDefault()
-    const user = getUserByCredentials(email.trim(), password)
-    if (!user) {
-      setError('Credenciales invalidas. Revisa el correo y la contrasena.')
-      return
-    }
-    setError('')
-    setAuthUser(user)
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(user))
-    }
-    if (user.role === 'Super Admin') {
-      setSelectedWorkshopId(null)
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
+  useEffect(() => {
+    if (!authUser) return
+    let active = true
+    const load = async () => {
+      try {
+        const items = await getWorkshops()
+        if (!active) return
+        setWorkshops(items)
+      } catch {
+        if (!active) return
+        setWorkshops([])
       }
     }
-    const nextAccess = getAccessForRole(user.role)
-    if (!isPathAllowed(pathname, nextAccess)) {
-      router.replace(nextAccess.home)
+    void load()
+    return () => {
+      active = false
+    }
+  }, [authUser])
+
+  const access = useMemo(() => (authUser ? getAccessForRole(authUser.role) : null), [authUser])
+
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault()
+    try {
+      setError('')
+      setIsSubmitting(true)
+      const result = await loginAdmin({
+        email: email.trim(),
+        password,
+      })
+
+      const user = result.user
+      setStoredAccessToken(result.accessToken)
+      setAuthUser(user)
+      setSelectedWorkshopId(user.workshopId)
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(user))
+        window.localStorage.setItem(WORKSHOP_STORAGE_KEY, user.workshopId)
+      }
+      const nextAccess = getAccessForRole(user.role)
+      if (!isPathAllowed(pathname, nextAccess)) {
+        router.replace(nextAccess.home)
+      }
+    } catch {
+      setError('Credenciales invalidas o backend no disponible.')
+      setAuthUser(null)
+      setStoredAccessToken(null)
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+      }
+      return
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -91,7 +135,9 @@ export default function AdminLayout({
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(ADMIN_STORAGE_KEY)
       window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
+      window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY)
     }
+    setStoredAccessToken(null)
   }
 
   const handleSelectWorkshop = (workshopId: string) => {
@@ -101,46 +147,62 @@ export default function AdminLayout({
     }
   }
 
-  const handleCreateWorkshop = (input: WorkshopCreateInput) => {
-    const nextId = workshops.length + 1
-    const newWorkshop = createMockWorkshop(input, nextId)
-    setWorkshops((prev) => [newWorkshop, ...prev])
-    handleSelectWorkshop(newWorkshop.id)
+  const handleCreateWorkshop = async (input: WorkshopCreateInput) => {
+    try {
+      const newWorkshop = await createWorkshop(input)
+      setWorkshops((prev) => [newWorkshop, ...prev])
+      handleSelectWorkshop(newWorkshop.id)
+    } catch {
+      setError('No se pudo crear el taller en el backend.')
+    }
   }
 
-  const handleToggleWorkshopStatus = (workshopId: string) => {
-    setWorkshops((prev) =>
-      prev.map((workshop) => {
-        if (workshop.id !== workshopId) return workshop
-        const nextStatus = workshop.estado === 'activo' ? 'pausado' : 'activo'
-        return { ...workshop, estado: nextStatus }
-      }),
-    )
+  const handleToggleWorkshopStatus = async (workshopId: string) => {
+    const current = workshops.find((workshop) => workshop.id === workshopId)
+    if (!current) return
+    const nextStatus = current.estado === 'activo' ? 'pausado' : 'activo'
+    try {
+      const updated = await updateWorkshop(workshopId, { estado: nextStatus })
+      if (!updated) return
+      setWorkshops((prev) =>
+        prev.map((workshop) => (workshop.id === workshopId ? updated : workshop)),
+      )
+    } catch {
+      setError('No se pudo actualizar el estado del taller.')
+    }
   }
 
-  const handleDeleteWorkshop = (workshopId: string) => {
+  const handleDeleteWorkshop = async (workshopId: string) => {
     if (typeof window !== 'undefined') {
       const confirmed = window.confirm('Deseas eliminar este taller? Esta accion no se puede deshacer.')
       if (!confirmed) return
     }
-    setWorkshops((prev) => prev.filter((workshop) => workshop.id !== workshopId))
+    try {
+      await deleteWorkshop(workshopId)
+      setWorkshops((prev) => prev.filter((workshop) => workshop.id !== workshopId))
+    } catch {
+      setError('No se pudo eliminar el taller en el backend.')
+      return
+    }
+
     if (selectedWorkshopId === workshopId) {
-      setSelectedWorkshopId(null)
+      setSelectedWorkshopId(authUser?.workshopId ?? null)
       if (typeof window !== 'undefined') {
-        window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
+        if (authUser?.workshopId) {
+          window.localStorage.setItem(WORKSHOP_STORAGE_KEY, authUser.workshopId)
+        } else {
+          window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
+        }
       }
     }
   }
 
   useEffect(() => {
     if (!authUser) return
-    if (authUser.role === 'Super Admin') return
-    const assigned = getAssignedWorkshopId(authUser.id, workshops)
-    if (!assigned) return
-    if (assigned !== selectedWorkshopId) {
-      handleSelectWorkshop(assigned)
+    if (!selectedWorkshopId && authUser.workshopId) {
+      handleSelectWorkshop(authUser.workshopId)
     }
-  }, [authUser, selectedWorkshopId, workshops])
+  }, [authUser, selectedWorkshopId])
 
   if (!isReady) {
     return <div className="min-h-screen bg-background" />
@@ -181,8 +243,8 @@ export default function AdminLayout({
                 />
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" className="w-full">
-                Ingresar
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? 'Ingresando...' : 'Ingresar'}
               </Button>
             </form>
 

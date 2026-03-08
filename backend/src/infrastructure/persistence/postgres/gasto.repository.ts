@@ -1,13 +1,13 @@
 import type { Gasto } from '../../../domain/entities/index.js'
 import type { GastoRepositoryPort } from '../../../domain/ports/index.js'
 import { getPool } from './connection.js'
-import { nextId } from './helpers.js'
+import { nextId, toDateOnly } from './helpers.js'
 import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToGasto(r: Record<string, unknown>): Gasto {
   return {
     id: r.id as string,
-    fecha: String(r.fecha).split('T')[0],
+    fecha: toDateOnly(r.fecha),
     costo: Number(r.costo),
     tipo: r.tipo as Gasto['tipo'],
     flujo: r.flujo as Gasto['flujo'],

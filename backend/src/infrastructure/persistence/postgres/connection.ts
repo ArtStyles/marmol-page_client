@@ -3,6 +3,23 @@ import pg from 'pg'
 const { Pool } = pg
 
 let pool: pg.Pool | null = null
+const REQUIRED_TABLES = [
+  'configuracion',
+  'bloques',
+  'productos',
+  'catalogo_items',
+  'trabajadores',
+  'equipos',
+  'produccion',
+  'produccion_trabajadores',
+  'mermas',
+  'ventas',
+  'gastos',
+  'historial_pagos',
+  'system_logs',
+  'workshops',
+  'admin_users',
+] as const
 
 export interface DatabaseSummary {
   host: string
@@ -78,4 +95,27 @@ export async function verifyPostgresConnection(): Promise<{
     'SELECT NOW()::text AS now, current_database() AS database, current_user AS user',
   )
   return r.rows[0]
+}
+
+export async function verifyPostgresSchema(): Promise<{
+  ok: boolean
+  missingTables: string[]
+}> {
+  const pool = getPool()
+  const required = [...REQUIRED_TABLES]
+  const r = await pool.query<{ table_name: string }>(
+    `SELECT table_name
+     FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_type = 'BASE TABLE'
+       AND table_name = ANY($1::text[])`,
+    [required],
+  )
+
+  const existing = new Set(r.rows.map((row) => row.table_name))
+  const missingTables = required.filter((tableName) => !existing.has(tableName))
+  return {
+    ok: missingTables.length === 0,
+    missingTables,
+  }
 }

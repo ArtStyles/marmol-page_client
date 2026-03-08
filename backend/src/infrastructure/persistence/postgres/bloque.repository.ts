@@ -1,7 +1,7 @@
 import type { BloqueRepositoryPort } from '../../../domain/ports/index.js'
 import type { BloqueOLote } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
-import { nextId } from './helpers.js'
+import { nextId, toDateOnly } from './helpers.js'
 import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToBloque(r: Record<string, unknown>): BloqueOLote {
@@ -13,7 +13,7 @@ function rowToBloque(r: Record<string, unknown>): BloqueOLote {
     costo: Number(r.costo),
     costoTransporte: Number(r.costo_transporte),
     metrosComprados: Number(r.metros_comprados),
-    fechaIngreso: String(r.fecha_ingreso).split('T')[0],
+    fechaIngreso: toDateOnly(r.fecha_ingreso),
     proveedor: r.proveedor as string,
     losasProducidas: Number(r.losas_producidas),
     losasPerdidas: Number(r.losas_perdidas),

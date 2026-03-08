@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Button } from '@/components/admin/admin-button'
 import { Badge } from '@/components/ui/badge'
@@ -22,8 +22,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { equipos as initialEquipos } from '@/lib/data'
 import type { Equipo, TipoEquipo } from '@/lib/types'
+import { createEquipo, getEquipos } from '@/lib/resources-api'
 import { cn } from '@/lib/utils'
 import { Plus, Search, Wrench } from 'lucide-react'
 
@@ -52,12 +52,40 @@ const emptyForm: FormData = {
 }
 
 export default function EquiposPage() {
-  const [equipos, setEquipos] = useState<Equipo[]>(initialEquipos)
+  const [equipos, setEquipos] = useState<Equipo[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [tipoFiltro, setTipoFiltro] = useState<'todos' | TipoEquipo>('todos')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [formError, setFormError] = useState('')
   const [formData, setFormData] = useState<FormData>(emptyForm)
+
+  useEffect(() => {
+    let alive = true
+
+    const load = async () => {
+      setLoading(true)
+      setLoadError(null)
+      try {
+        const data = await getEquipos()
+        if (!alive) return
+        setEquipos(data)
+      } catch (error) {
+        if (!alive) return
+        setLoadError(error instanceof Error ? error.message : 'No se pudo cargar equipos.')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const equiposFiltrados = useMemo(() => {
     const query = searchTerm.toLowerCase().trim()
@@ -97,7 +125,7 @@ export default function EquiposPage() {
     setIsDialogOpen(false)
   }
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
 
     const nombre = formData.nombre.trim()
@@ -114,17 +142,23 @@ export default function EquiposPage() {
       return
     }
 
-    const newEquipo: Equipo = {
-      id: `EQ${String(equipos.length + 1).padStart(3, '0')}`,
-      nombre,
-      tipo: formData.tipo,
-      codigoInterno,
-      estado: formData.estado,
-      notas: notas || 'Sin notas',
+    setFormError('')
+    setIsSaving(true)
+    try {
+      const newEquipo = await createEquipo({
+        nombre,
+        tipo: formData.tipo,
+        codigoInterno,
+        estado: formData.estado,
+        notas: notas || 'Sin notas',
+      })
+      setEquipos((prev) => [newEquipo, ...prev])
+      resetForm()
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'No se pudo guardar el equipo.')
+    } finally {
+      setIsSaving(false)
     }
-
-    setEquipos((prev) => [newEquipo, ...prev])
-    resetForm()
   }
 
   const rightPanel = (
@@ -175,6 +209,7 @@ export default function EquiposPage() {
             <p className="mt-1 text-muted-foreground font-sans">
               Administra cortadoras, pulidoras y escuadradoras del taller.
             </p>
+            {loadError ? <p className="mt-2 text-sm text-destructive">{loadError}</p> : null}
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -267,8 +302,8 @@ export default function EquiposPage() {
                   <Button type="button" variant="outline" onClick={resetForm} className="flex-1 bg-transparent">
                     Cancelar
                   </Button>
-                  <Button type="submit" className="flex-1">
-                    Guardar equipo
+                  <Button type="submit" className="flex-1" disabled={isSaving}>
+                    {isSaving ? 'Guardando...' : 'Guardar equipo'}
                   </Button>
                 </div>
               </form>
@@ -322,7 +357,9 @@ export default function EquiposPage() {
                     <span>Notas</span>
                   </div>
                   <div className="divide-y divide-slate-200/60">
-                    {equiposFiltrados.length === 0 ? (
+                    {loading ? (
+                      <div className="px-4 py-10 text-center text-sm text-slate-500">Cargando equipos...</div>
+                    ) : equiposFiltrados.length === 0 ? (
                       <div className="px-4 py-10 text-center text-sm text-slate-500">
                         No hay equipos para los filtros seleccionados.
                       </div>

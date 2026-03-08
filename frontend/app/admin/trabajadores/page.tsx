@@ -8,13 +8,16 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  trabajadores as initialTrabajadores,
-  produccionTrabajadores as initialProduccion,
-  historialPagos as initialHistorial,
-} from '@/lib/data'
 import type { AccionLosa, HistorialPago, ProduccionTrabajador, RolConSalarioFijo, Trabajador } from '@/lib/types'
 import { losasAMetros } from '@/lib/types'
+import {
+  createTrabajador,
+  deleteTrabajador,
+  getHistorialPagos,
+  getProduccionTrabajadores,
+  getTrabajadores,
+  updateTrabajador,
+} from '@/lib/resources-api'
 import { ADMIN_STORAGE_KEY, getAccessForRole, type AdminUser } from '@/lib/admin-auth'
 import { Plus, Search, Edit, Trash2, UserCheck, UserX, Eye } from 'lucide-react'
 import {
@@ -43,15 +46,18 @@ const roles: Trabajador['rol'][] = [
 
 export default function TrabajadoresPage() {
   const { config } = useConfiguracion()
-  const [trabajadores, setTrabajadores] = useState<Trabajador[]>(initialTrabajadores)
+  const [trabajadores, setTrabajadores] = useState<Trabajador[]>([])
+  const [produccion, setProduccion] = useState<ProduccionTrabajador[]>([])
+  const [historialPagos, setHistorialPagos] = useState<HistorialPago[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingWorker, setEditingWorker] = useState<Trabajador | null>(null)
   const [selectedWorker, setSelectedWorker] = useState<Trabajador | null>(null)
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
   const [formError, setFormError] = useState('')
-  const produccion = initialProduccion
-  const historialPagos = initialHistorial
   const [formData, setFormData] = useState<Partial<Trabajador>>({
     nombre: '',
     email: '',
@@ -70,6 +76,37 @@ export default function TrabajadoresPage() {
       setCurrentUser(JSON.parse(raw) as AdminUser)
     } catch {
       window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+
+    const load = async () => {
+      setLoading(true)
+      setSyncError(null)
+      try {
+        const [trabajadoresData, produccionData, historialData] = await Promise.all([
+          getTrabajadores(),
+          getProduccionTrabajadores(),
+          getHistorialPagos(),
+        ])
+        if (!alive) return
+        setTrabajadores(trabajadoresData)
+        setProduccion(produccionData)
+        setHistorialPagos(historialData)
+      } catch (error) {
+        if (!alive) return
+        setSyncError(error instanceof Error ? error.message : 'No se pudo cargar trabajadores.')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      alive = false
     }
   }, [])
 
@@ -162,7 +199,7 @@ export default function TrabajadoresPage() {
     </div>
   )
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const roleValue = (formData.rol ?? 'Obrero') as Trabajador['rol']
     const needsAccount = roleValue !== 'Obrero'
@@ -178,6 +215,8 @@ export default function TrabajadoresPage() {
     }
 
     setFormError('')
+    setSyncError(null)
+    setIsSubmitting(true)
 
     if (editingWorker) {
       const updatedForm: Partial<Trabajador> = { ...formData, rol: roleValue }
@@ -185,30 +224,43 @@ export default function TrabajadoresPage() {
         updatedForm.usuario = undefined
         updatedForm.contrasena = undefined
       }
-      setTrabajadores(trabajadores.map(t => 
-        t.id === editingWorker.id 
-          ? { ...t, ...updatedForm } as Trabajador
-          : t
-      ))
-    } else {
-      const newTrabajador: Trabajador = {
-        id: `T${String(trabajadores.length + 1).padStart(3, '0')}`,
-        nombre: formData.nombre || '',
-        email: formData.email || '',
-        telefono: formData.telefono || '',
-        rol: roleValue,
-        fechaIngreso: new Date().toISOString().split('T')[0],
-        estado: formData.estado as 'activo' | 'inactivo',
-        usuario: needsAccount ? (formData.usuario || '') : undefined,
-        contrasena: needsAccount ? (formData.contrasena || '') : undefined,
-        tarifasPersonalizadas: null,
-        losasProducidas: 0,
-        pagosTotales: 0,
-        bonosTotales: 0,
-        acumuladoPendiente: 0,
+      try {
+        const updated = await updateTrabajador(editingWorker.id, updatedForm)
+        setTrabajadores(trabajadores.map(t => 
+          t.id === editingWorker.id 
+            ? updated
+            : t
+        ))
+      } catch (error) {
+        setFormError(error instanceof Error ? error.message : 'No se pudo actualizar trabajador.')
+        setIsSubmitting(false)
+        return
       }
-      setTrabajadores([...trabajadores, newTrabajador])
+    } else {
+      try {
+        const newTrabajador = await createTrabajador({
+          nombre: formData.nombre || '',
+          email: formData.email || '',
+          telefono: formData.telefono || '',
+          rol: roleValue,
+          fechaIngreso: new Date().toISOString().split('T')[0],
+          estado: (formData.estado as 'activo' | 'inactivo') ?? 'activo',
+          usuario: needsAccount ? (formData.usuario || '') : undefined,
+          contrasena: needsAccount ? (formData.contrasena || '') : undefined,
+          tarifasPersonalizadas: null,
+          losasProducidas: 0,
+          pagosTotales: 0,
+          bonosTotales: 0,
+          acumuladoPendiente: 0,
+        })
+        setTrabajadores([...trabajadores, newTrabajador])
+      } catch (error) {
+        setFormError(error instanceof Error ? error.message : 'No se pudo crear trabajador.')
+        setIsSubmitting(false)
+        return
+      }
     }
+    setIsSubmitting(false)
     resetForm()
   }
 
@@ -223,20 +275,34 @@ export default function TrabajadoresPage() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!canManageWorkers) return
     if (confirm('Ãƒâ€šÃ‚Â¿EstÃƒÆ’Ã‚Â¡s seguro de eliminar este trabajador?')) {
-      setTrabajadores(trabajadores.filter(t => t.id !== id))
+      try {
+        await deleteTrabajador(id)
+        setTrabajadores(trabajadores.filter(t => t.id !== id))
+      } catch (error) {
+        setSyncError(error instanceof Error ? error.message : 'No se pudo eliminar trabajador.')
+      }
     }
   }
 
-  const toggleStatus = (id: string) => {
+  const toggleStatus = async (id: string) => {
     if (!canManageWorkers) return
-    setTrabajadores(trabajadores.map(t => 
-      t.id === id 
-        ? { ...t, estado: t.estado === 'activo' ? 'inactivo' : 'activo' } as Trabajador
-        : t
-    ))
+    const target = trabajadores.find((t) => t.id === id)
+    if (!target) return
+    try {
+      const updated = await updateTrabajador(id, {
+        estado: target.estado === 'activo' ? 'inactivo' : 'activo',
+      })
+      setTrabajadores(trabajadores.map(t =>
+        t.id === id
+          ? updated
+          : t
+      ))
+    } catch (error) {
+      setSyncError(error instanceof Error ? error.message : 'No se pudo cambiar estado del trabajador.')
+    }
   }
 
 
@@ -343,6 +409,7 @@ export default function TrabajadoresPage() {
           <p className="mt-1 text-muted-foreground font-sans">
             Gestiona el equipo de trabajo
           </p>
+          {syncError ? <p className="mt-2 text-sm text-destructive">{syncError}</p> : null}
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -465,8 +532,8 @@ export default function TrabajadoresPage() {
                 <Button type="button" variant="outline" onClick={resetForm} className="flex-1 bg-transparent">
                   Cancelar
                 </Button>
-                <Button type="submit" className="flex-1">
-                  {editingWorker ? 'Actualizar' : 'Crear'}
+                <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                  {isSubmitting ? 'Guardando...' : editingWorker ? 'Actualizar' : 'Crear'}
                 </Button>
               </div>
             </form>
@@ -492,7 +559,11 @@ export default function TrabajadoresPage() {
 
       <Card className="bg-transparent border-none outline-none shadow-none p-0">
         <CardContent className="p-0">
-          {filteredTrabajadores.length === 0 ? (
+          {loading ? (
+            <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+              Cargando trabajadores...
+            </div>
+          ) : filteredTrabajadores.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
               No se encontraron trabajadores
             </div>

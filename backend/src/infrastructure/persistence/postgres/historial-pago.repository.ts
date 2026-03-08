@@ -1,7 +1,7 @@
 import type { HistorialPagoRepositoryPort } from '../../../domain/ports/index.js'
 import type { HistorialPago } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
-import { nextId } from './helpers.js'
+import { nextId, toDateOnly } from './helpers.js'
 import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToHistorialPago(r: Record<string, unknown>): HistorialPago {
@@ -9,7 +9,7 @@ function rowToHistorialPago(r: Record<string, unknown>): HistorialPago {
     id: r.id as string,
     trabajadorId: r.trabajador_id as string,
     trabajadorNombre: r.trabajador_nombre as string,
-    fecha: String(r.fecha).split('T')[0],
+    fecha: toDateOnly(r.fecha),
     produccionIds: (r.produccion_ids as string[]) ?? [],
     montoAcciones: Number(r.monto_acciones),
     montoBonos: Number(r.monto_bonos),

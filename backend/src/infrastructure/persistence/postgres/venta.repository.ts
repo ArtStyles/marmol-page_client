@@ -1,7 +1,7 @@
 import type { VentaRepositoryPort } from '../../../domain/ports/index.js'
 import type { Venta } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
-import { nextId } from './helpers.js'
+import { nextId, toDateOnly } from './helpers.js'
 import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToVenta(r: Record<string, unknown>): Venta {
@@ -20,7 +20,7 @@ function rowToVenta(r: Record<string, unknown>): Venta {
     clienteNombre: r.cliente_nombre as string,
     clienteEmail: r.cliente_email as string,
     clienteTelefono: r.cliente_telefono as string,
-    fecha: String(r.fecha).split('T')[0],
+    fecha: toDateOnly(r.fecha),
     estado: r.estado as Venta['estado'],
   }
 }

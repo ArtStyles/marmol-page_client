@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createGasto, getGastos } from '@/lib/resources-api'
 
 export const gastoTipos = [
   'Materia prima',
@@ -32,8 +33,6 @@ export type GastoRegistro = {
   descripcion: string
   encargado: string
 }
-
-const STORAGE_KEY = 'admin_gastos_registrados'
 
 const initialGastos: GastoRegistro[] = [
   {
@@ -81,26 +80,6 @@ const normalizeGasto = (item: Partial<GastoRegistro>, index: number): GastoRegis
   encargado: typeof item.encargado === 'string' ? item.encargado : 'Sin responsable',
 })
 
-const loadGastos = (): GastoRegistro[] => {
-  if (typeof window === 'undefined') {
-    return initialGastos
-  }
-
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return initialGastos
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.map((item, index) => normalizeGasto(item as Partial<GastoRegistro>, index)) : initialGastos
-  } catch {
-    return initialGastos
-  }
-}
-
-const persistGastos = (value: GastoRegistro[]) => {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
-}
-
 const buildNextGastoId = (items: GastoRegistro[]): string => {
   const nextSequence =
     items.reduce((max, item) => {
@@ -113,28 +92,49 @@ const buildNextGastoId = (items: GastoRegistro[]): string => {
 
 export function useGastosStore() {
   const [gastos, setGastos] = useState<GastoRegistro[]>(initialGastos)
-  const hasLoaded = useRef(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setGastos(loadGastos())
-    hasLoaded.current = true
+    let active = true
+    const load = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const items = await getGastos()
+        if (!active) return
+        setGastos(items.map((item, index) => normalizeGasto(item, index)))
+      } catch {
+        if (!active) return
+        setGastos(initialGastos)
+        setError('No se pudo cargar gastos desde el backend.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      active = false
+    }
   }, [])
 
-  useEffect(() => {
-    if (!hasLoaded.current) return
-    persistGastos(gastos)
-  }, [gastos])
-
-  const addGasto = (input: Omit<GastoRegistro, 'id'>) => {
-    setGastos((prev) => {
-      const nextId = buildNextGastoId(prev)
-      return [{ ...input, id: nextId }, ...prev]
-    })
+  const addGasto = async (input: Omit<GastoRegistro, 'id'>) => {
+    try {
+      setError(null)
+      const created = await createGasto(input)
+      setGastos((prev) => [normalizeGasto(created, prev.length), ...prev])
+    } catch {
+      const fallbackId = buildNextGastoId(gastos)
+      setGastos((prev) => [{ ...input, id: fallbackId }, ...prev])
+      setError('No se pudo guardar el gasto en el backend.')
+    }
   }
 
   return {
     gastos,
     setGastos,
     addGasto,
+    loading,
+    error,
   }
 }

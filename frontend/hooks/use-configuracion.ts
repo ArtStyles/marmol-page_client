@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { configuracionInicial } from '@/lib/data'
+import { getConfiguracion, updateConfiguracion } from '@/lib/resources-api'
 import type { ConfiguracionSistema } from '@/lib/types'
-
-const STORAGE_KEY = 'configuracion_sistema'
 
 const mergeConfiguracion = (value: Partial<ConfiguracionSistema>): ConfiguracionSistema => ({
   ...configuracionInicial,
@@ -23,42 +22,58 @@ const mergeConfiguracion = (value: Partial<ConfiguracionSistema>): Configuracion
   },
 })
 
-const loadConfiguracion = (): ConfiguracionSistema => {
-  if (typeof window === 'undefined') {
-    return configuracionInicial
-  }
-
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return configuracionInicial
-    const parsed = JSON.parse(raw) as Partial<ConfiguracionSistema>
-    return mergeConfiguracion(parsed)
-  } catch {
-    return configuracionInicial
-  }
-}
-
-const persistConfiguracion = (value: ConfiguracionSistema) => {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
-}
-
 export function useConfiguracion() {
   const [config, setConfig] = useState<ConfiguracionSistema>(configuracionInicial)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setConfig(loadConfiguracion())
+    let active = true
+
+    const load = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const fromApi = await getConfiguracion()
+        if (!active) return
+        setConfig(mergeConfiguracion(fromApi))
+      } catch {
+        if (!active) return
+        setConfig(configuracionInicial)
+        setError('No se pudo cargar la configuracion desde el backend.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      active = false
+    }
   }, [])
 
-  const saveConfig = (next?: ConfiguracionSistema) => {
+  const saveConfig = async (next?: ConfiguracionSistema) => {
     const value = next ?? config
     setConfig(value)
-    persistConfiguracion(value)
+    try {
+      setError(null)
+      const updated = await updateConfiguracion(value)
+      setConfig(mergeConfiguracion(updated))
+    } catch {
+      setError('No se pudo guardar la configuracion en el backend.')
+    }
   }
 
-  const resetConfig = () => {
+  const resetConfig = async () => {
     setConfig(configuracionInicial)
-    persistConfiguracion(configuracionInicial)
+    try {
+      setError(null)
+      const updated = await updateConfiguracion(configuracionInicial)
+      setConfig(mergeConfiguracion(updated))
+    } catch {
+      setError('No se pudo restablecer la configuracion en el backend.')
+    }
   }
 
   return {
@@ -66,6 +81,8 @@ export function useConfiguracion() {
     setConfig,
     saveConfig,
     resetConfig,
+    loading,
+    error,
   }
 }
 

@@ -7,8 +7,8 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { Card, CardContent } from '@/components/ui/card'
-import { bloquesYLotes as initialBloques, dimensiones } from '@/lib/data'
 import type { BloqueOLote, Dimension } from '@/lib/types'
+import { createBloque, deleteBloque, getBloques, updateBloque } from '@/lib/resources-api'
 import { ADMIN_STORAGE_KEY, type AdminUser } from '@/lib/admin-auth'
 import { Plus, Search, Boxes, Eye, Edit, Trash2 } from 'lucide-react'
 import {
@@ -26,13 +26,18 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+const dimensionOptions: Dimension[] = ['40x40', '60x40', '80x40']
+
 export default function BloquesPage() {
-  const [bloques, setBloques] = useState<BloqueOLote[]>(initialBloques)
+  const [bloques, setBloques] = useState<BloqueOLote[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedBloque, setSelectedBloque] = useState<BloqueOLote | null>(null)
   const [editingBloque, setEditingBloque] = useState<BloqueOLote | null>(null)
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [numericTouched, setNumericTouched] = useState({
     costo: false,
     costoTransporte: false,
@@ -54,6 +59,31 @@ export default function BloquesPage() {
       setCurrentUser(JSON.parse(raw) as AdminUser)
     } catch {
       window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+
+    const load = async () => {
+      setLoading(true)
+      setActionError(null)
+      try {
+        const data = await getBloques()
+        if (!alive) return
+        setBloques(data)
+      } catch (error) {
+        if (!alive) return
+        setActionError(error instanceof Error ? error.message : 'No se pudo cargar bloques/lotes.')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      alive = false
     }
   }, [])
 
@@ -132,7 +162,7 @@ export default function BloquesPage() {
 
       <AdminPanelCard title="Dimensiones base" meta="Configuradas por bloque">
         <div className="space-y-2 text-sm text-slate-700">
-          {(dimensiones as Dimension[]).map((dimension) => (
+          {dimensionOptions.map((dimension) => (
             <div key={dimension} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
               <span>{dimension}</span>
               <span className="font-semibold">{dimensionCount[dimension]}</span>
@@ -163,52 +193,58 @@ export default function BloquesPage() {
     </div>
   )
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
+    setActionError(null)
+    setIsSaving(true)
 
     if (editingBloque) {
-      if (!canModify(editingBloque.fechaIngreso)) return
-      setBloques((prev) =>
-        prev.map((bloque) =>
-          bloque.id === editingBloque.id
-            ? {
-                ...bloque,
-                nombre: formData.nombre,
-                tipo: formData.tipo,
-                dimensionBase: formData.dimensionBase,
-                costo: formData.costo,
-                costoTransporte: formData.costoTransporte,
-                proveedor: formData.proveedor,
-              }
-            : bloque,
-        ),
-      )
-      resetForm()
+      if (!canModify(editingBloque.fechaIngreso)) {
+        setIsSaving(false)
+        return
+      }
+      try {
+        const updated = await updateBloque(editingBloque.id, {
+          nombre: formData.nombre,
+          tipo: formData.tipo,
+          dimensionBase: formData.dimensionBase,
+          costo: formData.costo,
+          costoTransporte: formData.costoTransporte,
+          proveedor: formData.proveedor,
+        })
+        setBloques((prev) => prev.map((bloque) => (bloque.id === updated.id ? updated : bloque)))
+        resetForm()
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : 'No se pudo actualizar el bloque/lote.')
+      } finally {
+        setIsSaving(false)
+      }
       return
     }
 
-    const newBloque: BloqueOLote = {
-      id:
-        formData.tipo === 'Bloque'
-          ? `BL${String(bloques.filter((bloque) => bloque.tipo === 'Bloque').length + 1).padStart(3, '0')}`
-          : `LT${String(bloques.filter((bloque) => bloque.tipo === 'Lote').length + 1).padStart(3, '0')}`,
-      nombre: formData.nombre,
-      tipo: formData.tipo,
-      dimensionBase: formData.dimensionBase,
-      costo: formData.costo,
-      costoTransporte: formData.costoTransporte,
-      metrosComprados: 0,
-      fechaIngreso: today,
-      proveedor: formData.proveedor,
-      losasProducidas: 0,
-      losasPerdidas: 0,
-      metrosVendibles: 0,
-      gananciaReal: 0,
-      estado: 'activo',
+    try {
+      const newBloque = await createBloque({
+        nombre: formData.nombre,
+        tipo: formData.tipo,
+        dimensionBase: formData.dimensionBase,
+        costo: formData.costo,
+        costoTransporte: formData.costoTransporte,
+        metrosComprados: 0,
+        fechaIngreso: today,
+        proveedor: formData.proveedor,
+        losasProducidas: 0,
+        losasPerdidas: 0,
+        metrosVendibles: 0,
+        gananciaReal: 0,
+        estado: 'activo',
+      })
+      setBloques((prev) => [newBloque, ...prev])
+      resetForm()
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'No se pudo crear el bloque/lote.')
+    } finally {
+      setIsSaving(false)
     }
-
-    setBloques((prev) => [newBloque, ...prev])
-    resetForm()
   }
 
   const handleEdit = (bloque: BloqueOLote) => {
@@ -229,22 +265,28 @@ export default function BloquesPage() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (bloque: BloqueOLote) => {
+  const handleDelete = async (bloque: BloqueOLote) => {
     if (!canModify(bloque.fechaIngreso)) return
     if (confirm('Eliminar este bloque/lote?')) {
-      setBloques((prev) => prev.filter((item) => item.id !== bloque.id))
+      try {
+        await deleteBloque(bloque.id)
+        setBloques((prev) => prev.filter((item) => item.id !== bloque.id))
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : 'No se pudo eliminar el bloque/lote.')
+      }
     }
   }
 
-  const toggleEstado = (bloque: BloqueOLote) => {
+  const toggleEstado = async (bloque: BloqueOLote) => {
     if (!canModify(bloque.fechaIngreso)) return
-    setBloques((prev) =>
-      prev.map((item) =>
-        item.id === bloque.id
-          ? { ...item, estado: item.estado === 'activo' ? 'agotado' : 'activo' }
-          : item,
-      ),
-    )
+    try {
+      const updated = await updateBloque(bloque.id, {
+        estado: bloque.estado === 'activo' ? 'agotado' : 'activo',
+      })
+      setBloques((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'No se pudo actualizar el estado.')
+    }
   }
 
   const resetForm = () => {
@@ -319,6 +361,7 @@ export default function BloquesPage() {
             <p className="mt-1 text-muted-foreground font-sans">
               Registra costo de material, costo de transporte y dimension base por bloque/lote.
             </p>
+            {actionError ? <p className="mt-2 text-sm text-destructive">{actionError}</p> : null}
           </div>
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -374,7 +417,7 @@ export default function BloquesPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {(dimensiones as Dimension[]).map((dimension) => (
+                        {dimensionOptions.map((dimension) => (
                           <SelectItem key={dimension} value={dimension}>
                             {dimension}
                           </SelectItem>
@@ -436,8 +479,8 @@ export default function BloquesPage() {
                   <Button type="button" variant="outline" onClick={resetForm} className="flex-1 bg-transparent">
                     Cancelar
                   </Button>
-                  <Button type="submit" className="flex-1">
-                    {editingBloque ? 'Guardar' : 'Registrar'}
+                  <Button type="submit" className="flex-1" disabled={isSaving}>
+                    {isSaving ? 'Guardando...' : editingBloque ? 'Guardar' : 'Registrar'}
                   </Button>
                 </div>
               </form>
@@ -475,7 +518,11 @@ export default function BloquesPage() {
 
         <Card className="bg-transparent border-none outline-none shadow-none p-0">
           <CardContent className="p-0">
-            {filteredBloques.length === 0 ? (
+            {loading ? (
+              <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                Cargando bloques/lotes...
+              </div>
+            ) : filteredBloques.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
                 No hay bloques o lotes registrados
               </div>

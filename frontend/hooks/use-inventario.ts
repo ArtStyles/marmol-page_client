@@ -1,10 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { productos as initialProductos } from '@/lib/data'
+import { getProductos } from '@/lib/resources-api'
 import type { Producto } from '@/lib/types'
-
-const STORAGE_KEY = 'admin_inventario_productos'
 
 const normalizeEstadoInventario = (estado: unknown): Producto['estado'] => {
   if (estado === 'Pulido' || estado === 'Picado' || estado === 'Escuadrado') {
@@ -24,42 +23,38 @@ const normalizeProducto = (item: Producto): Producto => ({
   estado: normalizeEstadoInventario((item as { estado?: unknown }).estado),
 })
 
-const loadProductos = (): Producto[] => {
-  if (typeof window === 'undefined') {
-    return initialProductos
-  }
-
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return initialProductos
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? (parsed as Producto[]).map(normalizeProducto) : initialProductos
-  } catch {
-    return initialProductos
-  }
-}
-
-const persistProductos = (value: Producto[]) => {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
-}
-
 export function useInventarioStore() {
   const [productos, setProductos] = useState<Producto[]>(initialProductos)
-  const hasLoaded = useRef(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setProductos(loadProductos())
-    hasLoaded.current = true
+    let active = true
+    const load = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const items = await getProductos()
+        if (!active) return
+        setProductos(items.map((item) => normalizeProducto(item)))
+      } catch {
+        if (!active) return
+        setProductos(initialProductos)
+        setError('No se pudo cargar el inventario desde el backend.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      active = false
+    }
   }, [])
-
-  useEffect(() => {
-    if (!hasLoaded.current) return
-    persistProductos(productos)
-  }, [productos])
 
   return {
     productos,
     setProductos,
+    loading,
+    error,
   }
 }

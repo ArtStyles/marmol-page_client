@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useInventarioStore } from '@/hooks/use-inventario'
 import { ventas as initialVentas } from '@/lib/data'
+import { createVenta, getVentas } from '@/lib/resources-api'
 import type { Dimension, Producto, Venta, VentaDetalleProducto } from '@/lib/types'
 import {
   createDetalleFormulario,
@@ -23,14 +24,13 @@ export const useVentasPageState = () => {
   const { productos } = useInventarioStore()
   const { config } = useConfiguracion()
 
-  const [ventas, setVentas] = useState<Venta[]>(
-    initialVentas.map((venta) => ({ ...venta, estado: 'completada' })),
-  )
+  const [ventas, setVentas] = useState<Venta[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedVenta, setSelectedVenta] = useState<Venta | null>(null)
   const [detalleCounter, setDetalleCounter] = useState(2)
   const [formError, setFormError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [numericTouched, setNumericTouched] = useState({
     descuento: false,
   })
@@ -41,6 +41,27 @@ export const useVentasPageState = () => {
     clienteTelefono: '',
     detallesProductos: [createDetalleFormulario(1)] as FormDetalleProducto[],
   })
+
+  useEffect(() => {
+    let active = true
+    const load = async () => {
+      try {
+        setLoading(true)
+        const fromApi = await getVentas()
+        if (!active) return
+        setVentas(fromApi)
+      } catch {
+        if (!active) return
+        setVentas(initialVentas.map((venta) => ({ ...venta, estado: 'completada' })))
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      active = false
+    }
+  }, [])
 
   const getPrecioProducto = (producto: Producto): number => {
     return resolvePrecioProducto(producto, config.preciosM2)
@@ -218,7 +239,7 @@ export const useVentasPageState = () => {
     }
   }
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setFormError(null)
 
@@ -286,8 +307,7 @@ export const useVentasPageState = () => {
     const descuentoTotal = subtotal * (formData.descuento / 100)
     const total = subtotal - descuentoTotal
 
-    const newVenta: Venta = {
-      id: `V${String(ventas.length + 1).padStart(3, '0')}`,
+    const newVentaPayload: Omit<Venta, 'id'> = {
       productoId: primerDetalle.productoId,
       productoNombre: nombreResumen,
       detallesProductos: detallesVenta,
@@ -305,7 +325,14 @@ export const useVentasPageState = () => {
       estado: 'completada',
     }
 
-    setVentas([newVenta, ...ventas])
+    try {
+      const newVenta = await createVenta(newVentaPayload)
+      setVentas((prev) => [newVenta, ...prev])
+    } catch {
+      setFormError('No se pudo registrar la venta en el backend.')
+      return
+    }
+
     resetForm()
   }
 
@@ -338,6 +365,7 @@ export const useVentasPageState = () => {
     setSelectedVenta,
     formData,
     numericTouched,
+    loading,
     formError,
     groupedByDate,
     fechasOrdenadas,

@@ -4,6 +4,7 @@ import {
   closePool,
   getDatabaseSummary,
   verifyPostgresConnection,
+  verifyPostgresSchema,
 } from './infrastructure/persistence/postgres/connection.js'
 
 const port = Number(process.env.PORT ?? 4000)
@@ -30,6 +31,16 @@ async function logDatabaseStartupStatus(): Promise<void> {
   console.log(
     `[db] Conexion PostgreSQL exitosa -> db=${status.database} user=${status.user} server_time=${status.now}`,
   )
+
+  const schemaCheck = await verifyPostgresSchema()
+  if (!schemaCheck.ok) {
+    throw new Error(
+      `[db] Esquema PostgreSQL incompleto. Faltan tablas: ${schemaCheck.missingTables.join(
+        ', ',
+      )}. Ejecuta: pnpm run db:setup`,
+    )
+  }
+  console.log('[db] Esquema PostgreSQL verificado.')
 }
 
 async function bootstrap(): Promise<void> {

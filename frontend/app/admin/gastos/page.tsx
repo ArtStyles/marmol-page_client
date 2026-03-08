@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Button } from '@/components/admin/admin-button'
 import { Badge } from '@/components/ui/badge'
@@ -17,7 +17,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useGastosStore, gastoFlujos, gastoTipos, type GastoFlujo, type GastoTipo } from '@/hooks/use-gastos'
-import { ventas } from '@/lib/data'
+import { getVentas } from '@/lib/resources-api'
+import type { Venta } from '@/lib/types'
 import { Plus, ReceiptText, Search, TrendingDown, UserRound } from 'lucide-react'
 
 type TipoFilter = 'todos' | GastoTipo
@@ -53,6 +54,7 @@ const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
 
 export default function GastosPage() {
   const { gastos, addGasto } = useGastosStore()
+  const [ventas, setVentas] = useState<Venta[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [formError, setFormError] = useState('')
   const [costTouched, setCostTouched] = useState(false)
@@ -60,6 +62,24 @@ export default function GastosPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [tipoFilter, setTipoFilter] = useState<TipoFilter>('todos')
   const [flujoFilter, setFlujoFilter] = useState<FlujoFilter>('todos')
+
+  useEffect(() => {
+    let active = true
+    const load = async () => {
+      try {
+        const items = await getVentas()
+        if (!active) return
+        setVentas(items)
+      } catch {
+        if (!active) return
+        setVentas([])
+      }
+    }
+    void load()
+    return () => {
+      active = false
+    }
+  }, [])
 
   const ingresosOperativos = useMemo(() => {
     const ventasCompletadas = ventas.filter((venta) => venta.estado === 'completada')
