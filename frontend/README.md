@@ -111,8 +111,8 @@ Reglas de negocio declaradas (intencion):
 ### 4.8 Catalogo y landing
 
 - Admin catalogo: `app/admin/catalogo/page.tsx` (estado local).
-- Landing carrito rapido: `components/landing/quick-cart.tsx` usa `catalogoItems` estatico.
-- Problema: cambios en catalogo admin no se reflejan en landing.
+- Landing carrito rapido: `components/landing/quick-cart.tsx` consume `GET /api/catalogo`.
+- Estado actual: cambios en catalogo admin se reflejan en landing segun visibilidad/destacado.
 
 ### 4.9 Auth, roles y talleres
 

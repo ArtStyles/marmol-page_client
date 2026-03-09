@@ -1,15 +1,18 @@
 'use client'
 
-import { useMemo, useState, type FormEvent } from 'react'
-import { bloquesYLotes, equipos, trabajadores } from '@/lib/data'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { getBloques, getEquipos, getTrabajadores } from '@/lib/resources-api'
 import { useProduccionStore } from '@/hooks/use-produccion'
 import {
   losasAMetros,
   TIPO_EQUIPO_POR_ACCION,
   type AccionLosa,
+  type BloqueOLote,
   type Dimension,
+  type Equipo,
   type ProduccionDetalleAccion,
   type ProduccionDiaria,
+  type Trabajador,
 } from '@/lib/types'
 import type { ActionUsageDimensionForm, ActionUsageForm, FormData } from '../model/types'
 import {
@@ -29,14 +32,57 @@ export const useProduccionPageState = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [loadingDependencies, setLoadingDependencies] = useState(true)
+  const [dependenciesError, setDependenciesError] = useState<string | null>(null)
+  const [bloquesYLotes, setBloquesYLotes] = useState<BloqueOLote[]>([])
+  const [equipos, setEquipos] = useState<Equipo[]>([])
+  const [trabajadores, setTrabajadores] = useState<Trabajador[]>([])
   const [formError, setFormError] = useState('')
   const [formData, setFormData] = useState<FormData>(createInitialFormData)
 
+  useEffect(() => {
+    let alive = true
+
+    const load = async () => {
+      setLoadingDependencies(true)
+      setDependenciesError(null)
+      try {
+        const [bloquesData, equiposData, trabajadoresData] = await Promise.all([
+          getBloques(),
+          getEquipos(),
+          getTrabajadores(),
+        ])
+
+        if (!alive) return
+        setBloquesYLotes(bloquesData)
+        setEquipos(equiposData)
+        setTrabajadores(trabajadoresData)
+      } catch (error) {
+        if (!alive) return
+        setDependenciesError(
+          error instanceof Error ? error.message : 'No se pudieron cargar catalogos de produccion.',
+        )
+      } finally {
+        if (alive) setLoadingDependencies(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
   const trabajadoresActivos = useMemo(
     () => trabajadores.filter((trabajador) => trabajador.estado === 'activo'),
-    [],
+    [trabajadores],
   )
-  const equiposActivos = useMemo(() => equipos.filter((equipo) => equipo.estado === 'activo'), [])
+  const equiposActivos = useMemo(() => equipos.filter((equipo) => equipo.estado === 'activo'), [equipos])
+  const origenesActivos = useMemo(
+    () => bloquesYLotes.filter((bloque) => bloque.estado === 'activo'),
+    [bloquesYLotes],
+  )
 
   const filteredProduccion = produccion.filter((registro) => {
     const query = searchTerm.toLowerCase().trim()
@@ -516,6 +562,7 @@ export const useProduccionPageState = () => {
 
   return {
     addUsage,
+    dependenciesError,
     dateEditPolicy,
     dateFilter,
     equiposActivos,
@@ -527,6 +574,8 @@ export const useProduccionPageState = () => {
     groupedByDate,
     handleSubmit,
     isDialogOpen,
+    loadingDependencies,
+    origenesActivos,
     origenesActivosResumen,
     prepareNewForm,
     produccion,

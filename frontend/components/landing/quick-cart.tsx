@@ -1,13 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
-import { catalogoItems } from '@/lib/catalogo-data'
+import { getCatalogo } from '@/lib/resources-api'
 import type { CatalogoItem } from '@/lib/types'
 
 const whatsappNumber = '5354789597'
-
-const featuredItems = catalogoItems.filter((item) => item.destacado).slice(0, 3)
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('es-MX', {
@@ -17,12 +15,49 @@ const formatCurrency = (value: number) =>
   }).format(value)
 
 export function QuickCart() {
+  const [items, setItems] = useState<Array<CatalogoItem & { visible?: boolean }>>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [cart, setCart] = useState<Record<string, number>>({})
 
-  const itemsById = useMemo(
-    () => Object.fromEntries(catalogoItems.map((item) => [item.id, item])),
-    [],
-  )
+  useEffect(() => {
+    let active = true
+
+    const load = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const catalogo = await getCatalogo()
+        if (!active) return
+        setItems(catalogo.filter((item) => item.visible !== false))
+      } catch {
+        if (!active) return
+        setItems([])
+        setError('No se pudo cargar el catalogo en este momento.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const featuredItems = useMemo(() => {
+    const destacados = items.filter((item) => item.destacado)
+    return (destacados.length > 0 ? destacados : items).slice(0, 3)
+  }, [items])
+
+  const itemsById = useMemo(() => Object.fromEntries(items.map((item) => [item.id, item])), [items])
+
+  useEffect(() => {
+    setCart((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([id]) => Boolean(itemsById[id]))),
+    )
+  }, [itemsById])
 
   const cartItems = useMemo(() => {
     return Object.entries(cart)
@@ -47,6 +82,7 @@ export function QuickCart() {
   )
 
   const addToCart = (id: string) => {
+    if (!itemsById[id]) return
     setCart((prev) => ({
       ...prev,
       [id]: Math.max(1, Math.round((prev[id] ?? 0) + 5)),
@@ -93,36 +129,50 @@ export function QuickCart() {
         </p>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          {featuredItems.map((item) => (
-            <div
-              key={item.id}
-              className="flex flex-col overflow-hidden rounded-[20px] border border-black/5 bg-[#f7f4ef] shadow-[0_18px_40px_-35px_rgba(44,32,20,0.35)]"
-            >
-              <div className="relative aspect-[4/3]">
-                <Image src={item.imagen} alt={item.nombre} fill className="object-cover" />
-              </div>
-              <div className="flex flex-1 flex-col gap-2 p-4">
-                <p className="text-sm font-semibold text-[#2b241f]">{item.nombre}</p>
-                <p className="text-[11px] uppercase tracking-[0.3em] text-[#8a7056]">
-                  {item.acabado} · {item.dimension} cm
-                </p>
-                <div className="mt-auto flex items-center justify-between">
-                  <span className="text-sm font-semibold text-[#2b241f]">
-                    ${item.precioM2}/m2
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => addToCart(item.id)}
-                    aria-label={`Agregar ${item.nombre} al carrito`}
-                    title="Agregar"
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-base font-semibold text-[#2b241f] transition hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    +
-                  </button>
+          {loading ? (
+            <p className="sm:col-span-3 rounded-2xl border border-dashed border-black/10 bg-[#f7f4ef] p-4 text-sm text-[#6b5f55]">
+              Cargando catalogo...
+            </p>
+          ) : error ? (
+            <p className="sm:col-span-3 rounded-2xl border border-dashed border-black/10 bg-[#f7f4ef] p-4 text-sm text-[#6b5f55]">
+              {error}
+            </p>
+          ) : featuredItems.length === 0 ? (
+            <p className="sm:col-span-3 rounded-2xl border border-dashed border-black/10 bg-[#f7f4ef] p-4 text-sm text-[#6b5f55]">
+              No hay productos visibles en el catalogo.
+            </p>
+          ) : (
+            featuredItems.map((item) => (
+              <div
+                key={item.id}
+                className="flex flex-col overflow-hidden rounded-[20px] border border-black/5 bg-[#f7f4ef] shadow-[0_18px_40px_-35px_rgba(44,32,20,0.35)]"
+              >
+                <div className="relative aspect-[4/3]">
+                  <Image src={item.imagen} alt={item.nombre} fill className="object-cover" />
+                </div>
+                <div className="flex flex-1 flex-col gap-2 p-4">
+                  <p className="text-sm font-semibold text-[#2b241f]">{item.nombre}</p>
+                  <p className="text-[11px] uppercase tracking-[0.3em] text-[#8a7056]">
+                    {item.acabado} - {item.dimension} cm
+                  </p>
+                  <div className="mt-auto flex items-center justify-between">
+                    <span className="text-sm font-semibold text-[#2b241f]">
+                      ${item.precioM2}/m2
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => addToCart(item.id)}
+                      aria-label={`Agregar ${item.nombre} al carrito`}
+                      title="Agregar"
+                      className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-base font-semibold text-[#2b241f] transition hover:-translate-y-0.5 hover:shadow-md"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
@@ -148,7 +198,7 @@ export function QuickCart() {
                 <div>
                   <p className="text-sm font-semibold text-[#2b241f]">{item.nombre}</p>
                   <p className="text-[11px] uppercase tracking-[0.3em] text-[#8a7056]">
-                    {item.acabado} · {item.dimension} cm
+                    {item.acabado} - {item.dimension} cm
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

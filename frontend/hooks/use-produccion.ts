@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from 'react'
-import { produccionDiaria as initialProduccion } from '@/lib/data'
 import {
   createProduccion,
   deleteProduccion,
@@ -44,7 +43,7 @@ const sameProduccion = (a: ProduccionDiaria, b: ProduccionDiaria): boolean =>
   JSON.stringify(asUpdatePayload(a)) === JSON.stringify(asUpdatePayload(b))
 
 export function useProduccionStore() {
-  const [produccion, setProduccionState] = useState<ProduccionDiaria[]>(initialProduccion)
+  const [produccion, setProduccionState] = useState<ProduccionDiaria[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const syncQueueRef = useRef(Promise.resolve())
@@ -61,7 +60,6 @@ export function useProduccionStore() {
         setProduccionState(items)
       } catch {
         if (!active) return
-        setProduccionState(initialProduccion)
         setError('No se pudo cargar produccion desde el backend.')
       } finally {
         if (active) {

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useInventarioStore } from '@/hooks/use-inventario'
-import { ventas as initialVentas } from '@/lib/data'
 import { createVenta, getVentas } from '@/lib/resources-api'
 import type { Dimension, Producto, Venta, VentaDetalleProducto } from '@/lib/types'
 import {
@@ -31,6 +30,7 @@ export const useVentasPageState = () => {
   const [detalleCounter, setDetalleCounter] = useState(2)
   const [formError, setFormError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [numericTouched, setNumericTouched] = useState({
     descuento: false,
   })
@@ -47,12 +47,14 @@ export const useVentasPageState = () => {
     const load = async () => {
       try {
         setLoading(true)
+        setLoadError(null)
         const fromApi = await getVentas()
         if (!active) return
         setVentas(fromApi)
       } catch {
         if (!active) return
-        setVentas(initialVentas.map((venta) => ({ ...venta, estado: 'completada' })))
+        setVentas([])
+        setLoadError('No se pudieron cargar las ventas desde el backend.')
       } finally {
         if (active) setLoading(false)
       }
@@ -366,6 +368,7 @@ export const useVentasPageState = () => {
     formData,
     numericTouched,
     loading,
+    loadError,
     formError,
     groupedByDate,
     fechasOrdenadas,

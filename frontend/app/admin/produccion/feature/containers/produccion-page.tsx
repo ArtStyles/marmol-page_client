@@ -12,6 +12,7 @@ import { ProduccionRegistrosList } from '../components/produccion-registros-list
 export default function ProduccionPage() {
   const {
     addUsage,
+    dependenciesError,
     dateEditPolicy,
     dateFilter,
     equiposActivos,
@@ -23,6 +24,8 @@ export default function ProduccionPage() {
     groupedByDate,
     handleSubmit,
     isDialogOpen,
+    loadingDependencies,
+    origenesActivos,
     origenesActivosResumen,
     prepareNewForm,
     removeUsage,
@@ -63,6 +66,10 @@ export default function ProduccionPage() {
             <p className="mt-1 text-muted-foreground font-sans">
               Registra toda la produccion del dia en un solo envio. Cada subfila permite bloque/lote, tipo y dimension independientes.
             </p>
+            {dependenciesError ? <p className="mt-2 text-sm text-destructive">{dependenciesError}</p> : null}
+            {loadingDependencies ? (
+              <p className="mt-2 text-sm text-slate-500">Cargando catalogos de produccion...</p>
+            ) : null}
           </div>
           <ProduccionCreateDialog
             addUsage={addUsage}
@@ -72,6 +79,7 @@ export default function ProduccionPage() {
             formError={formError}
             handleSubmit={handleSubmit}
             isDialogOpen={isDialogOpen}
+            origenesActivos={origenesActivos}
             prepareNewForm={prepareNewForm}
             removeUsage={removeUsage}
             resetFormAndClose={resetFormAndClose}

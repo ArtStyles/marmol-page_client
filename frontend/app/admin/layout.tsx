@@ -52,6 +52,7 @@ export default function AdminLayout({
     if (typeof window === 'undefined') return
     const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
     const token = window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)
+    const storedWorkshop = window.localStorage.getItem(WORKSHOP_STORAGE_KEY)
     if (raw) {
       try {
         if (!token) {
@@ -59,17 +60,18 @@ export default function AdminLayout({
         } else {
           const parsed = JSON.parse(raw) as AdminUser
           setAuthUser(parsed)
-          setSelectedWorkshopId(parsed.workshopId ?? null)
+          if (parsed.role === 'Super Admin') {
+            setSelectedWorkshopId(storedWorkshop ?? null)
+          } else {
+            setSelectedWorkshopId(parsed.workshopId ?? null)
+          }
         }
       } catch {
         window.localStorage.removeItem(ADMIN_STORAGE_KEY)
         window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY)
       }
     }
-    const storedWorkshop = window.localStorage.getItem(WORKSHOP_STORAGE_KEY)
-    if (storedWorkshop) {
-      setSelectedWorkshopId(storedWorkshop)
-    }
+    if (storedWorkshop) setSelectedWorkshopId(storedWorkshop)
     setIsReady(true)
   }, [])
 
@@ -105,12 +107,17 @@ export default function AdminLayout({
       })
 
       const user = result.user
+      const isSuperAdmin = user.role === 'Super Admin'
       setStoredAccessToken(result.accessToken)
       setAuthUser(user)
-      setSelectedWorkshopId(user.workshopId)
+      setSelectedWorkshopId(isSuperAdmin ? null : user.workshopId)
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(user))
-        window.localStorage.setItem(WORKSHOP_STORAGE_KEY, user.workshopId)
+        if (isSuperAdmin) {
+          window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
+        } else {
+          window.localStorage.setItem(WORKSHOP_STORAGE_KEY, user.workshopId)
+        }
       }
       const nextAccess = getAccessForRole(user.role)
       if (!isPathAllowed(pathname, nextAccess)) {
@@ -186,10 +193,12 @@ export default function AdminLayout({
     }
 
     if (selectedWorkshopId === workshopId) {
-      setSelectedWorkshopId(authUser?.workshopId ?? null)
+      const fallbackWorkshopId =
+        authUser?.role === 'Super Admin' ? null : (authUser?.workshopId ?? null)
+      setSelectedWorkshopId(fallbackWorkshopId)
       if (typeof window !== 'undefined') {
-        if (authUser?.workshopId) {
-          window.localStorage.setItem(WORKSHOP_STORAGE_KEY, authUser.workshopId)
+        if (fallbackWorkshopId) {
+          window.localStorage.setItem(WORKSHOP_STORAGE_KEY, fallbackWorkshopId)
         } else {
           window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
         }
@@ -199,7 +208,7 @@ export default function AdminLayout({
 
   useEffect(() => {
     if (!authUser) return
-    if (!selectedWorkshopId && authUser.workshopId) {
+    if (authUser.role !== 'Super Admin' && !selectedWorkshopId && authUser.workshopId) {
       handleSelectWorkshop(authUser.workshopId)
     }
   }, [authUser, selectedWorkshopId])

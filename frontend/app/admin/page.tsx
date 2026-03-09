@@ -6,21 +6,31 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Badge } from '@/components/ui/badge'
 import {
-  bloquesYLotes,
-  equipos,
-  mermas,
-  produccionDiaria,
-  produccionTrabajadores,
-  productos,
-  trabajadores,
-  ventas,
-} from '@/lib/data'
+  getBloques,
+  getEquipos,
+  getMermas,
+  getProduccion,
+  getProduccionTrabajadores,
+  getProductos,
+  getTrabajadores,
+  getVentas,
+} from '@/lib/resources-api'
 import {
   ADMIN_STORAGE_KEY,
   getAccessForRole,
   isPathAllowed,
   type AdminUser,
 } from '@/lib/admin-auth'
+import type {
+  BloqueOLote,
+  Equipo,
+  Merma,
+  ProduccionDiaria,
+  ProduccionTrabajador,
+  Producto,
+  Trabajador,
+  Venta,
+} from '@/lib/types'
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -40,6 +50,16 @@ import {
 export default function AdminDashboard() {
   const pathname = usePathname()
   const [sessionUser, setSessionUser] = useState<AdminUser | null>(null)
+  const [bloquesYLotes, setBloquesYLotes] = useState<BloqueOLote[]>([])
+  const [equipos, setEquipos] = useState<Equipo[]>([])
+  const [mermas, setMermas] = useState<Merma[]>([])
+  const [produccionDiaria, setProduccionDiaria] = useState<ProduccionDiaria[]>([])
+  const [produccionTrabajadores, setProduccionTrabajadores] = useState<ProduccionTrabajador[]>([])
+  const [productos, setProductos] = useState<Producto[]>([])
+  const [trabajadores, setTrabajadores] = useState<Trabajador[]>([])
+  const [ventas, setVentas] = useState<Venta[]>([])
+  const [loadingData, setLoadingData] = useState(true)
+  const [dataError, setDataError] = useState<string | null>(null)
   const totalLosasInventario = productos.reduce((sum, p) => sum + p.cantidadLosas, 0)
   const totalM2Inventario = productos.reduce((sum, p) => sum + p.metrosCuadrados, 0)
 
@@ -172,6 +192,57 @@ export default function AdminDashboard() {
       setSessionUser(JSON.parse(raw) as AdminUser)
     } catch {
       window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+
+    const load = async () => {
+      setLoadingData(true)
+      setDataError(null)
+      try {
+        const [
+          bloquesData,
+          equiposData,
+          mermasData,
+          produccionData,
+          produccionTrabajadoresData,
+          productosData,
+          trabajadoresData,
+          ventasData,
+        ] = await Promise.all([
+          getBloques(),
+          getEquipos(),
+          getMermas(),
+          getProduccion(),
+          getProduccionTrabajadores(),
+          getProductos(),
+          getTrabajadores(),
+          getVentas(),
+        ])
+
+        if (!alive) return
+        setBloquesYLotes(bloquesData)
+        setEquipos(equiposData)
+        setMermas(mermasData)
+        setProduccionDiaria(produccionData)
+        setProduccionTrabajadores(produccionTrabajadoresData)
+        setProductos(productosData)
+        setTrabajadores(trabajadoresData)
+        setVentas(ventasData)
+      } catch (error) {
+        if (!alive) return
+        setDataError(error instanceof Error ? error.message : 'No se pudo cargar el dashboard.')
+      } finally {
+        if (alive) setLoadingData(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      alive = false
     }
   }, [])
 
@@ -314,6 +385,8 @@ export default function AdminDashboard() {
                   <p className="mt-1 text-sm text-slate-600">
                     Resumen operativo, inventario y seguimiento diario.
                   </p>
+                  {dataError ? <p className="mt-2 text-sm text-destructive">{dataError}</p> : null}
+                  {loadingData ? <p className="mt-2 text-sm text-slate-500">Cargando dashboard...</p> : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
                   <span className="rounded-full border border-white/60 bg-white/70 px-3 py-1">

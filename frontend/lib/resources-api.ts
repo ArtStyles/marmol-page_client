@@ -149,6 +149,15 @@ export const deleteProduccion = async (produccionId: string): Promise<boolean> =
 export const getProduccionTrabajadores = (): Promise<ProduccionTrabajador[]> =>
   apiRequest<ProduccionTrabajador[]>('/produccion-trabajadores')
 
+export const updateProduccionTrabajador = (
+  produccionTrabajadorId: string,
+  patch: Partial<ProduccionTrabajador>,
+): Promise<ProduccionTrabajador> =>
+  apiRequest<ProduccionTrabajador>(`/produccion-trabajadores/${produccionTrabajadorId}`, {
+    method: 'PATCH',
+    body: patch,
+  })
+
 export const getMermas = (): Promise<Merma[]> => apiRequest<Merma[]>('/mermas')
 
 export const createMerma = (input: Omit<Merma, 'id'>): Promise<Merma> =>
@@ -220,3 +229,27 @@ export const getLogs = (): Promise<SystemLog[]> => apiRequest<SystemLog[]>('/log
 
 export const getCatalogo = (): Promise<Array<CatalogoItem & { visible?: boolean }>> =>
   apiRequest<Array<CatalogoItem & { visible?: boolean }>>('/catalogo')
+
+export const createCatalogoItem = (
+  input: Omit<CatalogoItem, 'id'> & { visible?: boolean },
+): Promise<CatalogoItem & { visible?: boolean }> =>
+  apiRequest<CatalogoItem & { visible?: boolean }>('/catalogo', {
+    method: 'POST',
+    body: input,
+  })
+
+export const updateCatalogoItem = (
+  itemId: string,
+  patch: Partial<CatalogoItem & { visible?: boolean }>,
+): Promise<CatalogoItem & { visible?: boolean }> =>
+  apiRequest<CatalogoItem & { visible?: boolean }>(`/catalogo/${itemId}`, {
+    method: 'PATCH',
+    body: patch,
+  })
+
+export const deleteCatalogoItem = async (itemId: string): Promise<boolean> => {
+  await apiRequest<void>(`/catalogo/${itemId}`, {
+    method: 'DELETE',
+  })
+  return true
+}

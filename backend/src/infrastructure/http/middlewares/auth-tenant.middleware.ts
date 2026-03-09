@@ -4,6 +4,16 @@ import { runWithTenantContext } from '../../tenant/tenant-context.js'
 
 const PUBLIC_PATHS = new Set(['/auth/login'])
 
+function isPublicRequest(req: Request): boolean {
+  if (PUBLIC_PATHS.has(req.path)) return true
+
+  if (req.method === 'GET' && (req.path === '/catalogo' || req.path.startsWith('/catalogo/'))) {
+    return true
+  }
+
+  return false
+}
+
 function extractBearerToken(authHeader: string | undefined): string | null {
   if (!authHeader) return null
   const [scheme, token] = authHeader.split(' ')
@@ -13,7 +23,7 @@ function extractBearerToken(authHeader: string | undefined): string | null {
 }
 
 export function authTenantMiddleware(req: Request, res: Response, next: NextFunction) {
-  if (PUBLIC_PATHS.has(req.path)) {
+  if (isPublicRequest(req)) {
     return next()
   }
 

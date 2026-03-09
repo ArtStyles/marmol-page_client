@@ -4,7 +4,19 @@ import type { WorkshopCreateInput } from '../../../domain/ports/index.js'
 import { getPool } from './connection.js'
 import { nextId } from './helpers.js'
 
+function asNumber(value: unknown, fallback = 0): number {
+  if (value === null || value === undefined) return fallback
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
 function rowToWorkshop(r: Record<string, unknown>): WorkshopTenant {
+  const ventasMesReal = asNumber(r.ventas_mes_real)
+  const gastosMesReal = asNumber(r.gastos_mes_real)
+  const hasVentasMes = Boolean(r.has_ventas_mes)
+  const margenOperativoReal =
+    ventasMesReal > 0 ? Number(((ventasMesReal - gastosMesReal) / ventasMesReal).toFixed(4)) : 0
+
   return {
     id: r.id as string,
     nombre: r.nombre as string,
@@ -14,28 +26,107 @@ function rowToWorkshop(r: Record<string, unknown>): WorkshopTenant {
     telefono: (r.telefono as string) ?? '',
     correo: r.correo as string,
     estado: r.estado as WorkshopTenant['estado'],
-    empleados: Number(r.empleados),
-    capacidadM2Mes: Number(r.capacidad_m2_mes),
-    ventasMes: Number(r.ventas_mes),
-    produccionMesM2: Number(r.produccion_mes_m2),
-    margenOperativo: Number(r.margen_operativo),
-    ordenesActivas: Number(r.ordenes_activas),
-    ultimaActualizacion: r.ultima_actualizacion as string,
+    empleados: asNumber(r.empleados_real, asNumber(r.empleados)),
+    capacidadM2Mes: asNumber(r.capacidad_m2_mes),
+    ventasMes: asNumber(r.ventas_mes_real, asNumber(r.ventas_mes)),
+    produccionMesM2: asNumber(r.produccion_mes_m2_real, asNumber(r.produccion_mes_m2)),
+    margenOperativo: hasVentasMes
+      ? margenOperativoReal
+      : asNumber(r.margen_operativo),
+    ordenesActivas: asNumber(r.ordenes_activas_real, asNumber(r.ordenes_activas)),
+    ultimaActualizacion:
+      (r.ultima_actualizacion_real as string | null | undefined) ??
+      (r.ultima_actualizacion as string),
   }
 }
 
 export class PostgresWorkshopRepository implements WorkshopRepositoryPort {
-  async findAll(): Promise<WorkshopTenant[]> {
+  private async findWithRealtimeMetrics(id?: string): Promise<WorkshopTenant[]> {
     const pool = getPool()
-    const r = await pool.query('SELECT * FROM workshops ORDER BY id')
-    return r.rows.map(rowToWorkshop)
+    const params: unknown[] = []
+    const whereClause =
+      id != null
+        ? (() => {
+            params.push(id)
+            return 'WHERE w.id = $1'
+          })()
+        : ''
+
+    const query = `
+      WITH empleados AS (
+        SELECT workshop_id, COUNT(*)::int AS empleados_real
+        FROM trabajadores
+        GROUP BY workshop_id
+      ),
+      produccion_mes AS (
+        SELECT workshop_id, COALESCE(SUM(total_m2), 0)::numeric AS produccion_mes_m2_real
+        FROM produccion
+        WHERE DATE_TRUNC('month', fecha) = DATE_TRUNC('month', CURRENT_DATE)
+        GROUP BY workshop_id
+      ),
+      ventas_mes AS (
+        SELECT
+          workshop_id,
+          COALESCE(SUM(total), 0)::numeric AS ventas_mes_real,
+          COUNT(*) FILTER (WHERE estado = 'pendiente')::int AS ordenes_activas_real,
+          true AS has_ventas_mes
+        FROM ventas
+        WHERE DATE_TRUNC('month', fecha) = DATE_TRUNC('month', CURRENT_DATE)
+        GROUP BY workshop_id
+      ),
+      gastos_mes AS (
+        SELECT
+          workshop_id,
+          COALESCE(SUM(costo), 0)::numeric AS gastos_mes_real
+        FROM gastos
+        WHERE DATE_TRUNC('month', fecha) = DATE_TRUNC('month', CURRENT_DATE)
+        GROUP BY workshop_id
+      ),
+      actividad AS (
+        SELECT workshop_id, MAX(fecha)::text AS ultima_actualizacion_real
+        FROM (
+          SELECT workshop_id, fecha FROM ventas
+          UNION ALL
+          SELECT workshop_id, fecha FROM produccion
+          UNION ALL
+          SELECT workshop_id, fecha FROM mermas
+          UNION ALL
+          SELECT workshop_id, fecha FROM gastos
+          UNION ALL
+          SELECT workshop_id, fecha FROM historial_pagos
+        ) activity_rows
+        GROUP BY workshop_id
+      )
+      SELECT
+        w.*,
+        e.empleados_real,
+        p.produccion_mes_m2_real,
+        v.ventas_mes_real,
+        g.gastos_mes_real,
+        v.ordenes_activas_real,
+        (v.has_ventas_mes IS TRUE) AS has_ventas_mes,
+        a.ultima_actualizacion_real
+      FROM workshops w
+      LEFT JOIN empleados e ON e.workshop_id = w.id
+      LEFT JOIN produccion_mes p ON p.workshop_id = w.id
+      LEFT JOIN ventas_mes v ON v.workshop_id = w.id
+      LEFT JOIN gastos_mes g ON g.workshop_id = w.id
+      LEFT JOIN actividad a ON a.workshop_id = w.id
+      ${whereClause}
+      ORDER BY w.id
+    `
+
+    const result = await pool.query(query, params)
+    return result.rows.map((row) => rowToWorkshop(row as Record<string, unknown>))
+  }
+
+  async findAll(): Promise<WorkshopTenant[]> {
+    return this.findWithRealtimeMetrics()
   }
 
   async findById(id: string): Promise<WorkshopTenant | null> {
-    const pool = getPool()
-    const r = await pool.query('SELECT * FROM workshops WHERE id = $1', [id])
-    if (r.rows.length === 0) return null
-    return rowToWorkshop(r.rows[0])
+    const rows = await this.findWithRealtimeMetrics(id)
+    return rows[0] ?? null
   }
 
   async create(data: WorkshopCreateInput): Promise<WorkshopTenant> {

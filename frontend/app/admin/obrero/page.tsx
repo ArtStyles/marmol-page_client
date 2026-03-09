@@ -5,8 +5,14 @@ import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { ADMIN_STORAGE_KEY, type AdminUser } from '@/lib/admin-auth'
-import { historialPagos, produccionTrabajadores, trabajadores } from '@/lib/data'
-import { losasAMetros, type AccionLosa, type ProduccionTrabajador, type Trabajador } from '@/lib/types'
+import { getHistorialPagos, getProduccionTrabajadores, getTrabajadores } from '@/lib/resources-api'
+import {
+  losasAMetros,
+  type AccionLosa,
+  type HistorialPago,
+  type ProduccionTrabajador,
+  type Trabajador,
+} from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { CircleDollarSign, Hammer, Hourglass, Wallet } from 'lucide-react'
 
@@ -25,6 +31,11 @@ function sortByDateDesc<T extends { fecha: string }>(items: T[]) {
 export default function ObreroPage() {
   const [sessionUser, setSessionUser] = useState<AdminUser | null>(null)
   const [sessionReady, setSessionReady] = useState(false)
+  const [trabajadores, setTrabajadores] = useState<Trabajador[]>([])
+  const [produccionTrabajadores, setProduccionTrabajadores] = useState<ProduccionTrabajador[]>([])
+  const [historialPagos, setHistorialPagos] = useState<HistorialPago[]>([])
+  const [loadingData, setLoadingData] = useState(true)
+  const [dataError, setDataError] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -39,6 +50,37 @@ export default function ObreroPage() {
       window.localStorage.removeItem(ADMIN_STORAGE_KEY)
     } finally {
       setSessionReady(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+
+    const load = async () => {
+      setLoadingData(true)
+      setDataError(null)
+      try {
+        const [trabajadoresData, produccionData, historialData] = await Promise.all([
+          getTrabajadores(),
+          getProduccionTrabajadores(),
+          getHistorialPagos(),
+        ])
+        if (!alive) return
+        setTrabajadores(trabajadoresData)
+        setProduccionTrabajadores(produccionData)
+        setHistorialPagos(historialData)
+      } catch (error) {
+        if (!alive) return
+        setDataError(error instanceof Error ? error.message : 'No se pudo cargar el panel de obrero.')
+      } finally {
+        if (alive) setLoadingData(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      alive = false
     }
   }, [])
 
@@ -163,6 +205,26 @@ export default function ObreroPage() {
       <AdminShell rightPanel={rightPanel}>
         <div className="rounded-[24px] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
           Cargando panel de obrero...
+        </div>
+      </AdminShell>
+    )
+  }
+
+  if (loadingData) {
+    return (
+      <AdminShell rightPanel={rightPanel}>
+        <div className="rounded-[24px] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
+          Cargando datos operativos...
+        </div>
+      </AdminShell>
+    )
+  }
+
+  if (dataError) {
+    return (
+      <AdminShell rightPanel={rightPanel}>
+        <div className="rounded-[24px] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-destructive">
+          {dataError}
         </div>
       </AdminShell>
     )

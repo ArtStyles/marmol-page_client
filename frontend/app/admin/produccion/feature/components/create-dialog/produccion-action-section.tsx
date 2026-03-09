@@ -16,10 +16,10 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { bloquesYLotes, dimensiones, tiposProducto } from '@/lib/data'
 import {
   TIPO_EQUIPO_POR_ACCION,
   type AccionLosa,
+  type BloqueOLote,
   type Dimension,
   type Equipo,
   type TipoProducto,
@@ -45,11 +45,15 @@ const actionSectionBackgrounds: Record<AccionLosa, string> = {
   escuadrar: 'border-amber-200/80 bg-amber-50/60',
 }
 
+const dimensionOptions: Dimension[] = ['40x40', '60x40', '80x40']
+const tipoOptions: TipoProducto[] = ['Piso', 'Plancha']
+
 type ProduccionActionSectionProps = {
   accion: AccionLosa
   accionState: ActionFormState
   addUsage: (accion: AccionLosa) => void
   equiposActivos: Equipo[]
+  origenesActivos: BloqueOLote[]
   removeUsage: (accion: AccionLosa, usageId: string) => void
   toggleUsageDimension: (
     accion: AccionLosa,
@@ -67,6 +71,7 @@ export function ProduccionActionSection({
   accionState,
   addUsage,
   equiposActivos,
+  origenesActivos,
   removeUsage,
   toggleUsageDimension,
   trabajadoresActivos,
@@ -75,7 +80,6 @@ export function ProduccionActionSection({
 }: ProduccionActionSectionProps) {
   const tipoEquipo = TIPO_EQUIPO_POR_ACCION[accion]
   const equiposPorAccion = equiposActivos.filter((equipo) => equipo.tipo === tipoEquipo)
-  const origenesActivos = bloquesYLotes.filter((bloque) => bloque.estado === 'activo')
 
   const totalAsignado = accionState.usos.reduce(
     (sum, uso) =>
@@ -107,7 +111,7 @@ export function ProduccionActionSection({
 
   const selectedDimensionsLabel = (uso: ActionUsageForm): string => {
     if (uso.dimensiones.length === 0) return 'Seleccionar dimensiones'
-    if (uso.dimensiones.length === dimensiones.length) return 'Todas'
+    if (uso.dimensiones.length === dimensionOptions.length) return 'Todas'
     return uso.dimensiones.map((item) => item.dimension).join(', ')
   }
 
@@ -260,7 +264,7 @@ export function ProduccionActionSection({
                         <SelectValue placeholder="Tipo" />
                       </SelectTrigger>
                       <SelectContent>
-                        {tiposProducto.map((tipo) => (
+                        {tipoOptions.map((tipo) => (
                           <SelectItem key={tipo} value={tipo}>
                             {tipo}
                           </SelectItem>
@@ -286,7 +290,7 @@ export function ProduccionActionSection({
                         align="start"
                         className="w-[var(--radix-dropdown-menu-trigger-width)]"
                       >
-                        {dimensiones.map((dimension) => {
+                        {dimensionOptions.map((dimension) => {
                           const isSelected = uso.dimensiones.some(
                             (dimensionUso) => dimensionUso.dimension === dimension,
                           )

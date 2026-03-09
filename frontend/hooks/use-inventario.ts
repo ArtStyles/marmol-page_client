@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { productos as initialProductos } from '@/lib/data'
 import { getProductos } from '@/lib/resources-api'
 import type { Producto } from '@/lib/types'
 
@@ -24,7 +23,7 @@ const normalizeProducto = (item: Producto): Producto => ({
 })
 
 export function useInventarioStore() {
-  const [productos, setProductos] = useState<Producto[]>(initialProductos)
+  const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,7 +38,6 @@ export function useInventarioStore() {
         setProductos(items.map((item) => normalizeProducto(item)))
       } catch {
         if (!active) return
-        setProductos(initialProductos)
         setError('No se pudo cargar el inventario desde el backend.')
       } finally {
         if (active) setLoading(false)

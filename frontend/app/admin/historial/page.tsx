@@ -1,18 +1,45 @@
 'use client'
 
 import React from "react"
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DataTable, type Column } from '@/components/data-table'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
-import { logsSistema as initialLogs } from '@/lib/data'
+import { getLogs } from '@/lib/resources-api'
 import type { SystemLog } from '@/lib/types'
 import { Search } from 'lucide-react'
 
 export default function HistorialPage() {
-  const [logs] = useState<SystemLog[]>(initialLogs)
+  const [logs, setLogs] = useState<SystemLog[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+
+  useEffect(() => {
+    let alive = true
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await getLogs()
+        if (!alive) return
+        setLogs(data)
+      } catch (loadError) {
+        if (!alive) return
+        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar el historial.')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const filteredLogs = logs.filter((log) =>
     log.usuario.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -118,6 +145,8 @@ export default function HistorialPage() {
           <p className="mt-1 text-muted-foreground font-sans">
             Registros de actividad para auditoria y seguimiento
           </p>
+          {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
+          {loading ? <p className="mt-2 text-sm text-muted-foreground">Cargando logs...</p> : null}
         </div>
       </div>
 

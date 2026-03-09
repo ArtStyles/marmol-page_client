@@ -1,12 +1,54 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Badge } from '@/components/ui/badge'
-import { historialPagos, produccionTrabajadores, ventas } from '@/lib/data'
+import { getHistorialPagos, getProduccionTrabajadores, getVentas } from '@/lib/resources-api'
+import type { HistorialPago, ProduccionTrabajador, Venta } from '@/lib/types'
 import { FileText, ShieldAlert } from 'lucide-react'
 
 export default function ContabilidadPage() {
-  const ventasCompletadas = ventas.filter((venta) => venta.estado === 'completada')
+  const [ventas, setVentas] = useState<Venta[]>([])
+  const [historialPagos, setHistorialPagos] = useState<HistorialPago[]>([])
+  const [produccionTrabajadores, setProduccionTrabajadores] = useState<ProduccionTrabajador[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const [ventasData, historialData, produccionData] = await Promise.all([
+          getVentas(),
+          getHistorialPagos(),
+          getProduccionTrabajadores(),
+        ])
+        if (!alive) return
+        setVentas(ventasData)
+        setHistorialPagos(historialData)
+        setProduccionTrabajadores(produccionData)
+      } catch (loadError) {
+        if (!alive) return
+        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar contabilidad.')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const ventasCompletadas = useMemo(
+    () => ventas.filter((venta) => venta.estado === 'completada'),
+    [ventas],
+  )
   const totalIngresos = ventasCompletadas.reduce((sum, venta) => sum + venta.total, 0)
   const totalDescuentos = ventasCompletadas.reduce(
     (sum, venta) => sum + venta.subtotal * (venta.descuento / 100),
@@ -95,6 +137,8 @@ export default function ContabilidadPage() {
               <p className="mt-1 text-sm text-slate-600">
                 Area de lectura para control de ventas, pagos y movimientos contables.
               </p>
+              {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
+              {loading ? <p className="mt-2 text-sm text-slate-500">Cargando informacion...</p> : null}
             </div>
             <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.2em]">
               Solo lectura

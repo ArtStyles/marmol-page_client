@@ -20,8 +20,10 @@ export default function AsignacionesPage() {
   const {
     asignaciones,
     asignacionesReferencia,
+    error,
     fechaReferencia,
     groupedAsignaciones,
+    loading,
     resumenAcciones,
     searchTerm,
     setSearchTerm,
@@ -102,6 +104,8 @@ export default function AsignacionesPage() {
             <p className="mt-1 text-muted-foreground font-sans">
               Vista automatica desde Produccion diaria. El resultado y el pago se reparten por partes iguales en cada equipo.
             </p>
+            {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
+            {loading ? <p className="mt-2 text-sm text-slate-500">Cargando asignaciones...</p> : null}
           </div>
           <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
             Auto desde Produccion diaria

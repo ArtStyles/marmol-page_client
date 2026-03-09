@@ -1,7 +1,7 @@
 'use client'
 
 import React from "react"
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DataTable, type Column } from '@/components/data-table'
 import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
@@ -10,8 +10,13 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
-import { catalogoItems } from '@/lib/catalogo-data'
 import { dimensiones, estadosLosa, tiposProducto } from '@/lib/data'
+import {
+  createCatalogoItem,
+  deleteCatalogoItem,
+  getCatalogo,
+  updateCatalogoItem,
+} from '@/lib/resources-api'
 import type { CatalogoItem, Dimension, EstadoLosa, TipoProducto } from '@/lib/types'
 import { losasAMetros } from '@/lib/types'
 import { Plus, Search, Star, Eye, EyeOff, Edit, Trash2 } from 'lucide-react'
@@ -32,13 +37,8 @@ import {
 
 type CatalogoAdminItem = CatalogoItem & { visible: boolean }
 
-const initialItems: CatalogoAdminItem[] = catalogoItems.map((item) => ({
-  ...item,
-  visible: true,
-}))
-
 export default function CatalogoAdminPage() {
-  const [items, setItems] = useState<CatalogoAdminItem[]>(initialItems)
+  const [items, setItems] = useState<CatalogoAdminItem[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [tipoFilter, setTipoFilter] = useState<string>('all')
   const [acabadoFilter, setAcabadoFilter] = useState<string>('all')
@@ -47,6 +47,9 @@ export default function CatalogoAdminPage() {
   const [featuredFilter, setFeaturedFilter] = useState<string>('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<CatalogoAdminItem | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [numericTouched, setNumericTouched] = useState({
     precioM2: false,
     stockLosas: false,
@@ -63,6 +66,28 @@ export default function CatalogoAdminPage() {
     descripcion: '',
     imagen: '/marble-carrara.jpg',
   })
+
+  useEffect(() => {
+    let active = true
+    const load = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const data = await getCatalogo()
+        if (!active) return
+        setItems(data.map((item) => ({ ...item, visible: item.visible ?? true })))
+      } catch {
+        if (!active) return
+        setError('No se pudo cargar el catalogo desde el backend.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      active = false
+    }
+  }, [])
 
   const filteredItems = items.filter((item) => {
     const matchesSearch =
@@ -148,19 +173,27 @@ export default function CatalogoAdminPage() {
     </div>
   )
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
+    setError(null)
+    setIsSaving(true)
 
-    if (editingItem) {
-      setItems(items.map((item) => (item.id === editingItem.id ? { ...editingItem, ...formData } : item)))
-    } else {
-      const newItem: CatalogoAdminItem = {
-        id: `C${String(items.length + 1).padStart(3, '0')}`,
-        ...formData,
+    try {
+      if (editingItem) {
+        const updated = await updateCatalogoItem(editingItem.id, formData)
+        const normalized: CatalogoAdminItem = { ...updated, visible: updated.visible ?? true }
+        setItems((prev) => prev.map((item) => (item.id === editingItem.id ? normalized : item)))
+      } else {
+        const created = await createCatalogoItem(formData)
+        const normalized: CatalogoAdminItem = { ...created, visible: created.visible ?? true }
+        setItems((prev) => [normalized, ...prev])
       }
-      setItems([newItem, ...items])
+      resetForm()
+    } catch {
+      setError('No se pudo guardar el item en el backend.')
+    } finally {
+      setIsSaving(false)
     }
-    resetForm()
   }
 
   const handleEdit = (item: CatalogoAdminItem) => {
@@ -173,18 +206,39 @@ export default function CatalogoAdminPage() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Estas seguro de eliminar este item del catalogo?')) {
-      setItems(items.filter((item) => item.id !== id))
+      setError(null)
+      try {
+        await deleteCatalogoItem(id)
+        setItems((prev) => prev.filter((item) => item.id !== id))
+      } catch {
+        setError('No se pudo eliminar el item del backend.')
+      }
+    }
+  }
+
+  const patchItem = async (id: string, patch: Partial<CatalogoAdminItem>) => {
+    setError(null)
+    try {
+      const updated = await updateCatalogoItem(id, patch)
+      const normalized: CatalogoAdminItem = { ...updated, visible: updated.visible ?? true }
+      setItems((prev) => prev.map((item) => (item.id === id ? normalized : item)))
+    } catch {
+      setError('No se pudo actualizar el item en el backend.')
     }
   }
 
   const toggleVisibility = (id: string) => {
-    setItems(items.map((item) => (item.id === id ? { ...item, visible: !item.visible } : item)))
+    const current = items.find((item) => item.id === id)
+    if (!current) return
+    void patchItem(id, { visible: !current.visible })
   }
 
   const toggleFeatured = (id: string) => {
-    setItems(items.map((item) => (item.id === id ? { ...item, destacado: !item.destacado } : item)))
+    const current = items.find((item) => item.id === id)
+    if (!current) return
+    void patchItem(id, { destacado: !current.destacado })
   }
 
   const resetForm = () => {
@@ -283,8 +337,10 @@ export default function CatalogoAdminPage() {
         <div>
           <h1 className="text-3xl font-bold text-foreground font-sans">Catálogo landing</h1>
           <p className="mt-1 text-muted-foreground font-sans">
-            Administra la seleccion que se muestra en el catalogo del landing. Datos mock por ahora.
+            Administra la seleccion que se muestra en el catalogo del landing.
           </p>
+          {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
+          {loading ? <p className="mt-2 text-sm text-muted-foreground">Cargando catalogo...</p> : null}
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -450,8 +506,12 @@ export default function CatalogoAdminPage() {
                 <Button type="button" variant="outline" onClick={resetForm}>
                   Cancelar
                 </Button>
-                <Button type="submit">
-                  {editingItem ? 'Guardar cambios' : 'Agregar al catalogo'}
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving
+                    ? 'Guardando...'
+                    : editingItem
+                      ? 'Guardar cambios'
+                      : 'Agregar al catalogo'}
                 </Button>
               </div>
             </form>

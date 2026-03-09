@@ -40,6 +40,8 @@ export default function VentasPage() {
     setSelectedVenta,
     formData,
     numericTouched,
+    loading,
+    loadError,
     formError,
     groupedByDate,
     fechasOrdenadas,
@@ -145,6 +147,8 @@ export default function VentasPage() {
             <p className="mt-1 text-muted-foreground font-sans">
               Registra ventas por metros cuadrados distribuidos por bloques y dimensiones en una misma compra.
             </p>
+            {loadError ? <p className="mt-2 text-sm text-destructive">{loadError}</p> : null}
+            {loading ? <p className="mt-2 text-sm text-muted-foreground">Cargando ventas...</p> : null}
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>

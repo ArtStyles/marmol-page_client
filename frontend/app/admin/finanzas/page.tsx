@@ -1,16 +1,79 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Badge } from '@/components/ui/badge'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useGastosStore } from '@/hooks/use-gastos'
-import { bloquesYLotes, mermas, produccionDiaria, produccionTrabajadores, trabajadores, ventas } from '@/lib/data'
-import type { RolConSalarioFijo } from '@/lib/types'
+import {
+  getBloques,
+  getMermas,
+  getProduccion,
+  getProduccionTrabajadores,
+  getTrabajadores,
+  getVentas,
+} from '@/lib/resources-api'
+import type {
+  BloqueOLote,
+  Merma,
+  ProduccionDiaria,
+  ProduccionTrabajador,
+  RolConSalarioFijo,
+  Trabajador,
+  Venta,
+} from '@/lib/types'
 import { ArrowUpRight, DollarSign, TrendingUp, Wallet } from 'lucide-react'
 
 export default function FinanzasPage() {
   const { config } = useConfiguracion()
-  const { gastos } = useGastosStore()
+  const { gastos, loading: gastosLoading, error: gastosError } = useGastosStore()
+  const [bloquesYLotes, setBloquesYLotes] = useState<BloqueOLote[]>([])
+  const [mermas, setMermas] = useState<Merma[]>([])
+  const [produccionDiaria, setProduccionDiaria] = useState<ProduccionDiaria[]>([])
+  const [produccionTrabajadores, setProduccionTrabajadores] = useState<ProduccionTrabajador[]>([])
+  const [trabajadores, setTrabajadores] = useState<Trabajador[]>([])
+  const [ventas, setVentas] = useState<Venta[]>([])
+  const [loading, setLoading] = useState(true)
+  const [syncError, setSyncError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+
+    const load = async () => {
+      setLoading(true)
+      setSyncError(null)
+      try {
+        const [bloquesData, mermasData, produccionData, produccionTrabajadoresData, trabajadoresData, ventasData] =
+          await Promise.all([
+            getBloques(),
+            getMermas(),
+            getProduccion(),
+            getProduccionTrabajadores(),
+            getTrabajadores(),
+            getVentas(),
+          ])
+
+        if (!alive) return
+        setBloquesYLotes(bloquesData)
+        setMermas(mermasData)
+        setProduccionDiaria(produccionData)
+        setProduccionTrabajadores(produccionTrabajadoresData)
+        setTrabajadores(trabajadoresData)
+        setVentas(ventasData)
+      } catch (error) {
+        if (!alive) return
+        setSyncError(error instanceof Error ? error.message : 'No se pudieron cargar finanzas.')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const ventasCompletadas = ventas.filter((venta) => venta.estado === 'completada')
   const totalSubtotal = ventasCompletadas.reduce((sum, venta) => sum + venta.subtotal, 0)
@@ -268,6 +331,11 @@ export default function FinanzasPage() {
                 de obra de obreros, costo del bloque, transporte, corriente, agua, otros y gastos
                 operativos registrados.
               </p>
+              {syncError ? <p className="mt-2 text-sm text-destructive">{syncError}</p> : null}
+              {gastosError ? <p className="mt-2 text-sm text-destructive">{gastosError}</p> : null}
+              {loading || gastosLoading ? (
+                <p className="mt-2 text-sm text-slate-500">Cargando indicadores financieros...</p>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
               <span className="rounded-full border border-white/60 bg-white/70 px-3 py-1">

@@ -16,44 +16,9 @@ import {
   Wrench,
 } from 'lucide-react'
 import type { AdminRole } from '@/lib/admin-auth'
-import { catalogoItems } from '@/lib/catalogo-data'
-import {
-  bloquesYLotes,
-  equipos,
-  historialPagos,
-  logsSistema,
-  mermas,
-  produccionDiaria,
-  produccionTrabajadores,
-  productos,
-  trabajadores,
-  ventas,
-} from '@/lib/data'
 import type { AdminNavItem } from '../model/types'
 
 export const buildDefaultNav = (role?: AdminRole): AdminNavItem[] => {
-  const totalLosasInventario = productos.reduce((sum, p) => sum + p.cantidadLosas, 0)
-  const ventasCompletadas = ventas.filter((v) => v.estado === 'completada')
-  const totalVentas = ventasCompletadas.reduce((sum, v) => sum + v.total, 0)
-  const totalMermas = mermas.reduce((sum, m) => sum + m.metrosCuadrados, 0)
-  const bloquesActivos = bloquesYLotes.filter((b) => b.estado === 'activo').length
-  const equiposActivos = equipos.filter((equipo) => equipo.estado === 'activo').length
-  const activeWorkers = trabajadores.filter((w) => w.estado === 'activo').length
-  const produccionPorFecha = produccionDiaria.reduce<Record<string, number>>((acc, registro) => {
-    acc[registro.fecha] = (acc[registro.fecha] ?? 0) + registro.totalM2
-    return acc
-  }, {})
-  const asignacionesPorFecha = produccionTrabajadores.reduce<Record<string, number>>((acc, registro) => {
-    acc[registro.fecha] = (acc[registro.fecha] ?? 0) + 1
-    return acc
-  }, {})
-  const fechasOrdenadas = Object.keys(produccionPorFecha).sort()
-  const fechasAsignaciones = Object.keys(asignacionesPorFecha).sort()
-  const fechaUltima = fechasOrdenadas[fechasOrdenadas.length - 1]
-  const fechaUltimaAsignacion = fechasAsignaciones[fechasAsignaciones.length - 1]
-  const totalM2Hoy = fechaUltima ? (produccionPorFecha[fechaUltima] ?? 0) : 0
-  const totalAsignacionesHoy = fechaUltimaAsignacion ? (asignacionesPorFecha[fechaUltimaAsignacion] ?? 0) : 0
-
   const items: AdminNavItem[] = [
     {
       href: '/admin',
@@ -64,31 +29,31 @@ export const buildDefaultNav = (role?: AdminRole): AdminNavItem[] => {
     {
       href: '/admin/inventario',
       label: 'Inventario',
-      helper: `${totalLosasInventario} losas`,
+      helper: 'Stock',
       icon: Package,
     },
     {
       href: '/admin/produccion',
       label: 'Produccion',
-      helper: `${totalM2Hoy.toFixed(1)} m2 hoy`,
+      helper: 'Diaria',
       icon: Factory,
     },
     {
       href: '/admin/equipos',
       label: 'Equipos',
-      helper: `${equiposActivos} activos`,
+      helper: 'Operativos',
       icon: Wrench,
     },
     {
       href: '/admin/asignaciones',
       label: 'Asignaciones',
-      helper: `${totalAsignacionesHoy} hoy`,
+      helper: 'Turnos',
       icon: Users,
     },
     {
       href: '/admin/ventas',
       label: 'Ventas',
-      helper: `$${totalVentas.toLocaleString()}`,
+      helper: 'Comercial',
       icon: DollarSign,
     },
     {
@@ -112,37 +77,37 @@ export const buildDefaultNav = (role?: AdminRole): AdminNavItem[] => {
     {
       href: '/admin/bloques',
       label: 'Materia prima',
-      helper: `${bloquesActivos} activos`,
+      helper: 'Bloques y lotes',
       icon: Boxes,
     },
     {
       href: '/admin/mermas',
       label: 'Mermas',
-      helper: `${totalMermas.toFixed(2)} m2`,
+      helper: 'Control',
       icon: AlertTriangle,
     },
     {
       href: '/admin/trabajadores',
       label: 'Trabajadores',
-      helper: `${activeWorkers} activos`,
+      helper: 'Personal',
       icon: Users,
     },
     {
       href: '/admin/pagos',
       label: 'Pagos',
-      helper: `${historialPagos.length} registros`,
+      helper: 'Nomina',
       icon: Wallet,
     },
     {
       href: '/admin/catalogo',
       label: 'Catalogo',
-      helper: `${catalogoItems.length} items`,
+      helper: 'Landing',
       icon: LayoutGrid,
     },
     {
       href: '/admin/historial',
       label: 'Historial',
-      helper: `${logsSistema.length} logs`,
+      helper: 'Actividad',
       icon: ClipboardList,
     },
     {

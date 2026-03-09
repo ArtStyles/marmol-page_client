@@ -1,9 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useProduccionStore } from '@/hooks/use-produccion'
-import { trabajadores as trabajadoresBase } from '@/lib/data'
+import { getTrabajadores } from '@/lib/resources-api'
 import type { AccionLosa, Trabajador } from '@/lib/types'
 import { actionSortIndex, buildAsignacionesFromProduccion, createResumenAcciones } from '../lib/asignaciones-helpers'
 import type { AccionResumen, ProduccionWorkerGroup, TopTrabajadorResumen } from '../model/types'
@@ -11,11 +11,39 @@ import type { AccionResumen, ProduccionWorkerGroup, TopTrabajadorResumen } from 
 export const useAsignacionesPageState = () => {
   const { produccion } = useProduccionStore()
   const { config } = useConfiguracion()
+  const [trabajadoresBase, setTrabajadoresBase] = useState<Trabajador[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+
+  useEffect(() => {
+    let alive = true
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await getTrabajadores()
+        if (!alive) return
+        setTrabajadoresBase(data)
+      } catch (loadError) {
+        if (!alive) return
+        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar trabajadores.')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+
+    void load()
+
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const trabajadoresPorId = useMemo(
     () => new Map<string, Trabajador>(trabajadoresBase.map((trabajador) => [trabajador.id, trabajador])),
-    [],
+    [trabajadoresBase],
   )
 
   const asignaciones = useMemo(
@@ -149,8 +177,10 @@ export const useAsignacionesPageState = () => {
   return {
     asignaciones,
     asignacionesReferencia,
+    error,
     fechaReferencia,
     groupedAsignaciones,
+    loading,
     resumenAcciones,
     searchTerm,
     setSearchTerm,

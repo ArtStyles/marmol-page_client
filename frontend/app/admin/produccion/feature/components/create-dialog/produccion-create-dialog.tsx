@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { type AccionLosa, type Dimension, type Equipo, type Trabajador } from '@/lib/types'
+import { type AccionLosa, type BloqueOLote, type Dimension, type Equipo, type Trabajador } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Plus } from 'lucide-react'
 import type {
@@ -31,6 +31,7 @@ type ProduccionCreateDialogProps = {
   formError: string
   handleSubmit: (event: FormEvent) => void
   isDialogOpen: boolean
+  origenesActivos: BloqueOLote[]
   prepareNewForm: () => void
   removeUsage: (accion: AccionLosa, usageId: string) => void
   resetFormAndClose: () => void
@@ -56,6 +57,7 @@ export function ProduccionCreateDialog({
   formError,
   handleSubmit,
   isDialogOpen,
+  origenesActivos,
   prepareNewForm,
   removeUsage,
   resetFormAndClose,
@@ -132,6 +134,7 @@ export function ProduccionCreateDialog({
                 accionState={formData.acciones[accion]}
                 addUsage={addUsage}
                 equiposActivos={equiposActivos}
+                origenesActivos={origenesActivos}
                 removeUsage={removeUsage}
                 toggleUsageDimension={toggleUsageDimension}
                 trabajadoresActivos={trabajadoresActivos}
