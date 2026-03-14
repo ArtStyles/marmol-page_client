@@ -6,13 +6,33 @@ import { isDomainError } from './application/errors/domain.error.js'
 import { authTenantMiddleware } from './infrastructure/http/middlewares/auth-tenant.middleware.js'
 import apiRoutes from './infrastructure/http/routes/api.routes.js'
 
+function getAllowedOrigins(): string[] {
+  return (process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+}
+
 export function createApp() {
   const app = express()
+  const allowedOrigins = getAllowedOrigins()
 
   app.use(helmet())
   app.use(
     cors({
-      origin: process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000',
+      origin(origin, callback) {
+        if (!origin) {
+          callback(null, true)
+          return
+        }
+
+        if (allowedOrigins.includes(origin)) {
+          callback(null, true)
+          return
+        }
+
+        callback(new Error(`CORS origin not allowed: ${origin}`))
+      },
       credentials: true,
     }),
   )

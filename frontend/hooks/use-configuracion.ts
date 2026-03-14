@@ -1,29 +1,53 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { configuracionInicial } from '@/lib/data'
 import { getConfiguracion, updateConfiguracion } from '@/lib/resources-api'
 import type { ConfiguracionSistema } from '@/lib/types'
 
+const emptyConfiguracion: ConfiguracionSistema = {
+  tarifasGlobales: {
+    picar: 0,
+    pulir: 0,
+    escuadrar: 0,
+  },
+  salariosFijosPorRol: {
+    Administrador: 0,
+    'Gestor de Ventas': 0,
+    'Jefe de Turno de ProducciÃ³n': 0,
+  },
+  preciosM2: {
+    '40x40': { crudo: 0, pulido: 0 },
+    '60x40': { crudo: 0, pulido: 0 },
+    '80x40': { crudo: 0, pulido: 0 },
+  },
+  nombreEmpresa: '',
+  email: '',
+  telefono: '',
+  direccion: '',
+  notificacionesEmail: false,
+  alertasStockBajo: false,
+  reportesVentas: false,
+}
+
 const mergeConfiguracion = (value: Partial<ConfiguracionSistema>): ConfiguracionSistema => ({
-  ...configuracionInicial,
+  ...emptyConfiguracion,
   ...value,
   tarifasGlobales: {
-    ...configuracionInicial.tarifasGlobales,
+    ...emptyConfiguracion.tarifasGlobales,
     ...value.tarifasGlobales,
   },
   salariosFijosPorRol: {
-    ...configuracionInicial.salariosFijosPorRol,
+    ...emptyConfiguracion.salariosFijosPorRol,
     ...value.salariosFijosPorRol,
   },
   preciosM2: {
-    ...configuracionInicial.preciosM2,
+    ...emptyConfiguracion.preciosM2,
     ...value.preciosM2,
   },
 })
 
 export function useConfiguracion() {
-  const [config, setConfig] = useState<ConfiguracionSistema>(configuracionInicial)
+  const [config, setConfig] = useState<ConfiguracionSistema>(emptyConfiguracion)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,7 +63,7 @@ export function useConfiguracion() {
         setConfig(mergeConfiguracion(fromApi))
       } catch {
         if (!active) return
-        setConfig(configuracionInicial)
+        setConfig(emptyConfiguracion)
         setError('No se pudo cargar la configuracion desde el backend.')
       } finally {
         if (active) setLoading(false)
@@ -53,26 +77,30 @@ export function useConfiguracion() {
     }
   }, [])
 
-  const saveConfig = async (next?: ConfiguracionSistema) => {
+  const saveConfig = async (next?: ConfiguracionSistema): Promise<boolean> => {
     const value = next ?? config
     setConfig(value)
     try {
       setError(null)
       const updated = await updateConfiguracion(value)
       setConfig(mergeConfiguracion(updated))
+      return true
     } catch {
       setError('No se pudo guardar la configuracion en el backend.')
+      return false
     }
   }
 
-  const resetConfig = async () => {
-    setConfig(configuracionInicial)
+  const resetConfig = async (): Promise<boolean> => {
+    setConfig(emptyConfiguracion)
     try {
       setError(null)
-      const updated = await updateConfiguracion(configuracionInicial)
+      const updated = await updateConfiguracion(emptyConfiguracion)
       setConfig(mergeConfiguracion(updated))
+      return true
     } catch {
       setError('No se pudo restablecer la configuracion en el backend.')
+      return false
     }
   }
 

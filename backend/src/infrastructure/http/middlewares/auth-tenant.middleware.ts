@@ -22,6 +22,17 @@ function extractBearerToken(authHeader: string | undefined): string | null {
   return token
 }
 
+function extractWorkshopHeader(req: Request): string | null {
+  const raw = req.headers['x-workshop-id']
+  if (Array.isArray(raw)) {
+    const first = raw[0]?.trim()
+    return first ? first : null
+  }
+  if (typeof raw !== 'string') return null
+  const value = raw.trim()
+  return value ? value : null
+}
+
 export function authTenantMiddleware(req: Request, res: Response, next: NextFunction) {
   if (isPublicRequest(req)) {
     return next()
@@ -43,16 +54,30 @@ export function authTenantMiddleware(req: Request, res: Response, next: NextFunc
     })
   }
 
+  const requestedWorkshopId = extractWorkshopHeader(req)
+  let workshopId = claims.workshopId
+
+  if (requestedWorkshopId) {
+    if (claims.role === 'Super Admin') {
+      workshopId = requestedWorkshopId
+    } else if (requestedWorkshopId !== claims.workshopId) {
+      return res.status(403).json({
+        error: 'Workshop override not allowed for this role',
+        code: 'WORKSHOP_FORBIDDEN',
+      })
+    }
+  }
+
   req.auth = {
     userId: claims.sub,
     email: claims.email,
     role: claims.role,
-    workshopId: claims.workshopId,
+    workshopId,
   }
 
   return runWithTenantContext(
     {
-      workshopId: claims.workshopId,
+      workshopId,
       userId: claims.sub,
       userEmail: claims.email,
       userRole: claims.role,

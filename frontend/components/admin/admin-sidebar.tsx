@@ -34,7 +34,7 @@ const primaryNavItems = [
   { label: 'Finanzas', href: '/admin/finanzas', icon: TrendingUp },
   { label: 'Gastos', href: '/admin/gastos', icon: ReceiptText },
   { label: 'Contabilidad', href: '/admin/contabilidad', icon: FileText },
-  { label: 'Catalogo', href: '/admin/catalogo', icon: LayoutGrid },
+  { label: 'Catálogo', href: '/admin/catalogo', icon: LayoutGrid },
 ]
 
 const secondaryNavItems = [
@@ -84,7 +84,7 @@ export function AdminSidebar({ isCollapsed, onToggle, user, onLogout }: AdminSid
                   isCollapsed && 'w-0 overflow-hidden opacity-0',
                 )}
               >
-                Panel de Administracion
+                Panel de Administración
               </span>
             </div>
             <Button
@@ -125,7 +125,7 @@ export function AdminSidebar({ isCollapsed, onToggle, user, onLogout }: AdminSid
           <div className={`border-t border-sidebar-border p-4 ${isCollapsed && 'w-20'}`}>
             <div className={cn('space-y-2', isCollapsed && 'hidden w-20')}>
               <p className="text-xs uppercase tracking-[0.2em] text-sidebar-foreground/60">
-                Sesion activa
+                Sesión activa
               </p>
               <p className="text-sm font-semibold text-sidebar-foreground">{user.name}</p>
               <Badge variant="outline" className="border-sidebar-border text-sidebar-foreground/70">
@@ -149,7 +149,7 @@ export function AdminSidebar({ isCollapsed, onToggle, user, onLogout }: AdminSid
                 className={cn('w-full justify-start gap-2', isCollapsed && 'justify-center')}
                 onClick={onLogout}
               >
-                <span className="text-sm">Cerrar sesion</span>
+                <span className="text-sm">Cerrar sesión</span>
               </Button>
             </div>
           </div>
@@ -184,7 +184,7 @@ export function AdminSidebar({ isCollapsed, onToggle, user, onLogout }: AdminSid
               )}
             >
               <MoreHorizontal className="h-5 w-5" />
-              <span>Mas</span>
+              <span>Más</span>
             </summary>
             <div className="absolute bottom-16 left-1/2 w-56 -translate-x-1/2 rounded-xl border border-border bg-background p-2 shadow-lg">
               {mobileSecondary.map((item) => (
@@ -203,7 +203,7 @@ export function AdminSidebar({ isCollapsed, onToggle, user, onLogout }: AdminSid
                 onClick={onLogout}
                 className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-foreground/80 hover:bg-muted"
               >
-                Cerrar sesion
+                Cerrar sesión
               </button>
               <Link
                 href="/"

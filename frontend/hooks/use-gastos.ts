@@ -34,36 +34,6 @@ export type GastoRegistro = {
   encargado: string
 }
 
-const initialGastos: GastoRegistro[] = [
-  {
-    id: 'G001',
-    fecha: '2026-02-24',
-    costo: 1400,
-    tipo: 'Transporte',
-    flujo: 'Inventario',
-    descripcion: 'Traslado de bloque BL002 desde proveedor principal.',
-    encargado: 'Fernando Ruiz',
-  },
-  {
-    id: 'G002',
-    fecha: '2026-02-25',
-    costo: 950,
-    tipo: 'Servicios',
-    flujo: 'Produccion',
-    descripcion: 'Pago de energia electrica en turno extendido de pulido.',
-    encargado: 'Miguel Angel Torres',
-  },
-  {
-    id: 'G003',
-    fecha: '2026-02-27',
-    costo: 650,
-    tipo: 'Mantenimiento',
-    flujo: 'Produccion',
-    descripcion: 'Cambio de disco y ajuste preventivo de cortadora.',
-    encargado: 'Carlos Mendoza',
-  },
-]
-
 const isGastoTipo = (value: unknown): value is GastoTipo =>
   typeof value === 'string' && gastoTipos.includes(value as GastoTipo)
 
@@ -80,18 +50,8 @@ const normalizeGasto = (item: Partial<GastoRegistro>, index: number): GastoRegis
   encargado: typeof item.encargado === 'string' ? item.encargado : 'Sin responsable',
 })
 
-const buildNextGastoId = (items: GastoRegistro[]): string => {
-  const nextSequence =
-    items.reduce((max, item) => {
-      const numeric = Number(item.id.replace(/\D/g, ''))
-      return Number.isFinite(numeric) ? Math.max(max, numeric) : max
-    }, 0) + 1
-
-  return `G${String(nextSequence).padStart(3, '0')}`
-}
-
 export function useGastosStore() {
-  const [gastos, setGastos] = useState<GastoRegistro[]>(initialGastos)
+  const [gastos, setGastos] = useState<GastoRegistro[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -106,7 +66,7 @@ export function useGastosStore() {
         setGastos(items.map((item, index) => normalizeGasto(item, index)))
       } catch {
         if (!active) return
-        setGastos(initialGastos)
+        setGastos([])
         setError('No se pudo cargar gastos desde el backend.')
       } finally {
         if (active) setLoading(false)
@@ -118,15 +78,15 @@ export function useGastosStore() {
     }
   }, [])
 
-  const addGasto = async (input: Omit<GastoRegistro, 'id'>) => {
+  const addGasto = async (input: Omit<GastoRegistro, 'id'>): Promise<boolean> => {
     try {
       setError(null)
       const created = await createGasto(input)
       setGastos((prev) => [normalizeGasto(created, prev.length), ...prev])
+      return true
     } catch {
-      const fallbackId = buildNextGastoId(gastos)
-      setGastos((prev) => [{ ...input, id: fallbackId }, ...prev])
       setError('No se pudo guardar el gasto en el backend.')
+      return false
     }
   }
 

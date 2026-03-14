@@ -14,15 +14,17 @@ import type { AccionLosa, Dimension, RolConSalarioFijo } from '@/lib/types'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 
 export default function ConfiguracionPage() {
-  const { config, setConfig, saveConfig } = useConfiguracion()
+  const { config, setConfig, saveConfig, loading, error } = useConfiguracion()
   const [securitySettings, setSecuritySettings] = useState({
     twoFactorAuth: false,
-    sessionTimeout: true
+    sessionTimeout: true,
   })
 
-  const handleSave = () => {
-    saveConfig()
-    alert('ConfiguraciÃ³n guardada correctamente')
+  const handleSave = async () => {
+    const ok = await saveConfig()
+    if (ok) {
+      alert('Configuracion guardada correctamente')
+    }
   }
 
   const updateTarifa = (accion: AccionLosa, value: number) => {
@@ -108,302 +110,260 @@ export default function ConfiguracionPage() {
   return (
     <AdminShell rightPanel={rightPanel}>
       <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground font-sans">
-          ConfiguraciÃ³n
-        </h1>
-        <p className="mt-1 text-muted-foreground font-sans">
-          Administra la configuraciÃ³n del sistema
-        </p>
-      </div>
+        <div>
+          <h1 className="font-sans text-3xl font-bold text-foreground">Configuracion</h1>
+          <p className="mt-1 font-sans text-muted-foreground">Administra la configuracion del sistema</p>
+          {loading ? <p className="mt-2 text-sm text-slate-500">Cargando configuracion...</p> : null}
+          {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
+        </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Company Info */}
-        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Building className="h-5 w-5 text-primary" />
-              <CardTitle>InformaciÃ³n de la Empresa</CardTitle>
-            </div>
-            <CardDescription>
-              Datos bÃ¡sicos de tu negocio
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="companyName">Nombre de la Empresa</Label>
-              <Input
-                id="companyName"
-                value={config.nombreEmpresa}
-                onChange={(e) => setConfig({ ...config, nombreEmpresa: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email de Contacto</Label>
-              <Input
-                id="email"
-                type="email"
-                value={config.email}
-                onChange={(e) => setConfig({ ...config, email: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">TelÃ©fono</Label>
-              <Input
-                id="phone"
-                value={config.telefono}
-                onChange={(e) => setConfig({ ...config, telefono: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="address">DirecciÃ³n</Label>
-              <Textarea
-                id="address"
-                value={config.direccion}
-                onChange={(e) => setConfig({ ...config, direccion: e.target.value })}
-                rows={2}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Building className="h-5 w-5 text-primary" />
+                <CardTitle>Informacion de la empresa</CardTitle>
+              </div>
+              <CardDescription>Datos basicos de tu negocio</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="companyName">Nombre de la empresa</Label>
+                <Input
+                  id="companyName"
+                  value={config.nombreEmpresa}
+                  onChange={(e) => setConfig({ ...config, nombreEmpresa: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email de contacto</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={config.email}
+                  onChange={(e) => setConfig({ ...config, email: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Telefono</Label>
+                <Input
+                  id="phone"
+                  value={config.telefono}
+                  onChange={(e) => setConfig({ ...config, telefono: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Direccion</Label>
+                <Textarea
+                  id="address"
+                  value={config.direccion}
+                  onChange={(e) => setConfig({ ...config, direccion: e.target.value })}
+                  rows={2}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Notifications */}
-        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-primary" />
-              <CardTitle>Notificaciones</CardTitle>
-            </div>
-            <CardDescription>
-              Configura las alertas del sistema
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Notificaciones por Email</p>
-                <p className="text-sm text-muted-foreground">
-                  Recibe alertas importantes en tu correo
-                </p>
+          <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-primary" />
+                <CardTitle>Notificaciones</CardTitle>
               </div>
-              <Switch
-                checked={config.notificacionesEmail}
-                onCheckedChange={(checked) => 
-                  setConfig({ ...config, notificacionesEmail: checked })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Alertas de Stock Bajo</p>
-                <p className="text-sm text-muted-foreground">
-                  Aviso cuando el inventario este bajo
-                </p>
+              <CardDescription>Configura las alertas del sistema</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Notificaciones por email</p>
+                  <p className="text-sm text-muted-foreground">Recibe alertas importantes en tu correo</p>
+                </div>
+                <Switch
+                  checked={config.notificacionesEmail}
+                  onCheckedChange={(checked) => setConfig({ ...config, notificacionesEmail: checked })}
+                />
               </div>
-              <Switch
-                checked={config.alertasStockBajo}
-                onCheckedChange={(checked) => 
-                  setConfig({ ...config, alertasStockBajo: checked })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Reportes de Ventas</p>
-                <p className="text-sm text-muted-foreground">
-                  Resumen semanal de ventas
-                </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Alertas de stock bajo</p>
+                  <p className="text-sm text-muted-foreground">Aviso cuando el inventario este bajo</p>
+                </div>
+                <Switch
+                  checked={config.alertasStockBajo}
+                  onCheckedChange={(checked) => setConfig({ ...config, alertasStockBajo: checked })}
+                />
               </div>
-              <Switch
-                checked={config.reportesVentas}
-                onCheckedChange={(checked) => 
-                  setConfig({ ...config, reportesVentas: checked })
-                }
-              />
-            </div>
-          </CardContent>
-        </Card>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Reportes de ventas</p>
+                  <p className="text-sm text-muted-foreground">Resumen semanal de ventas</p>
+                </div>
+                <Switch
+                  checked={config.reportesVentas}
+                  onCheckedChange={(checked) => setConfig({ ...config, reportesVentas: checked })}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Tarifas y Precios */}
-        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Building className="h-5 w-5 text-primary" />
-              <CardTitle>Tarifas y Precios</CardTitle>
-            </div>
-            <CardDescription>
-              Ajusta pagos por acciÃ³n y precios por mÂ² segÃºn dimensiÃ³n
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-3">
-              <h4 className="font-medium">Pagos por acciÃ³n (por losa)</h4>
-              <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
-                {acciones.map((accion) => (
-                  <div key={accion} className="space-y-2">
-                    <Label className="capitalize">{accion}</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={config.tarifasGlobales[accion as AccionLosa]}
-                      onChange={(e) => updateTarifa(accion as AccionLosa, Number(e.target.value))}
-                    />
-                  </div>
-                ))}
+          <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Building className="h-5 w-5 text-primary" />
+                <CardTitle>Tarifas y precios</CardTitle>
               </div>
-            </div>
-
-            <div className="space-y-3">
-              <h4 className="font-medium">Salarios fijos por rol</h4>
-              <p className="text-xs text-muted-foreground">
-                Solo aplica para roles administrativos. Obrero se paga por producciÃ³n.
-              </p>
+              <CardDescription>Ajusta pagos por accion y precios por m2 segun dimension</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
               <div className="space-y-3">
-                {Object.entries(config.salariosFijosPorRol).map(([rol, salario]) => (
-                  <div key={rol} className="rounded-lg border border-border/60 p-4">
-                    <Label className="mb-2 block text-xs uppercase tracking-[0.2em] text-slate-500">
-                      {rol}
-                    </Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={salario}
-                      onChange={(e) => updateSalarioFijo(rol as RolConSalarioFijo, Number(e.target.value))}
-                    />
-                  </div>
-                ))}
+                <h4 className="font-medium">Pagos por accion (por losa)</h4>
+                <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0 md:pb-0">
+                  {acciones.map((accion) => (
+                    <div key={accion} className="space-y-2">
+                      <Label className="capitalize">{accion}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={config.tarifasGlobales[accion as AccionLosa]}
+                        onChange={(e) => updateTarifa(accion as AccionLosa, Number(e.target.value))}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-3">
-              <h4 className="font-medium">Precio por m2 segÃºn dimensiÃ³n</h4>
-              <div className="space-y-4">
-                {dimensiones.map((dimension) => (
-                  <div key={dimension} className="rounded-lg border border-border/60 p-4">
-                    <p className="font-medium mb-3">{dimension} cm</p>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Crudo</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={config.preciosM2[dimension as Dimension].crudo}
-                          onChange={(e) => updatePrecioM2(dimension as Dimension, 'crudo', Number(e.target.value))}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Pulido</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={config.preciosM2[dimension as Dimension].pulido}
-                          onChange={(e) => updatePrecioM2(dimension as Dimension, 'pulido', Number(e.target.value))}
-                        />
+              <div className="space-y-3">
+                <h4 className="font-medium">Salarios fijos por rol</h4>
+                <p className="text-xs text-muted-foreground">
+                  Solo aplica para roles administrativos. Obrero se paga por produccion.
+                </p>
+                <div className="space-y-3">
+                  {Object.entries(config.salariosFijosPorRol).map(([rol, salario]) => (
+                    <div key={rol} className="rounded-lg border border-border/60 p-4">
+                      <Label className="mb-2 block text-xs uppercase tracking-[0.2em] text-slate-500">{rol}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={salario}
+                        onChange={(e) => updateSalarioFijo(rol as RolConSalarioFijo, Number(e.target.value))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-medium">Precio por m2 segun dimension</h4>
+                <div className="space-y-4">
+                  {dimensiones.map((dimension) => (
+                    <div key={dimension} className="rounded-lg border border-border/60 p-4">
+                      <p className="mb-3 font-medium">{dimension} cm</p>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Crudo</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={config.preciosM2[dimension as Dimension].crudo}
+                            onChange={(e) => updatePrecioM2(dimension as Dimension, 'crudo', Number(e.target.value))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Pulido</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={config.preciosM2[dimension as Dimension].pulido}
+                            onChange={(e) => updatePrecioM2(dimension as Dimension, 'pulido', Number(e.target.value))}
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Security */}
-        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              <CardTitle>Seguridad</CardTitle>
-            </div>
-            <CardDescription>
-              Opciones de seguridad de la cuenta
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">AutenticaciÃ³n de Dos Factores</p>
-                <p className="text-sm text-muted-foreground">
-                  AA?ade una capa extra de seguridad
-                </p>
+          <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-primary" />
+                <CardTitle>Seguridad</CardTitle>
               </div>
-              <Switch
-                checked={securitySettings.twoFactorAuth}
-                onCheckedChange={(checked) => 
-                  setSecuritySettings({ ...securitySettings, twoFactorAuth: checked })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Cierre de SesiA3n AutomA?tico</p>
-                <p className="text-sm text-muted-foreground">
-                  Cerrar sesiÃ³n tras 30 min de inactividad
-                </p>
+              <CardDescription>Opciones de seguridad de la cuenta</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Autenticacion de dos factores</p>
+                  <p className="text-sm text-muted-foreground">Anade una capa extra de seguridad</p>
+                </div>
+                <Switch
+                  checked={securitySettings.twoFactorAuth}
+                  onCheckedChange={(checked) => setSecuritySettings({ ...securitySettings, twoFactorAuth: checked })}
+                />
               </div>
-              <Switch
-                checked={securitySettings.sessionTimeout}
-                onCheckedChange={(checked) => 
-                  setSecuritySettings({ ...securitySettings, sessionTimeout: checked })
-                }
-              />
-            </div>
-            <Button variant="outline" className="w-full bg-transparent">
-              Cambiar ContraseA?a
-            </Button>
-          </CardContent>
-        </Card>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Cierre de sesion automatico</p>
+                  <p className="text-sm text-muted-foreground">Cerrar sesion tras 30 min de inactividad</p>
+                </div>
+                <Switch
+                  checked={securitySettings.sessionTimeout}
+                  onCheckedChange={(checked) => setSecuritySettings({ ...securitySettings, sessionTimeout: checked })}
+                />
+              </div>
+              <Button variant="outline" className="w-full bg-transparent">
+                Cambiar contrasena
+              </Button>
+            </CardContent>
+          </Card>
 
-        {/* Appearance */}
-        <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Palette className="h-5 w-5 text-primary" />
-              <CardTitle>Apariencia</CardTitle>
-            </div>
-            <CardDescription>
-              Personaliza la interfaz
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Tema</Label>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1 bg-transparent">
-                  Claro
-                </Button>
-                <Button variant="outline" className="flex-1 bg-transparent">
-                  Oscuro
-                </Button>
-                <Button variant="default" className="flex-1">
-                  Sistema
-                </Button>
+          <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Palette className="h-5 w-5 text-primary" />
+                <CardTitle>Apariencia</CardTitle>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Idioma</Label>
-              <div className="flex gap-2">
-                <Button variant="default" className="flex-1">
-                  EspaA?ol
-                </Button>
-                <Button variant="outline" className="flex-1 bg-transparent">
-                  English
-                </Button>
+              <CardDescription>Personaliza la interfaz</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Tema</Label>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 bg-transparent">
+                    Claro
+                  </Button>
+                  <Button variant="outline" className="flex-1 bg-transparent">
+                    Oscuro
+                  </Button>
+                  <Button variant="default" className="flex-1">
+                    Sistema
+                  </Button>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+              <div className="space-y-2">
+                <Label>Idioma</Label>
+                <div className="flex gap-2">
+                  <Button variant="default" className="flex-1">
+                    Espanol
+                  </Button>
+                  <Button variant="outline" className="flex-1 bg-transparent">
+                    English
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <Button size="lg" onClick={handleSave}>
-          Guardar Cambios
-        </Button>
-      </div>
+        <div className="flex justify-end">
+          <Button size="lg" onClick={handleSave}>
+            Guardar cambios
+          </Button>
+        </div>
       </div>
     </AdminShell>
   )
 }
-

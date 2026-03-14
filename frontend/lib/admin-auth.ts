@@ -1,10 +1,12 @@
-﻿export type AdminRole =
+import { normalizeAdminPath } from '@/lib/admin-routes'
+
+export type AdminRole =
   | 'Super Admin'
   | 'Administrador'
   | 'Contadora'
   | 'Gestor de Ventas'
   | 'Jefe de Turno de Produccion'
-  | 'Jefe de Turno de ProducciÃ³n'
+  | 'Jefe de Turno de Producción'
   | 'Obrero'
 
 export type AdminUser = {
@@ -189,8 +191,8 @@ const ROLE_ACCESS: Record<AdminRole, AdminAccess> = {
     routes: ['/admin/produccion', '/admin/equipos', '/admin/asignaciones', '/admin/mermas'],
     canManageWorkers: false,
   },
-  'Jefe de Turno de ProducciÃ³n': {
-    role: 'Jefe de Turno de ProducciÃ³n',
+  'Jefe de Turno de Producción': {
+    role: 'Jefe de Turno de Producción',
     label: 'Produccion',
     home: '/admin/produccion',
     routes: ['/admin/produccion', '/admin/equipos', '/admin/asignaciones', '/admin/mermas'],
@@ -210,7 +212,19 @@ export function getAccessForRole(role: AdminRole): AdminAccess {
 }
 
 export function isPathAllowed(pathname: string, access: AdminAccess): boolean {
-  return access.routes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
+  const normalizedPathname = normalizeAdminPath(pathname)
+
+  return access.routes.some((route) => {
+    const normalizedRoute = normalizeAdminPath(route)
+    if (normalizedRoute === '/admin') {
+      return normalizedPathname === '/admin'
+    }
+
+    return (
+      normalizedPathname === normalizedRoute ||
+      normalizedPathname.startsWith(`${normalizedRoute}/`)
+    )
+  })
 }
 
 export function getUserByCredentials(email: string, password: string): AdminUser | null {
@@ -219,3 +233,4 @@ export function getUserByCredentials(email: string, password: string): AdminUser
   )
   return match ? match.user : null
 }
+

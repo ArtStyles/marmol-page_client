@@ -26,7 +26,7 @@ export const DesktopNavigation = ({
     <div className="scrollbar-hidden space-y-3 py-1 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-4 lg:-mr-4">
       <div className="rounded-[22px] border border-(--dash-border) bg-(--dash-card) p-2 shadow-(--dash-shadow)">
         <div className="flex items-center justify-between">
-          <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Navegacion</p>
+          <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Menú</p>
           <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.2em]">
             Panel
           </Badge>
@@ -66,14 +66,14 @@ export const DesktopNavigation = ({
         </div>
       </div>
       {sessionUser && (
-        <AdminPanelCard title="Sesion activa" meta={sessionUser.role}>
+        <AdminPanelCard title="Usuario activo" meta={sessionUser.role}>
           <div className="space-y-3 text-sm text-slate-700">
             <div>
               <p className="text-sm font-semibold text-slate-900">{sessionUser.name}</p>
               <p className="text-xs text-slate-500">{sessionUser.email}</p>
             </div>
             <Button size="sm" variant="outline" className="w-full bg-white/70" onClick={onLogout}>
-              Cerrar sesion
+              Cerrar sesión
             </Button>
           </div>
         </AdminPanelCard>

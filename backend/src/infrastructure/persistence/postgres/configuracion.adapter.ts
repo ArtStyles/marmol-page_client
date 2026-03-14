@@ -3,6 +3,31 @@ import type { ConfiguracionSistema } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
 import { getCurrentWorkshopId } from './tenant.js'
 
+const emptyConfiguracion: ConfiguracionSistema = {
+  tarifasGlobales: {
+    picar: 0,
+    pulir: 0,
+    escuadrar: 0,
+  },
+  salariosFijosPorRol: {
+    Administrador: 0,
+    'Gestor de Ventas': 0,
+    'Jefe de Turno de Producción': 0,
+  },
+  preciosM2: {
+    '40x40': { crudo: 0, pulido: 0 },
+    '60x40': { crudo: 0, pulido: 0 },
+    '80x40': { crudo: 0, pulido: 0 },
+  },
+  nombreEmpresa: '',
+  email: '',
+  telefono: '',
+  direccion: '',
+  notificacionesEmail: false,
+  alertasStockBajo: false,
+  reportesVentas: false,
+}
+
 function rowToConfig(r: Record<string, unknown>): ConfiguracionSistema {
   return {
     tarifasGlobales: r.tarifas_globales as ConfiguracionSistema['tarifasGlobales'],
@@ -18,28 +43,30 @@ function rowToConfig(r: Record<string, unknown>): ConfiguracionSistema {
   }
 }
 
-export class PostgresConfiguracionAdapter implements ConfiguracionPort {
-  async get(): Promise<ConfiguracionSistema> {
-    const pool = getPool()
-    const workshopId = getCurrentWorkshopId()
-    const configId = `default:${workshopId}`
-    const r = await pool.query('SELECT * FROM configuracion WHERE id = $1', [configId])
-    if (r.rows.length === 0) {
-      const fallback = await pool.query(
-        'SELECT * FROM configuracion ORDER BY updated_at DESC NULLS LAST LIMIT 1',
-      )
-      if (fallback.rows.length === 0) throw new Error('Configuracion not found')
-      const seeded = rowToConfig(fallback.rows[0])
-      await this.save(seeded)
-      return seeded
-    }
-    return rowToConfig(r.rows[0])
-  }
+function applyWorkshopCompanyInfo(
+  config: ConfiguracionSistema,
+  workshopRow: Record<string, unknown> | null,
+): ConfiguracionSistema {
+  if (!workshopRow) return config
 
-  async save(config: ConfiguracionSistema): Promise<ConfiguracionSistema> {
+  return {
+    ...config,
+    nombreEmpresa: (workshopRow.nombre as string) ?? '',
+    email: (workshopRow.correo as string) ?? '',
+    telefono: (workshopRow.telefono as string) ?? '',
+    direccion: (workshopRow.direccion as string) ?? '',
+  }
+}
+
+export class PostgresConfiguracionAdapter implements ConfiguracionPort {
+  private async upsertConfig(
+    workshopId: string,
+    config: ConfiguracionSistema,
+    options: { syncWorkshopCompanyInfo: boolean },
+  ): Promise<void> {
     const pool = getPool()
-    const workshopId = getCurrentWorkshopId()
     const configId = `default:${workshopId}`
+
     await pool.query(
       `INSERT INTO configuracion (id, workshop_id, tarifas_globales, salarios_fijos_por_rol, precios_m2, nombre_empresa, email, telefono, direccion, notificaciones_email, alertas_stock_bajo, reportes_ventas)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -68,8 +95,50 @@ export class PostgresConfiguracionAdapter implements ConfiguracionPort {
         config.notificacionesEmail,
         config.alertasStockBajo,
         config.reportesVentas,
-      ]
+      ],
     )
+
+    if (!options.syncWorkshopCompanyInfo) return
+
+    await pool.query(
+      `UPDATE workshops
+       SET nombre = $2, correo = $3, telefono = $4, direccion = $5
+       WHERE id = $1`,
+      [workshopId, config.nombreEmpresa, config.email, config.telefono, config.direccion],
+    )
+  }
+
+  async get(): Promise<ConfiguracionSistema> {
+    const pool = getPool()
+    const workshopId = getCurrentWorkshopId()
+    const configId = `default:${workshopId}`
+    let configRows = await pool.query('SELECT * FROM configuracion WHERE id = $1', [configId])
+    if (configRows.rows.length === 0) {
+      await this.upsertConfig(workshopId, emptyConfiguracion, {
+        syncWorkshopCompanyInfo: false,
+      })
+      configRows = await pool.query('SELECT * FROM configuracion WHERE id = $1', [configId])
+    }
+
+    if (configRows.rows.length === 0) return emptyConfiguracion
+
+    const workshopRows = await pool.query(
+      'SELECT nombre, correo, telefono, direccion FROM workshops WHERE id = $1 LIMIT 1',
+      [workshopId],
+    )
+
+    const config = rowToConfig(configRows.rows[0] as Record<string, unknown>)
+    const workshop =
+      workshopRows.rows.length > 0 ? (workshopRows.rows[0] as Record<string, unknown>) : null
+
+    return applyWorkshopCompanyInfo(config, workshop)
+  }
+
+  async save(config: ConfiguracionSistema): Promise<ConfiguracionSistema> {
+    const workshopId = getCurrentWorkshopId()
+    await this.upsertConfig(workshopId, config, {
+      syncWorkshopCompanyInfo: true,
+    })
     return this.get()
   }
 }

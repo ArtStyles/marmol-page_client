@@ -1,0 +1,18 @@
+[Unit]
+Description=Marble Sales Backend API
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/marble-sales-website/backend
+Environment=NODE_ENV=production
+EnvironmentFile=/var/www/marble-sales-website/backend/.env
+ExecStart=/usr/bin/node dist/server.js
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

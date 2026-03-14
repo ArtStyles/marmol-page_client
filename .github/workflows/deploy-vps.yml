@@ -1,0 +1,62 @@
+name: Deploy VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy"
+        required: true
+        default: "main"
+      with_db_setup:
+        description: "Run backend db:setup before build"
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: deploy-vps-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve deploy params
+        id: params
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "branch=${{ github.event.inputs.branch }}" >> "$GITHUB_OUTPUT"
+            if [[ "${{ github.event.inputs.with_db_setup }}" == "true" ]]; then
+              echo "db_flag=--with-db-setup" >> "$GITHUB_OUTPUT"
+            else
+              echo "db_flag=" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "branch=main" >> "$GITHUB_OUTPUT"
+            echo "db_flag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup SSH key
+        shell: bash
+        run: |
+          VPS_PORT="${{ secrets.VPS_PORT }}"
+          VPS_PORT="${VPS_PORT:-22}"
+          install -m 700 -d ~/.ssh
+          printf "%s" "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$VPS_PORT" -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy via SSH
+        shell: bash
+        run: |
+          VPS_PORT="${{ secrets.VPS_PORT }}"
+          VPS_PORT="${VPS_PORT:-22}"
+          ssh -o StrictHostKeyChecking=yes \
+            -p "$VPS_PORT" \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "cd '${{ secrets.VPS_APP_DIR }}' && ./deploy/scripts/deploy-release.sh --branch '${{ steps.params.outputs.branch }}' ${{ steps.params.outputs.db_flag }}"

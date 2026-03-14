@@ -89,7 +89,7 @@ export default function GastosPage() {
       0,
     )
     return subtotal - descuentos
-  }, [])
+  }, [ventas])
 
   const resumen = useMemo(() => {
     const nowMonth = getTodayDateIso().slice(0, 7)
@@ -162,7 +162,7 @@ export default function GastosPage() {
     resetForm()
   }
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
 
     const costo = Number(formData.costo)
@@ -184,7 +184,7 @@ export default function GastosPage() {
       return
     }
 
-    addGasto({
+    const created = await addGasto({
       fecha: formData.fecha || getTodayDateIso(),
       costo: Number(costo.toFixed(2)),
       tipo: formData.tipo,
@@ -192,8 +192,11 @@ export default function GastosPage() {
       descripcion,
       encargado,
     })
-
-    closeDialog()
+    if (created) {
+      closeDialog()
+      return
+    }
+    setFormError('No se pudo guardar el gasto en el backend.')
   }
 
   const rightPanel = (

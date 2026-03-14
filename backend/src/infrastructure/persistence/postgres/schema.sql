@@ -288,16 +288,8 @@ CREATE INDEX IF NOT EXISTS idx_historial_pagos_workshop_id ON historial_pagos(wo
 CREATE INDEX IF NOT EXISTS idx_system_logs_workshop_id ON system_logs(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_admin_users_workshop_id ON admin_users(workshop_id);
 
--- Usuarios de ejemplo (mismas credenciales que el mock del front; password en texto plano solo desarrollo)
-INSERT INTO workshops (
-  id, nombre, ciudad, direccion, encargado, telefono, correo, estado, empleados,
-  capacidad_m2_mes, ventas_mes, produccion_mes_m2, margen_operativo, ordenes_activas, ultima_actualizacion
-) VALUES
-  ('TLR-001', 'Taller Central CDMX', 'Ciudad de Mexico', 'Av. Principal 123, Col. Centro', 'Fernando Ruiz', '+52 555 456 7890', 'cdmx@marmol.local', 'activo', 18, 1600, 245000, 1280, 0.26, 14, '2026-02-05'),
-  ('TLR-002', 'Taller Guadalajara', 'Guadalajara', 'Carr. Chapala 980, Zona Industrial', 'Lucia Herrera', '+52 333 210 9988', 'gdl@marmol.local', 'activo', 12, 1100, 162000, 940, 0.22, 9, '2026-02-04'),
-  ('TLR-003', 'Taller Monterrey', 'Monterrey', 'Av. Lazaro Cardenas 1340, Sur', 'Marco Salinas', '+52 818 555 3020', 'mty@marmol.local', 'en-implementacion', 9, 780, 98000, 520, 0.18, 6, '2026-02-02')
-ON CONFLICT (id) DO NOTHING;
-
+-- Seed minimo: solo usuarios para autenticacion (sin datos operativos demo)
+-- Password en texto plano solo para desarrollo local.
 INSERT INTO admin_users (id, name, email, workshop_id, password_hash, role) VALUES
   ('SUP-001', 'Super Admin', 'superadmin@marmol.local', 'TLR-001', 'super123', 'Super Admin'),
   ('ADM-001', 'Admin Principal', 'admin@marmol.local', 'TLR-001', 'admin123', 'Administrador'),
@@ -308,29 +300,3 @@ INSERT INTO admin_users (id, name, email, workshop_id, password_hash, role) VALU
   ('ADM-002', 'Admin Guadalajara', 'admin.gdl@marmol.local', 'TLR-002', 'admingdl123', 'Administrador'),
   ('ADM-003', 'Admin Monterrey', 'admin.mty@marmol.local', 'TLR-003', 'adminmty123', 'Administrador')
 ON CONFLICT (email) DO NOTHING;
-
--- Secuencias para IDs (opcional; tambien se pueden generar en app)
--- INSERT inicial de configuracion si no existe
-INSERT INTO configuracion (id, workshop_id, tarifas_globales, salarios_fijos_por_rol, precios_m2, nombre_empresa, email, telefono, direccion)
-SELECT 'default:TLR-001',
-  'TLR-001',
-  '{"picar":400,"pulir":250,"escuadrar":100}'::jsonb,
-  '{"Administrador":28000,"Gestor de Ventas":18000,"Jefe de Turno de Produccion":22000}'::jsonb,
-  '{"40x40":{"crudo":120,"pulido":180},"60x40":{"crudo":140,"pulido":200},"80x40":{"crudo":160,"pulido":220}}'::jsonb,
-  'Marmoles Elegance',
-  'info@marmoleselegance.com',
-  '+52 555 123 4567',
-  'Av. Principal 123, Col. Centro, CDMX'
-WHERE NOT EXISTS (SELECT 1 FROM configuracion WHERE id = 'default:TLR-001');
-
-INSERT INTO catalogo_items (id, workshop_id, nombre, tipo, acabado, dimension, precio_m2, stock_losas, destacado, descripcion, imagen, visible) VALUES
-  ('C001', 'TLR-001', 'Marmol Carrara Select 60x40', 'Piso', 'Pulido', '60x40', 210, 120, true, 'Veta suave y elegante, ideal para salas, cocinas premium y proyectos residenciales.', '/marble-carrara.jpg', true),
-  ('C002', 'TLR-001', 'Calacatta Gold Signature 80x40', 'Plancha', 'Pulido', '80x40', 340, 48, true, 'Alta demanda en barras y muros de impacto. Tonos dorados con vetas definidas.', '/marble-calacatta.jpg', true),
-  ('C003', 'TLR-001', 'Emperador Dark 60x40', 'Piso', 'Crudo', '60x40', 170, 90, false, 'Acabado natural para proyectos boutique y espacios comerciales con alto trafico.', '/marble-emperador.jpg', true)
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO gastos (id, workshop_id, fecha, costo, tipo, flujo, descripcion, encargado) VALUES
-  ('G001', 'TLR-001', '2026-02-24', 1400, 'Transporte', 'Inventario', 'Traslado de bloque BL002 desde proveedor principal.', 'Fernando Ruiz'),
-  ('G002', 'TLR-001', '2026-02-25', 950, 'Servicios', 'Produccion', 'Pago de energia electrica en turno extendido de pulido.', 'Miguel Angel Torres'),
-  ('G003', 'TLR-001', '2026-02-27', 650, 'Mantenimiento', 'Produccion', 'Cambio de disco y ajuste preventivo de cortadora.', 'Carlos Mendoza')
-ON CONFLICT (id) DO NOTHING;

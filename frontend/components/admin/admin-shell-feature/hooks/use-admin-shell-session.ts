@@ -8,6 +8,7 @@ import {
   isPathAllowed,
   type AdminUser,
 } from '@/lib/admin-auth'
+import { extractWorkshopIdFromAdminPath } from '@/lib/admin-routes'
 import { WORKSHOP_STORAGE_KEY } from '@/lib/workshops'
 import { buildDefaultNav } from '../lib/navigation'
 import type { AdminNavItem } from '../model/types'
@@ -32,7 +33,10 @@ type UseAdminShellSessionResult = {
   handleLogout: () => void
 }
 
-export const useAdminShellSession = (navItems?: AdminNavItem[]): UseAdminShellSessionResult => {
+export const useAdminShellSession = (
+  pathname: string,
+  navItems?: AdminNavItem[],
+): UseAdminShellSessionResult => {
   const [sessionUser, setSessionUser] = useState<AdminUser | null>(() => readSessionUser())
 
   useEffect(() => {
@@ -43,7 +47,24 @@ export const useAdminShellSession = (navItems?: AdminNavItem[]): UseAdminShellSe
     }
   }, [sessionUser])
 
-  const items = useMemo(() => navItems ?? buildDefaultNav(sessionUser?.role), [navItems, sessionUser?.role])
+  const workshopScopeId = useMemo(() => {
+    if (!sessionUser) return null
+    if (sessionUser.role !== 'Super Admin') {
+      return sessionUser.workshopId ?? null
+    }
+
+    if (typeof window === 'undefined') return null
+    const storedWorkshop = window.localStorage.getItem(WORKSHOP_STORAGE_KEY)
+    if (storedWorkshop) return storedWorkshop
+
+    const workshopFromPath = extractWorkshopIdFromAdminPath(pathname)
+    return workshopFromPath
+  }, [pathname, sessionUser])
+
+  const items = useMemo(
+    () => navItems ?? buildDefaultNav(sessionUser?.role, workshopScopeId),
+    [navItems, sessionUser?.role, workshopScopeId],
+  )
 
   const filteredItems = useMemo(() => {
     const access = sessionUser ? getAccessForRole(sessionUser.role) : null

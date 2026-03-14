@@ -1,8 +1,8 @@
 import type { WorkshopRepositoryPort } from '../../../domain/ports/index.js'
 import type { WorkshopTenant } from '../../../domain/entities/index.js'
 import type { WorkshopCreateInput } from '../../../domain/ports/index.js'
+import { randomBytes } from 'node:crypto'
 import { getPool } from './connection.js'
-import { nextId } from './helpers.js'
 
 function asNumber(value: unknown, fallback = 0): number {
   if (value === null || value === undefined) return fallback
@@ -26,18 +26,32 @@ function rowToWorkshop(r: Record<string, unknown>): WorkshopTenant {
     telefono: (r.telefono as string) ?? '',
     correo: r.correo as string,
     estado: r.estado as WorkshopTenant['estado'],
-    empleados: asNumber(r.empleados_real, asNumber(r.empleados)),
+    empleados: asNumber(r.empleados_real),
     capacidadM2Mes: asNumber(r.capacidad_m2_mes),
-    ventasMes: asNumber(r.ventas_mes_real, asNumber(r.ventas_mes)),
-    produccionMesM2: asNumber(r.produccion_mes_m2_real, asNumber(r.produccion_mes_m2)),
-    margenOperativo: hasVentasMes
-      ? margenOperativoReal
-      : asNumber(r.margen_operativo),
-    ordenesActivas: asNumber(r.ordenes_activas_real, asNumber(r.ordenes_activas)),
+    ventasMes: asNumber(r.ventas_mes_real),
+    produccionMesM2: asNumber(r.produccion_mes_m2_real),
+    margenOperativo: hasVentasMes ? margenOperativoReal : 0,
+    ordenesActivas: asNumber(r.ordenes_activas_real),
     ultimaActualizacion:
       (r.ultima_actualizacion_real as string | null | undefined) ??
       (r.ultima_actualizacion as string),
   }
+}
+
+function generateWorkshopId(): string {
+  return `wks_${randomBytes(16).toString('hex')}`
+}
+
+async function generateUniqueWorkshopId(): Promise<string> {
+  const pool = getPool()
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const candidate = generateWorkshopId()
+    const exists = await pool.query('SELECT 1 FROM workshops WHERE id = $1 LIMIT 1', [candidate])
+    if (exists.rows.length === 0) return candidate
+  }
+
+  throw new Error('Unable to generate unique workshop id')
 }
 
 export class PostgresWorkshopRepository implements WorkshopRepositoryPort {
@@ -131,7 +145,7 @@ export class PostgresWorkshopRepository implements WorkshopRepositoryPort {
 
   async create(data: WorkshopCreateInput): Promise<WorkshopTenant> {
     const pool = getPool()
-    const id = await nextId(pool, 'TLR-', 'workshops')
+    const id = await generateUniqueWorkshopId()
     const today = new Date().toISOString().split('T')[0]
     await pool.query(
       `INSERT INTO workshops (id, nombre, ciudad, direccion, encargado, telefono, correo, estado, empleados, capacidad_m2_mes, ventas_mes, produccion_mes_m2, margen_operativo, ordenes_activas, ultima_actualizacion)

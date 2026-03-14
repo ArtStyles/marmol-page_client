@@ -1,6 +1,9 @@
 import { ADMIN_TOKEN_STORAGE_KEY } from './admin-auth'
+import { WORKSHOP_STORAGE_KEY } from './workshops'
 
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000/api').replace(
+const defaultApiBaseUrl = typeof window === 'undefined' ? 'http://localhost:4000/api' : '/api'
+
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? defaultApiBaseUrl).replace(
   /\/$/,
   '',
 )
@@ -33,6 +36,11 @@ export function setStoredAccessToken(token: string | null): void {
   window.localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token)
 }
 
+export function getStoredWorkshopId(): string | null {
+  if (typeof window === 'undefined') return null
+  return window.localStorage.getItem(WORKSHOP_STORAGE_KEY)
+}
+
 type ApiRequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
@@ -44,6 +52,7 @@ type ApiRequestOptions = {
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const method = options.method ?? 'GET'
   const token = options.token ?? getStoredAccessToken()
+  const workshopId = getStoredWorkshopId()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers ?? {}),
@@ -51,6 +60,9 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   if (!options.skipAuth && token) {
     headers.Authorization = `Bearer ${token}`
+  }
+  if (!options.skipAuth && workshopId) {
+    headers['x-workshop-id'] = workshopId
   }
 
   const response = await fetch(`${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`, {

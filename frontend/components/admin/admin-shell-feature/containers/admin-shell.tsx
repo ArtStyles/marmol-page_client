@@ -11,7 +11,7 @@ import type { AdminShellProps } from '../model/types'
 
 export const AdminShell = ({ children, rightPanel, navItems }: AdminShellProps) => {
   const pathname = usePathname()
-  const { sessionUser, filteredItems, handleLogout } = useAdminShellSession(navItems)
+  const { sessionUser, filteredItems, handleLogout } = useAdminShellSession(pathname, navItems)
 
   return (
     <div className="admin-shell relative">

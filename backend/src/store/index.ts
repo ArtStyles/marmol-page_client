@@ -15,6 +15,7 @@ import type {
   WorkshopTenant,
   AdminUser,
 } from '../domain/entities/index.js'
+import { randomBytes } from 'node:crypto'
 import type { WorkshopCreateInput } from '../domain/ports/index.js'
 import { getActiveWorkshopId } from '../infrastructure/tenant/tenant-context.js'
 import {
@@ -405,8 +406,21 @@ export function getWorkshops(): WorkshopTenant[] {
 export function getWorkshopById(id: string): WorkshopTenant | undefined {
   return state.workshops.find((w) => w.id === id)
 }
+
+function buildWorkshopId(): string {
+  return `wks_${randomBytes(16).toString('hex')}`
+}
+
+function generateUniqueWorkshopId(): string {
+  let id = buildWorkshopId()
+  while (state.workshops.some((workshop) => workshop.id === id)) {
+    id = buildWorkshopId()
+  }
+  return id
+}
+
 export function createWorkshop(input: WorkshopCreateInput): WorkshopTenant {
-  const id = `TLR-${String(state.workshops.length + 1).padStart(3, '0')}`
+  const id = generateUniqueWorkshopId()
   const today = new Date().toISOString().split('T')[0]
   const item: WorkshopTenant = {
     id,

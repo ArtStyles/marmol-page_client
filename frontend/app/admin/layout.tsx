@@ -9,15 +9,18 @@ import { AdminWorkshopSelector } from '@/components/admin/workshop-selector'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import {
   ADMIN_STORAGE_KEY,
   ADMIN_TOKEN_STORAGE_KEY,
-  MOCK_ADMIN_USERS,
   getAccessForRole,
   isPathAllowed,
   type AdminUser,
 } from '@/lib/admin-auth'
+import {
+  extractWorkshopIdFromAdminPath,
+  normalizeAdminPath,
+  routeWithWorkshop,
+} from '@/lib/admin-routes'
 import {
   WORKSHOP_STORAGE_KEY,
   type WorkshopCreateInput,
@@ -47,6 +50,7 @@ export default function AdminLayout({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
+  const workshopIdFromPath = useMemo(() => extractWorkshopIdFromAdminPath(pathname), [pathname])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -71,7 +75,6 @@ export default function AdminLayout({
         window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY)
       }
     }
-    if (storedWorkshop) setSelectedWorkshopId(storedWorkshop)
     setIsReady(true)
   }, [])
 
@@ -120,8 +123,9 @@ export default function AdminLayout({
         }
       }
       const nextAccess = getAccessForRole(user.role)
+      const targetPath = routeWithWorkshop(nextAccess.home, isSuperAdmin ? null : user.workshopId)
       if (!isPathAllowed(pathname, nextAccess)) {
-        router.replace(nextAccess.home)
+        router.replace(targetPath)
       }
     } catch {
       setError('Credenciales invalidas o backend no disponible.')
@@ -151,6 +155,9 @@ export default function AdminLayout({
     setSelectedWorkshopId(workshopId)
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(WORKSHOP_STORAGE_KEY, workshopId)
+    }
+    if (authUser?.role === 'Super Admin') {
+      router.replace(routeWithWorkshop('/admin', workshopId))
     }
   }
 
@@ -208,10 +215,38 @@ export default function AdminLayout({
 
   useEffect(() => {
     if (!authUser) return
-    if (authUser.role !== 'Super Admin' && !selectedWorkshopId && authUser.workshopId) {
-      handleSelectWorkshop(authUser.workshopId)
+    if (authUser.role === 'Super Admin') return
+
+    if (selectedWorkshopId !== authUser.workshopId) {
+      setSelectedWorkshopId(authUser.workshopId)
+    }
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(WORKSHOP_STORAGE_KEY, authUser.workshopId)
     }
   }, [authUser, selectedWorkshopId])
+
+  useEffect(() => {
+    if (!authUser || authUser.role !== 'Super Admin') return
+    if (selectedWorkshopId) return
+    if (!workshopIdFromPath) return
+    setSelectedWorkshopId(workshopIdFromPath)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(WORKSHOP_STORAGE_KEY, workshopIdFromPath)
+    }
+  }, [authUser, selectedWorkshopId, workshopIdFromPath])
+
+  useEffect(() => {
+    if (!authUser) return
+    const scopedWorkshopId =
+      authUser.role === 'Super Admin' ? selectedWorkshopId : authUser.workshopId
+    if (!scopedWorkshopId) return
+
+    const normalizedPath = normalizeAdminPath(pathname)
+    const scopedPath = routeWithWorkshop(normalizedPath, scopedWorkshopId)
+    if (scopedPath !== pathname) {
+      router.replace(scopedPath)
+    }
+  }, [authUser, pathname, router, selectedWorkshopId])
 
   if (!isReady) {
     return <div className="min-h-screen bg-background" />
@@ -219,82 +254,82 @@ export default function AdminLayout({
 
   if (!authUser) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-6">
-        <Card className="w-full max-w-md border-border/60 bg-card shadow-sm">
-          <CardHeader className="space-y-2">
-            <CardTitle className="text-2xl">Acceso al panel</CardTitle>
-            <CardDescription>
-              Inicia sesion para entrar al panel administrativo.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Correo</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="usuario@marmol.local"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Contrasena</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="********"
-                  required
-                />
-              </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? 'Ingresando...' : 'Ingresar'}
-              </Button>
-            </form>
+      <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(140deg,#f4f7fb_0%,#e7eef8_42%,#f5efe5_100%)]">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-20 top-0 h-72 w-72 rounded-full bg-[#d8e8ff]/70 blur-3xl" />
+          <div className="absolute right-0 top-16 h-64 w-64 rounded-full bg-[#ffe5c7]/60 blur-3xl" />
+          <div className="absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-[#d8f3e8]/55 blur-3xl" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(255,255,255,0.75),transparent_42%),radial-gradient(circle_at_75%_0%,rgba(255,255,255,0.48),transparent_48%)]" />
+        </div>
 
-            <div className="rounded-lg border border-border/60 bg-muted/40 p-4">
-              <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
-                Credenciales demo
+        <div className="relative mx-auto grid min-h-screen w-full max-w-6xl items-center gap-8 px-6 py-10 lg:grid-cols-[1.1fr_0.9fr]">
+          <section className="hidden lg:block">
+            <div className="max-w-xl space-y-6">
+              <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Marble Control Hub</p>
+              <h1 className="font-serif text-5xl leading-tight text-slate-900">
+                Gestion operativa de talleres en un solo panel.
+              </h1>
+              <p className="max-w-lg text-base text-slate-600">
+                Supervisa inventario, produccion, ventas y equipos con trazabilidad por taller y
+                acceso por rol.
               </p>
-              <div className="mt-3 space-y-3">
-                {MOCK_ADMIN_USERS.map((entry) => (
-                  <div key={entry.email} className="space-y-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-foreground">{entry.user.name}</p>
-                        <p className="text-xs text-muted-foreground">{entry.user.email}</p>
-                      </div>
-                      <Badge variant="outline">{entry.user.role}</Badge>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Contrasena: {entry.password}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setEmail(entry.user.email)
-                          setPassword(entry.password)
-                        }}
-                      >
-                        Usar
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
+          </section>
 
-            <Button asChild variant="ghost" className="w-full">
-              <Link href="/">Volver al sitio</Link>
-            </Button>
-          </CardContent>
-        </Card>
+          <Card className="w-full border-slate-200/80 bg-white/75 shadow-[0_30px_80px_-42px_rgba(15,23,42,0.45)] backdrop-blur-xl">
+            <CardHeader className="space-y-3">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Acceso administrativo</p>
+              <CardTitle className="font-serif text-3xl text-slate-900">Iniciar sesion</CardTitle>
+              <CardDescription className="text-slate-600">
+                Ingresa tus credenciales para abrir el panel de gestion.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-slate-700">Correo</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="usuario@empresa.com"
+                    className="h-11 border-slate-200 bg-white/85"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-slate-700">Contrasena</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="********"
+                    className="h-11 border-slate-200 bg-white/85"
+                    required
+                  />
+                </div>
+                {error && (
+                  <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    {error}
+                  </p>
+                )}
+                <Button
+                  type="submit"
+                  className="h-11 w-full bg-slate-900 text-white hover:bg-slate-800"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Ingresando...' : 'Entrar al panel'}
+                </Button>
+              </form>
+
+              <Button asChild variant="ghost" className="w-full text-slate-700 hover:bg-slate-100/70">
+                <Link href="/">Volver al sitio</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -330,7 +365,14 @@ export default function AdminLayout({
                 )}
                 {access && (
                   <Button asChild className="mt-4">
-                    <Link href={access.home}>Ir a tu panel</Link>
+                    <Link
+                      href={routeWithWorkshop(
+                        access.home,
+                        authUser.role === 'Super Admin' ? selectedWorkshopId : authUser.workshopId,
+                      )}
+                    >
+                      Ir a tu panel
+                    </Link>
                   </Button>
                 )}
               </div>
