@@ -45,10 +45,19 @@ jobs:
         run: |
           VPS_PORT="${{ secrets.VPS_PORT }}"
           VPS_PORT="${VPS_PORT:-22}"
+          VPS_HOST="${{ secrets.VPS_HOST }}"
+          [[ -n "$VPS_HOST" ]] || { echo "Missing secret: VPS_HOST"; exit 1; }
           install -m 700 -d ~/.ssh
-          printf "%s" "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+
+          if [[ -n "${{ secrets.VPS_SSH_KEY_B64 }}" ]]; then
+            printf "%s" "${{ secrets.VPS_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/id_ed25519
+          else
+            printf "%s" "${{ secrets.VPS_SSH_KEY }}" | tr -d '\r' > ~/.ssh/id_ed25519
+          fi
+
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p "$VPS_PORT" -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keygen -yf ~/.ssh/id_ed25519 >/dev/null
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
       - name: Deploy via SSH
