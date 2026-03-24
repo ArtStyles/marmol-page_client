@@ -75,11 +75,26 @@ Create these secrets:
 - `VPS_USER`: ssh user on VPS (example: `deploy`)
 - `VPS_APP_DIR`: app folder on VPS (example: `/var/www/marble-sales-website`)
 - `VPS_SSH_KEY`: full private key content from `github-actions-deploy-key`
+- Optional (recommended): `VPS_SSH_KEY_B64`: base64 version of private key (safer for multiline formatting)
 
 Important: `VPS_SSH_KEY` must include full multi-line key with:
 
 - `-----BEGIN OPENSSH PRIVATE KEY-----`
 - `-----END OPENSSH PRIVATE KEY-----`
+- Key must be unencrypted (no passphrase), for example generated with `-N ""`.
+- Do not use PuTTY `.ppk` format directly.
+
+If you prefer `VPS_SSH_KEY_B64`, generate it from the same private key file:
+
+```bash
+# Linux/macOS
+base64 -w 0 ./github-actions-deploy-key
+```
+
+```powershell
+# PowerShell (Windows)
+[Convert]::ToBase64String([IO.File]::ReadAllBytes(".\github-actions-deploy-key"))
+```
 
 ### 4) Validate
 

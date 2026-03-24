@@ -43,29 +43,61 @@ jobs:
       - name: Setup SSH key
         shell: bash
         run: |
+          set -euo pipefail
           VPS_PORT="${{ secrets.VPS_PORT }}"
           VPS_PORT="${VPS_PORT:-22}"
           VPS_HOST="${{ secrets.VPS_HOST }}"
+          VPS_USER="${{ secrets.VPS_USER }}"
           [[ -n "$VPS_HOST" ]] || { echo "Missing secret: VPS_HOST"; exit 1; }
+          [[ -n "$VPS_USER" ]] || { echo "Missing secret: VPS_USER"; exit 1; }
           install -m 700 -d ~/.ssh
 
-          if [[ -n "${{ secrets.VPS_SSH_KEY_B64 }}" ]]; then
-            printf "%s" "${{ secrets.VPS_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/id_ed25519
+          KEY_PATH=~/.ssh/id_deploy
+          KEY_B64="${{ secrets.VPS_SSH_KEY_B64 }}"
+          KEY_RAW="${{ secrets.VPS_SSH_KEY }}"
+
+          if [[ -n "$KEY_B64" ]]; then
+            printf "%s" "$KEY_B64" | tr -d '\r\n\t ' | base64 --decode > "$KEY_PATH"
+          elif [[ -n "$KEY_RAW" ]]; then
+            if [[ "$KEY_RAW" == *"\\n"* ]]; then
+              printf "%b\n" "$KEY_RAW" > "$KEY_PATH"
+            else
+              printf "%s\n" "$KEY_RAW" > "$KEY_PATH"
+            fi
+            sed -i 's/\r$//' "$KEY_PATH"
           else
-            printf "%s" "${{ secrets.VPS_SSH_KEY }}" | tr -d '\r' > ~/.ssh/id_ed25519
+            echo "Missing secret: VPS_SSH_KEY or VPS_SSH_KEY_B64"
+            exit 1
           fi
 
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keygen -yf ~/.ssh/id_ed25519 >/dev/null
+          # PuTTY format is not valid for OpenSSH in this workflow.
+          if head -n1 "$KEY_PATH" | grep -q '^PuTTY-User-Key-File-'; then
+            echo "Invalid key format: PuTTY .ppk is not supported. Use an OpenSSH private key."
+            exit 1
+          fi
+
+          chmod 600 "$KEY_PATH"
+          ssh-keygen -yf "$KEY_PATH" >/dev/null || {
+            echo "Invalid SSH private key in secret (format, corruption, or passphrase-protected key)."
+            exit 1
+          }
+
+          cat > ~/.ssh/config <<EOF
+          Host vps-deploy-target
+            HostName $VPS_HOST
+            User $VPS_USER
+            Port $VPS_PORT
+            IdentityFile $KEY_PATH
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 ~/.ssh/config
+
           ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
       - name: Deploy via SSH
         shell: bash
         run: |
-          VPS_PORT="${{ secrets.VPS_PORT }}"
-          VPS_PORT="${VPS_PORT:-22}"
-          ssh -o StrictHostKeyChecking=yes \
-            -p "$VPS_PORT" \
-            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+          ssh vps-deploy-target \
             "cd '${{ secrets.VPS_APP_DIR }}' && ./deploy/scripts/deploy-release.sh --branch '${{ steps.params.outputs.branch }}' ${{ steps.params.outputs.db_flag }}"
