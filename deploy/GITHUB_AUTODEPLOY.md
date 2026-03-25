@@ -77,6 +77,10 @@ Create these secrets:
 - `VPS_SSH_KEY`: full private key content from `github-actions-deploy-key`
 - Optional (recommended): `VPS_SSH_KEY_B64`: base64 version of private key (safer for multiline formatting)
 
+Use one approach:
+- If you set `VPS_SSH_KEY`, paste the key text with `BEGIN/END ... PRIVATE KEY`.
+- If you set `VPS_SSH_KEY_B64`, paste only the base64 string.
+
 Important: `VPS_SSH_KEY` must include full multi-line key with:
 
 - `-----BEGIN OPENSSH PRIVATE KEY-----`

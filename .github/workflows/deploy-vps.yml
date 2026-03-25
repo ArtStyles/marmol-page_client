@@ -56,17 +56,45 @@ jobs:
           KEY_B64="${{ secrets.VPS_SSH_KEY_B64 }}"
           KEY_RAW="${{ secrets.VPS_SSH_KEY }}"
 
-          if [[ -n "$KEY_B64" ]]; then
-            printf "%s" "$KEY_B64" | tr -d '\r\n\t ' | base64 --decode > "$KEY_PATH"
-          elif [[ -n "$KEY_RAW" ]]; then
-            if [[ "$KEY_RAW" == *"\\n"* ]]; then
-              printf "%b\n" "$KEY_RAW" > "$KEY_PATH"
+          write_text_key() {
+            local value="$1"
+            if [[ "$value" == *"\\n"* ]]; then
+              printf "%b\n" "$value" > "$KEY_PATH"
             else
-              printf "%s\n" "$KEY_RAW" > "$KEY_PATH"
+              printf "%s\n" "$value" > "$KEY_PATH"
             fi
             sed -i 's/\r$//' "$KEY_PATH"
+          }
+
+          decode_b64_key() {
+            local value="$1"
+            printf "%s" "$value" | tr -d '\r\n\t ' | base64 --decode > "$KEY_PATH" 2>/dev/null
+          }
+
+          if [[ -n "$KEY_B64" ]]; then
+            decode_b64_key "$KEY_B64" || {
+              echo "VPS_SSH_KEY_B64 is not valid base64."
+              exit 1
+            }
+          elif [[ -n "$KEY_RAW" ]]; then
+            if [[ "$KEY_RAW" == *"BEGIN "* && "$KEY_RAW" == *"PRIVATE KEY"* ]]; then
+              write_text_key "$KEY_RAW"
+            else
+              # If user pasted base64 into VPS_SSH_KEY by mistake, decode it automatically.
+              if decode_b64_key "$KEY_RAW"; then
+                echo "Detected base64 content in VPS_SSH_KEY. Decoded automatically."
+              else
+                write_text_key "$KEY_RAW"
+              fi
+            fi
           else
             echo "Missing secret: VPS_SSH_KEY or VPS_SSH_KEY_B64"
+            exit 1
+          fi
+
+          if ! head -n1 "$KEY_PATH" | grep -Eq '^-----BEGIN .*PRIVATE KEY-----$'; then
+            echo "Invalid SSH key header. Secret looks truncated or malformed."
+            echo "Expected first line like: -----BEGIN OPENSSH PRIVATE KEY-----"
             exit 1
           fi
 

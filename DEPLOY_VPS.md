@@ -58,6 +58,11 @@ Set at least:
 - `FRONTEND_ORIGIN=https://marble.example.com,https://www.marble.example.com`
 - `AUTH_TOKEN_SECRET=<secreto-fuerte>`
 
+Recommended for production bootstrap account:
+
+- `SUPER_ADMIN_EMAIL=<correo-super-admin>`
+- `SUPER_ADMIN_PASSWORD=<password-fuerte-super-admin>`
+
 Frontend:
 
 ```bash
@@ -78,6 +83,13 @@ pnpm run build
 
 cd /var/www/marble-sales-website/frontend
 pnpm run build
+```
+
+If the database already exists and you only need pending migrations (for example, to ensure Super Admin user exists), run:
+
+```bash
+cd /var/www/marble-sales-website/backend
+pnpm run db:migrate
 ```
 
 ## 5) systemd services
