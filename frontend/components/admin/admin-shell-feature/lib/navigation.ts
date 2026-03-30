@@ -10,6 +10,7 @@ import {
   Package,
   ReceiptText,
   Settings,
+  Shield,
   TrendingUp,
   Users,
   Wallet,
@@ -119,6 +120,12 @@ export const buildDefaultNav = (
       label: 'Configuración',
       helper: 'Sistema',
       icon: Settings,
+    },
+    {
+      href: routeWithWorkshop('/admin/permisos', workshopId),
+      label: 'Permisos',
+      helper: 'Accesos',
+      icon: Shield,
     },
   ]
 

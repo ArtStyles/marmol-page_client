@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/admin/admin-button'
 import { Badge } from '@/components/ui/badge'
-import { getAccessForRole, type AdminUser } from '@/lib/admin-auth'
+import { getAccessForUser, type AdminUser } from '@/lib/admin-auth'
 
 const primaryNavItems = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
@@ -57,7 +57,7 @@ interface AdminSidebarProps {
 
 export function AdminSidebar({ isCollapsed, onToggle, user, onLogout }: AdminSidebarProps) {
   const pathname = usePathname()
-  const access = getAccessForRole(user.role)
+  const access = getAccessForUser(user)
   const isRouteAllowed = (href: string) =>
     access.routes.some((route) => href === route || href.startsWith(`${route}/`))
   const allowedPrimary = primaryNavItems.filter((item) => isRouteAllowed(item.href))

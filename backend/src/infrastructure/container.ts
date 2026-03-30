@@ -92,6 +92,15 @@ import {
   UpdateWorkshopUseCase,
   DeleteWorkshopUseCase,
 } from '../application/use-cases/workshops/workshop.use-cases.js'
+import {
+  GetPermissionDefinitionsUseCase,
+  GetPermissionGroupsUseCase,
+  CreatePermissionGroupUseCase,
+  UpdatePermissionGroupUseCase,
+  DeletePermissionGroupUseCase,
+  GetUserAccessListUseCase,
+  UpdateUserAccessUseCase,
+} from '../application/use-cases/permissions/permission.use-cases.js'
 import { LoginUseCase } from '../application/use-cases/auth/auth.use-cases.js'
 
 const usePostgres = Boolean(process.env.DATABASE_URL)
@@ -141,6 +150,9 @@ const workshopRepo = usePostgres
 const authPort = usePostgres
   ? new postgres.PostgresAuthAdapter()
   : new inMemory.InMemoryAuthAdapter()
+const permissionRepo = usePostgres
+  ? new postgres.PostgresPermissionRepository()
+  : new inMemory.InMemoryPermissionRepository()
 
 export const getConfiguracionUseCase = new GetConfiguracionUseCase(configuracionPort)
 export const updateConfiguracionUseCase = new UpdateConfiguracionUseCase(configuracionPort)
@@ -228,4 +240,12 @@ export const createWorkshopUseCase = new CreateWorkshopUseCase(workshopRepo)
 export const updateWorkshopUseCase = new UpdateWorkshopUseCase(workshopRepo)
 export const deleteWorkshopUseCase = new DeleteWorkshopUseCase(workshopRepo)
 
-export const loginUseCase = new LoginUseCase(authPort)
+export const getPermissionDefinitionsUseCase = new GetPermissionDefinitionsUseCase(permissionRepo)
+export const getPermissionGroupsUseCase = new GetPermissionGroupsUseCase(permissionRepo)
+export const createPermissionGroupUseCase = new CreatePermissionGroupUseCase(permissionRepo)
+export const updatePermissionGroupUseCase = new UpdatePermissionGroupUseCase(permissionRepo)
+export const deletePermissionGroupUseCase = new DeletePermissionGroupUseCase(permissionRepo)
+export const getUserAccessListUseCase = new GetUserAccessListUseCase(permissionRepo)
+export const updateUserAccessUseCase = new UpdateUserAccessUseCase(permissionRepo)
+
+export const loginUseCase = new LoginUseCase(authPort, permissionRepo)

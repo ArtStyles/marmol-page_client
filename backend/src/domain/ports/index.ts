@@ -12,3 +12,9 @@ export type { HistorialPagoRepositoryPort } from './historial-pago.port.js'
 export type { LogRepositoryPort } from './log.port.js'
 export type { WorkshopRepositoryPort, WorkshopCreateInput } from './workshop.port.js'
 export type { AuthPort } from './auth.port.js'
+export type {
+  PermissionRepositoryPort,
+  PermissionGroupCreateInput,
+  PermissionGroupUpdateInput,
+  UserAccessUpdateInput,
+} from './permission.port.js'

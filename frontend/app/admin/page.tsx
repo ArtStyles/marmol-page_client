@@ -17,7 +17,7 @@ import {
   getTrabajadores,
   getVentas,
 } from '@/lib/resources-api'
-import { ADMIN_STORAGE_KEY, type AdminUser } from '@/lib/admin-auth'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { extractWorkshopIdFromAdminPath, routeWithWorkshop } from '@/lib/admin-routes'
 import { WORKSHOP_STORAGE_KEY } from '@/lib/workshops'
 import type {
@@ -320,7 +320,7 @@ export default function AdminDashboard() {
               {loadingData ? <p className="mt-2 text-sm text-slate-500">Cargando dashboard...</p> : null}
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-              {sessionUser?.role === 'Super Admin' ? (
+              {hasPermission(sessionUser, 'workshops:override_scope') ? (
                 <Button
                   size="sm"
                   variant="outline"

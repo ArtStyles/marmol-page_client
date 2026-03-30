@@ -144,6 +144,35 @@ export const updateWorkshopSchema = z.object({
   ultimaActualizacion: z.string().optional(),
 })
 
+const permissionCodeSchema = z.string().min(3)
+
+export const createPermissionGroupSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  permissionCodes: z.array(permissionCodeSchema).min(1),
+})
+
+export const updatePermissionGroupSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    description: z.string().optional(),
+    permissionCodes: z.array(permissionCodeSchema).min(1).optional(),
+  })
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.description !== undefined ||
+      value.permissionCodes !== undefined,
+    {
+      message: 'At least one field must be provided',
+    },
+  )
+
+export const updateUserAccessSchema = z.object({
+  permissionGroupIds: z.array(z.string().min(1)).default([]),
+  directPermissionCodes: z.array(permissionCodeSchema).default([]),
+})
+
 export const createMermaSchema = z.object({
   fecha: z.string(),
   origenId: z.string(),

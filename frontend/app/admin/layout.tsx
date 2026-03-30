@@ -12,7 +12,8 @@ import { Label } from '@/components/ui/label'
 import {
   ADMIN_STORAGE_KEY,
   ADMIN_TOKEN_STORAGE_KEY,
-  getAccessForRole,
+  getAccessForUser,
+  hasPermission,
   isPathAllowed,
   type AdminUser,
 } from '@/lib/admin-auth'
@@ -64,7 +65,7 @@ export default function AdminLayout({
         } else {
           const parsed = JSON.parse(raw) as AdminUser
           setAuthUser(parsed)
-          if (parsed.role === 'Super Admin') {
+          if (hasPermission(parsed, 'workshops:override_scope')) {
             setSelectedWorkshopId(storedWorkshop ?? null)
           } else {
             setSelectedWorkshopId(parsed.workshopId ?? null)
@@ -97,7 +98,11 @@ export default function AdminLayout({
     }
   }, [authUser])
 
-  const access = useMemo(() => (authUser ? getAccessForRole(authUser.role) : null), [authUser])
+  const access = useMemo(() => (authUser ? getAccessForUser(authUser) : null), [authUser])
+  const canOverrideWorkshopScope = useMemo(
+    () => (authUser ? hasPermission(authUser, 'workshops:override_scope') : false),
+    [authUser],
+  )
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -110,7 +115,7 @@ export default function AdminLayout({
       })
 
       const user = result.user
-      const isSuperAdmin = user.role === 'Super Admin'
+      const isSuperAdmin = hasPermission(user, 'workshops:override_scope')
       setStoredAccessToken(result.accessToken)
       setAuthUser(user)
       setSelectedWorkshopId(isSuperAdmin ? null : user.workshopId)
@@ -122,7 +127,7 @@ export default function AdminLayout({
           window.localStorage.setItem(WORKSHOP_STORAGE_KEY, user.workshopId)
         }
       }
-      const nextAccess = getAccessForRole(user.role)
+      const nextAccess = getAccessForUser(user)
       const targetPath = routeWithWorkshop(nextAccess.home, isSuperAdmin ? null : user.workshopId)
       if (!isPathAllowed(pathname, nextAccess)) {
         router.replace(targetPath)
@@ -156,7 +161,7 @@ export default function AdminLayout({
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(WORKSHOP_STORAGE_KEY, workshopId)
     }
-    if (authUser?.role === 'Super Admin') {
+    if (authUser && hasPermission(authUser, 'workshops:override_scope')) {
       router.replace(routeWithWorkshop('/admin', workshopId))
     }
   }
@@ -201,7 +206,9 @@ export default function AdminLayout({
 
     if (selectedWorkshopId === workshopId) {
       const fallbackWorkshopId =
-        authUser?.role === 'Super Admin' ? null : (authUser?.workshopId ?? null)
+        authUser && hasPermission(authUser, 'workshops:override_scope')
+          ? null
+          : (authUser?.workshopId ?? null)
       setSelectedWorkshopId(fallbackWorkshopId)
       if (typeof window !== 'undefined') {
         if (fallbackWorkshopId) {
@@ -215,7 +222,7 @@ export default function AdminLayout({
 
   useEffect(() => {
     if (!authUser) return
-    if (authUser.role === 'Super Admin') return
+    if (hasPermission(authUser, 'workshops:override_scope')) return
 
     if (selectedWorkshopId !== authUser.workshopId) {
       setSelectedWorkshopId(authUser.workshopId)
@@ -226,7 +233,7 @@ export default function AdminLayout({
   }, [authUser, selectedWorkshopId])
 
   useEffect(() => {
-    if (!authUser || authUser.role !== 'Super Admin') return
+    if (!authUser || !hasPermission(authUser, 'workshops:override_scope')) return
     if (selectedWorkshopId) return
     if (!workshopIdFromPath) return
     setSelectedWorkshopId(workshopIdFromPath)
@@ -238,7 +245,7 @@ export default function AdminLayout({
   useEffect(() => {
     if (!authUser) return
     const scopedWorkshopId =
-      authUser.role === 'Super Admin' ? selectedWorkshopId : authUser.workshopId
+      hasPermission(authUser, 'workshops:override_scope') ? selectedWorkshopId : authUser.workshopId
     if (!scopedWorkshopId) return
 
     const normalizedPath = normalizeAdminPath(pathname)
@@ -335,8 +342,7 @@ export default function AdminLayout({
   }
 
   const isAllowed = access ? isPathAllowed(pathname, access) : false
-  const needsWorkshopSelection =
-    authUser.role === 'Super Admin' && !selectedWorkshopId
+  const needsWorkshopSelection = canOverrideWorkshopScope && !selectedWorkshopId
 
   return (
     <div className="min-h-screen bg-background">
@@ -368,7 +374,7 @@ export default function AdminLayout({
                     <Link
                       href={routeWithWorkshop(
                         access.home,
-                        authUser.role === 'Super Admin' ? selectedWorkshopId : authUser.workshopId,
+                        canOverrideWorkshopScope ? selectedWorkshopId : authUser.workshopId,
                       )}
                     >
                       Ir a tu panel

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { ADMIN_STORAGE_KEY, type AdminUser } from '@/lib/admin-auth'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { getHistorialPagos, getProduccionTrabajadores, getTrabajadores } from '@/lib/resources-api'
 import {
   losasAMetros,
@@ -84,7 +84,7 @@ export default function ObreroPage() {
     }
   }, [])
 
-  const isObreroSession = sessionUser?.role === 'Obrero'
+  const isObreroSession = hasPermission(sessionUser, 'obrero:panel:view')
 
   const obreroActual = useMemo<Trabajador | null>(() => {
     if (!sessionUser || !isObreroSession) return null

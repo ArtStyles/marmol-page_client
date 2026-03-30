@@ -284,10 +284,45 @@ export type AdminRole =
   | 'Jefe de Turno de Producción'
   | 'Obrero'
 
+export interface PermissionDefinition {
+  code: string
+  module: string
+  name: string
+  description: string
+}
+
+export interface PermissionGroup {
+  id: string
+  name: string
+  description: string
+  permissionCodes: string[]
+  isSystem: boolean
+  systemKey?: string | null
+  memberCount?: number
+}
+
+export interface UserPermissionAccess {
+  userId: string
+  name: string
+  email: string
+  role: AdminRole
+  workshopId: string
+  permissionGroupIds: string[]
+  directPermissionCodes: string[]
+  effectivePermissionCodes: string[]
+}
+
+export interface ResolvedPermissionAccess {
+  permissionCodes: string[]
+  permissionGroupIds: string[]
+}
+
 export interface AdminUser {
   id: string
   name: string
   email: string
   role: AdminRole
   workshopId: string
+  permissions?: string[]
+  permissionGroups?: string[]
 }

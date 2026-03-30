@@ -18,7 +18,7 @@ import {
   getTrabajadores,
   updateTrabajador,
 } from '@/lib/resources-api'
-import { ADMIN_STORAGE_KEY, getAccessForRole, type AdminUser } from '@/lib/admin-auth'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { Plus, Search, Edit, Trash2, UserCheck, UserX, Eye } from 'lucide-react'
 import {
   Dialog,
@@ -110,9 +110,7 @@ export default function TrabajadoresPage() {
     }
   }, [])
 
-  const canManageWorkers = currentUser
-    ? getAccessForRole(currentUser.role).canManageWorkers
-    : false
+  const canManageWorkers = currentUser ? hasPermission(currentUser, 'trabajadores:write') : false
   const selectedRole = (formData.rol ?? 'Obrero') as Trabajador['rol']
   const requiresAccount = selectedRole !== 'Obrero'
 
@@ -265,6 +263,7 @@ export default function TrabajadoresPage() {
   }
 
   const handleEdit = (worker: Trabajador) => {
+    if (!canManageWorkers) return
     setEditingWorker(worker)
     setFormData({
       ...worker,
@@ -681,7 +680,13 @@ export default function TrabajadoresPage() {
                             : <UserCheck className="h-4 w-4" />
                           }
                         </Button>
-                        <Button size="icon" variant="ghost" onClick={() => handleEdit(worker)}>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleEdit(worker)}
+                          title={canManageWorkers ? 'Editar' : 'Solo administrador'}
+                          disabled={!canManageWorkers}
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button

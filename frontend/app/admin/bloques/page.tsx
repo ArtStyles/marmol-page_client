@@ -9,7 +9,7 @@ import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { Card, CardContent } from '@/components/ui/card'
 import type { BloqueOLote, Dimension } from '@/lib/types'
 import { createBloque, deleteBloque, getBloques, updateBloque } from '@/lib/resources-api'
-import { ADMIN_STORAGE_KEY, type AdminUser } from '@/lib/admin-auth'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { Plus, Search, Boxes, Eye, Edit, Trash2 } from 'lucide-react'
 import {
   Dialog,
@@ -87,7 +87,7 @@ export default function BloquesPage() {
     }
   }, [])
 
-  const isAdmin = currentUser?.role === 'Administrador'
+  const canWriteBloques = currentUser ? hasPermission(currentUser, 'bloques:write') : false
   const today = new Date().toISOString().split('T')[0]
 
   const filteredBloques = useMemo(
@@ -127,7 +127,7 @@ export default function BloquesPage() {
     [bloques],
   )
 
-  const canModify = (fechaIngreso: string) => isAdmin || fechaIngreso === today
+  const canModify = (_fechaIngreso: string) => canWriteBloques
 
   const recentBloques = [...bloques]
     .sort((a, b) => b.fechaIngreso.localeCompare(a.fechaIngreso))
@@ -219,6 +219,12 @@ export default function BloquesPage() {
       } finally {
         setIsSaving(false)
       }
+      return
+    }
+
+    if (!canWriteBloques) {
+      setActionError('No tienes permiso para registrar bloques o lotes.')
+      setIsSaving(false)
       return
     }
 
@@ -366,7 +372,11 @@ export default function BloquesPage() {
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => resetForm()}>
+              <Button
+                onClick={() => resetForm()}
+                disabled={!canWriteBloques}
+                title={canWriteBloques ? 'Nuevo Bloque/Lote' : 'Sin permiso de edicion'}
+              >
                 <Plus className="mr-2 h-4 w-4" />
                 Nuevo Bloque/Lote
               </Button>

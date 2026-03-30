@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ADMIN_STORAGE_KEY,
   ADMIN_TOKEN_STORAGE_KEY,
-  getAccessForRole,
+  getAccessForUser,
+  hasPermission,
   isPathAllowed,
   type AdminUser,
 } from '@/lib/admin-auth'
@@ -49,7 +50,7 @@ export const useAdminShellSession = (
 
   const workshopScopeId = useMemo(() => {
     if (!sessionUser) return null
-    if (sessionUser.role !== 'Super Admin') {
+    if (!hasPermission(sessionUser, 'workshops:override_scope')) {
       return sessionUser.workshopId ?? null
     }
 
@@ -67,7 +68,7 @@ export const useAdminShellSession = (
   )
 
   const filteredItems = useMemo(() => {
-    const access = sessionUser ? getAccessForRole(sessionUser.role) : null
+    const access = sessionUser ? getAccessForUser(sessionUser) : null
     return access ? items.filter((item) => isPathAllowed(item.href, access)) : []
   }, [items, sessionUser])
 

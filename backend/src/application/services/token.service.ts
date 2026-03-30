@@ -9,6 +9,8 @@ export interface AccessTokenClaims {
   email: string
   role: AdminRole
   workshopId: string
+  permissions: string[]
+  permissionGroups: string[]
   iat: number
   exp: number
 }
@@ -30,6 +32,8 @@ export function issueAccessToken(input: {
   email: string
   role: AdminRole
   workshopId: string
+  permissions: string[]
+  permissionGroups: string[]
 }): { token: string; expiresIn: number } {
   const nowInSeconds = Math.floor(Date.now() / 1000)
   const claims: AccessTokenClaims = {
@@ -37,6 +41,8 @@ export function issueAccessToken(input: {
     email: input.email,
     role: input.role,
     workshopId: input.workshopId,
+    permissions: input.permissions,
+    permissionGroups: input.permissionGroups,
     iat: nowInSeconds,
     exp: nowInSeconds + ACCESS_TOKEN_TTL_SECONDS,
   }
@@ -68,6 +74,9 @@ export function verifyAccessToken(token: string): AccessTokenClaims | null {
   try {
     const parsed = JSON.parse(base64UrlDecode(payload)) as AccessTokenClaims
     if (!parsed.sub || !parsed.email || !parsed.role || !parsed.workshopId) return null
+    if (!Array.isArray(parsed.permissions) || !Array.isArray(parsed.permissionGroups)) return null
+    if (!parsed.permissions.every((item) => typeof item === 'string')) return null
+    if (!parsed.permissionGroups.every((item) => typeof item === 'string')) return null
     if (typeof parsed.exp !== 'number' || typeof parsed.iat !== 'number') return null
     const nowInSeconds = Math.floor(Date.now() / 1000)
     if (parsed.exp <= nowInSeconds) return null

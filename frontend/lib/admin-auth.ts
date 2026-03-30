@@ -9,12 +9,16 @@ export type AdminRole =
   | 'Jefe de Turno de Producción'
   | 'Obrero'
 
+export type PermissionCode = string
+
 export type AdminUser = {
   id: string
   name: string
   email: string
   role: AdminRole
   workshopId: string
+  permissions?: PermissionCode[]
+  permissionGroups?: string[]
 }
 
 export type AdminAccess = {
@@ -22,7 +26,10 @@ export type AdminAccess = {
   label: string
   home: string
   routes: string[]
+  permissions: PermissionCode[]
   canManageWorkers: boolean
+  canManagePermissions: boolean
+  canOverrideWorkshopScope: boolean
 }
 
 export const ADMIN_STORAGE_KEY = 'marble-admin-user'
@@ -123,92 +130,225 @@ export const MOCK_ADMIN_USERS: Array<{
   },
 ]
 
-const ROLE_ACCESS: Record<AdminRole, AdminAccess> = {
-  'Super Admin': {
-    role: 'Super Admin',
-    label: 'Super Admin',
-    home: '/admin',
-    routes: [
-      '/admin',
-      '/admin/inventario',
-      '/admin/produccion',
-      '/admin/equipos',
-      '/admin/asignaciones',
-      '/admin/ventas',
-      '/admin/finanzas',
-      '/admin/gastos',
-      '/admin/contabilidad',
-      '/admin/bloques',
-      '/admin/mermas',
-      '/admin/catalogo',
-      '/admin/historial',
-      '/admin/trabajadores',
-      '/admin/pagos',
-      '/admin/configuracion',
-    ],
-    canManageWorkers: true,
-  },
-  Administrador: {
-    role: 'Administrador',
-    label: 'Administrador',
-    home: '/admin',
-    routes: [
-      '/admin',
-      '/admin/inventario',
-      '/admin/produccion',
-      '/admin/equipos',
-      '/admin/asignaciones',
-      '/admin/ventas',
-      '/admin/gastos',
-      '/admin/contabilidad',
-      '/admin/bloques',
-      '/admin/mermas',
-      '/admin/catalogo',
-      '/admin/trabajadores',
-      '/admin/pagos',
-      '/admin/configuracion',
-    ],
-    canManageWorkers: true,
-  },
-  Contadora: {
-    role: 'Contadora',
-    label: 'Contabilidad',
-    home: '/admin/contabilidad',
-    routes: ['/admin/contabilidad', '/admin/gastos'],
-    canManageWorkers: false,
-  },
-  'Gestor de Ventas': {
-    role: 'Gestor de Ventas',
-    label: 'Ventas',
-    home: '/admin/ventas',
-    routes: ['/admin/ventas', '/admin/pagos'],
-    canManageWorkers: false,
-  },
-  'Jefe de Turno de Produccion': {
-    role: 'Jefe de Turno de Produccion',
-    label: 'Produccion',
-    home: '/admin/produccion',
-    routes: ['/admin/produccion', '/admin/equipos', '/admin/asignaciones', '/admin/mermas'],
-    canManageWorkers: false,
-  },
-  'Jefe de Turno de Producción': {
-    role: 'Jefe de Turno de Producción',
-    label: 'Produccion',
-    home: '/admin/produccion',
-    routes: ['/admin/produccion', '/admin/equipos', '/admin/asignaciones', '/admin/mermas'],
-    canManageWorkers: false,
-  },
-  Obrero: {
-    role: 'Obrero',
-    label: 'Obrero',
-    home: '/admin/obrero',
-    routes: ['/admin/obrero'],
-    canManageWorkers: false,
-  },
+const ROLE_PERMISSION_FALLBACK: Record<AdminRole, PermissionCode[]> = {
+  'Super Admin': [
+    'dashboard:view',
+    'inventario:read',
+    'inventario:write',
+    'produccion:read',
+    'produccion:write',
+    'equipos:read',
+    'equipos:write',
+    'asignaciones:read',
+    'asignaciones:write',
+    'ventas:read',
+    'ventas:write',
+    'finanzas:read',
+    'gastos:read',
+    'gastos:write',
+    'contabilidad:read',
+    'bloques:read',
+    'bloques:write',
+    'mermas:read',
+    'mermas:write',
+    'catalogo:read',
+    'catalogo:write',
+    'historial:read',
+    'historial:write',
+    'trabajadores:read',
+    'trabajadores:write',
+    'pagos:read',
+    'pagos:write',
+    'configuracion:read',
+    'configuracion:write',
+    'workshops:read',
+    'workshops:write',
+    'workshops:override_scope',
+    'permissions:read',
+    'permissions:write',
+    'users:access:read',
+    'users:access:write',
+    'obrero:panel:view',
+  ],
+  Administrador: [
+    'dashboard:view',
+    'inventario:read',
+    'inventario:write',
+    'produccion:read',
+    'produccion:write',
+    'equipos:read',
+    'equipos:write',
+    'asignaciones:read',
+    'asignaciones:write',
+    'ventas:read',
+    'ventas:write',
+    'finanzas:read',
+    'gastos:read',
+    'gastos:write',
+    'contabilidad:read',
+    'bloques:read',
+    'bloques:write',
+    'mermas:read',
+    'mermas:write',
+    'catalogo:read',
+    'catalogo:write',
+    'historial:read',
+    'historial:write',
+    'trabajadores:read',
+    'trabajadores:write',
+    'pagos:read',
+    'pagos:write',
+    'configuracion:read',
+    'configuracion:write',
+    'workshops:read',
+    'permissions:read',
+    'permissions:write',
+    'users:access:read',
+    'users:access:write',
+  ],
+  Contadora: [
+    'dashboard:view',
+    'contabilidad:read',
+    'finanzas:read',
+    'gastos:read',
+    'pagos:read',
+    'historial:read',
+  ],
+  'Gestor de Ventas': [
+    'dashboard:view',
+    'ventas:read',
+    'ventas:write',
+    'catalogo:read',
+    'pagos:read',
+    'historial:read',
+    'inventario:read',
+  ],
+  'Jefe de Turno de Produccion': [
+    'dashboard:view',
+    'produccion:read',
+    'produccion:write',
+    'equipos:read',
+    'equipos:write',
+    'asignaciones:read',
+    'asignaciones:write',
+    'mermas:read',
+    'mermas:write',
+    'bloques:read',
+    'inventario:read',
+    'historial:read',
+  ],
+  'Jefe de Turno de Producción': [
+    'dashboard:view',
+    'produccion:read',
+    'produccion:write',
+    'equipos:read',
+    'equipos:write',
+    'asignaciones:read',
+    'asignaciones:write',
+    'mermas:read',
+    'mermas:write',
+    'bloques:read',
+    'inventario:read',
+    'historial:read',
+  ],
+  Obrero: ['obrero:panel:view', 'asignaciones:read', 'pagos:read', 'trabajadores:read'],
+}
+
+const ADMIN_ROUTE_RULES: Array<{ route: string; anyOf: PermissionCode[] }> = [
+  { route: '/admin', anyOf: ['dashboard:view'] },
+  { route: '/admin/inventario', anyOf: ['inventario:read'] },
+  { route: '/admin/produccion', anyOf: ['produccion:read'] },
+  { route: '/admin/equipos', anyOf: ['equipos:read'] },
+  { route: '/admin/asignaciones', anyOf: ['asignaciones:read'] },
+  { route: '/admin/ventas', anyOf: ['ventas:read'] },
+  { route: '/admin/finanzas', anyOf: ['finanzas:read'] },
+  { route: '/admin/gastos', anyOf: ['gastos:read'] },
+  { route: '/admin/contabilidad', anyOf: ['contabilidad:read'] },
+  { route: '/admin/bloques', anyOf: ['bloques:read'] },
+  { route: '/admin/mermas', anyOf: ['mermas:read'] },
+  { route: '/admin/trabajadores', anyOf: ['trabajadores:read'] },
+  { route: '/admin/pagos', anyOf: ['pagos:read'] },
+  { route: '/admin/catalogo', anyOf: ['catalogo:read'] },
+  { route: '/admin/historial', anyOf: ['historial:read'] },
+  { route: '/admin/configuracion', anyOf: ['configuracion:read'] },
+  { route: '/admin/permisos', anyOf: ['users:access:read'] },
+  { route: '/admin/obrero', anyOf: ['obrero:panel:view'] },
+]
+
+const HOME_ROUTE_PRIORITY = ADMIN_ROUTE_RULES.map((rule) => rule.route)
+
+function normalizePermissions(permissionCodes: PermissionCode[]): PermissionCode[] {
+  return [...new Set(permissionCodes.map((item) => item.trim()).filter(Boolean))]
+}
+
+export function getPermissionsForRole(role: AdminRole): PermissionCode[] {
+  return ROLE_PERMISSION_FALLBACK[role] ?? []
+}
+
+export function getPermissionsForUser(user: AdminUser): PermissionCode[] {
+  if (Array.isArray(user.permissions) && user.permissions.length > 0) {
+    return normalizePermissions(user.permissions)
+  }
+  return getPermissionsForRole(user.role)
+}
+
+export function hasPermission(user: AdminUser | null | undefined, permissionCode: PermissionCode): boolean {
+  if (!user) return false
+  return getPermissionsForUser(user).includes(permissionCode)
+}
+
+export function hasAnyPermission(
+  user: AdminUser | null | undefined,
+  permissionCodes: PermissionCode[],
+): boolean {
+  if (!user) return false
+  const permissions = getPermissionsForUser(user)
+  return permissionCodes.some((permissionCode) => permissions.includes(permissionCode))
+}
+
+function routesForPermissions(permissionCodes: PermissionCode[]): string[] {
+  return ADMIN_ROUTE_RULES.filter((rule) =>
+    rule.anyOf.some((requiredPermission) => permissionCodes.includes(requiredPermission)),
+  ).map((rule) => rule.route)
+}
+
+function homeForRoutes(routes: string[]): string {
+  for (const route of HOME_ROUTE_PRIORITY) {
+    if (routes.includes(route)) return route
+  }
+  return '/admin'
+}
+
+export function getAccessForUser(user: AdminUser): AdminAccess {
+  const permissions = getPermissionsForUser(user)
+  const routes = routesForPermissions(permissions)
+
+  return {
+    role: user.role,
+    label: user.role,
+    home: homeForRoutes(routes),
+    routes,
+    permissions,
+    canManageWorkers: permissions.includes('trabajadores:write'),
+    canManagePermissions: permissions.includes('permissions:write'),
+    canOverrideWorkshopScope: permissions.includes('workshops:override_scope'),
+  }
 }
 
 export function getAccessForRole(role: AdminRole): AdminAccess {
-  return ROLE_ACCESS[role]
+  const permissions = getPermissionsForRole(role)
+  const routes = routesForPermissions(permissions)
+
+  return {
+    role,
+    label: role,
+    home: homeForRoutes(routes),
+    routes,
+    permissions,
+    canManageWorkers: permissions.includes('trabajadores:write'),
+    canManagePermissions: permissions.includes('permissions:write'),
+    canOverrideWorkshopScope: permissions.includes('workshops:override_scope'),
+  }
 }
 
 export function isPathAllowed(pathname: string, access: AdminAccess): boolean {
@@ -233,4 +373,3 @@ export function getUserByCredentials(email: string, password: string): AdminUser
   )
   return match ? match.user : null
 }
-

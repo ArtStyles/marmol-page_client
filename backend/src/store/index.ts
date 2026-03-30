@@ -542,6 +542,10 @@ const MOCK_ADMIN_USERS: Array<{ email: string; password: string; user: AdminUser
   },
 ]
 
+export function listAdminUsers(): AdminUser[] {
+  return MOCK_ADMIN_USERS.map((entry) => entry.user)
+}
+
 export function loginAdmin(email: string, password: string, workshopId?: string): AdminUser | null {
   const entry = MOCK_ADMIN_USERS.find(
     (e) => e.email.toLowerCase() === email.toLowerCase() && e.password === password

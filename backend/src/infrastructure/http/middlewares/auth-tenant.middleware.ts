@@ -1,4 +1,9 @@
 import type { NextFunction, Request, Response } from 'express'
+import {
+  getDefaultPermissionCodesByRole,
+  getDefaultSystemGroupIdsByRole,
+  hasPermission,
+} from '../../../application/security/permissions.js'
 import { verifyAccessToken } from '../../../application/services/token.service.js'
 import { runWithTenantContext } from '../../tenant/tenant-context.js'
 
@@ -56,9 +61,17 @@ export function authTenantMiddleware(req: Request, res: Response, next: NextFunc
 
   const requestedWorkshopId = extractWorkshopHeader(req)
   let workshopId = claims.workshopId
+  const permissions =
+    claims.permissions.length > 0
+      ? claims.permissions
+      : getDefaultPermissionCodesByRole(claims.role)
+  const permissionGroups =
+    claims.permissionGroups.length > 0
+      ? claims.permissionGroups
+      : getDefaultSystemGroupIdsByRole(claims.role)
 
   if (requestedWorkshopId) {
-    if (claims.role === 'Super Admin') {
+    if (hasPermission(permissions, 'workshops:override_scope')) {
       workshopId = requestedWorkshopId
     } else if (requestedWorkshopId !== claims.workshopId) {
       return res.status(403).json({
@@ -73,6 +86,8 @@ export function authTenantMiddleware(req: Request, res: Response, next: NextFunc
     email: claims.email,
     role: claims.role,
     workshopId,
+    permissions,
+    permissionGroups,
   }
 
   return runWithTenantContext(

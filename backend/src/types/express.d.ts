@@ -8,6 +8,8 @@ declare global {
         email: string
         role: AdminRole
         workshopId: string
+        permissions: string[]
+        permissionGroups: string[]
       }
     }
   }
