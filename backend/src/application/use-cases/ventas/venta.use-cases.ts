@@ -1,7 +1,17 @@
-import { DomainError } from '../../errors/domain.error.js'
+﻿import { DomainError } from '../../errors/domain.error.js'
 import type { Producto, VentaDetalleProducto } from '../../../domain/entities/index.js'
-import type { ProductoRepositoryPort, VentaRepositoryPort } from '../../../domain/ports/index.js'
+import type {
+  InventarioMovimientoRepositoryPort,
+  ProductoRepositoryPort,
+  VentaRepositoryPort,
+} from '../../../domain/ports/index.js'
 import type { CreateVentaDto, UpdateVentaDto, VentaResponseDto } from '../../dtos/index.js'
+import { validateInventarioSalida } from '../inventario-movimientos/inventario-movimiento.helpers.js'
+
+interface VentaActor {
+  userId: string
+  userName: string
+}
 
 export class GetVentasUseCase {
   constructor(private readonly repository: VentaRepositoryPort) {}
@@ -23,9 +33,10 @@ export class CreateVentaUseCase {
   constructor(
     private readonly repository: VentaRepositoryPort,
     private readonly productoRepository: ProductoRepositoryPort,
+    private readonly movimientoRepository: InventarioMovimientoRepositoryPort,
   ) {}
 
-  async execute(dto: CreateVentaDto): Promise<VentaResponseDto> {
+  async execute(dto: CreateVentaDto, actor: VentaActor): Promise<VentaResponseDto> {
     const detalles = await resolveVentaDetalles(dto, this.productoRepository)
     const cantidadM2 = round2(detalles.reduce((sum, item) => sum + item.metrosCuadrados, 0))
     const subtotal = round2(detalles.reduce((sum, item) => sum + item.subtotal, 0))
@@ -45,9 +56,42 @@ export class CreateVentaUseCase {
       } as CreateVentaDto['metrosPorDimension'],
     )
 
-    if (dto.estado === 'completada') {
-      await descontarInventarioPorVenta(detalles, this.productoRepository)
+    const motivoMovimientoAlmacen = dto.motivoMovimientoAlmacen?.trim()
+    if (!motivoMovimientoAlmacen || motivoMovimientoAlmacen.length < 5) {
+      throw new DomainError(
+        'Debe indicar un motivo de salida de almacen para registrar la venta.',
+        400,
+        'VENTA_MOTIVO_ALMACEN_REQUERIDO',
+      )
     }
+
+    const productos = await this.productoRepository.findAll()
+    const productosPorId = new Map(productos.map((producto) => [producto.id, producto]))
+    const detallesMovimiento = detalles.map((detalle, index) => {
+      const producto = productosPorId.get(detalle.productoId)
+      if (!producto) {
+        throw new DomainError(
+          `Producto ${detalle.productoNombre} no existe`,
+          404,
+          'PRODUCTO_NOT_FOUND',
+        )
+      }
+
+      return {
+        id: `imd-v-${index}-${detalle.productoId}`,
+        productoId: detalle.productoId,
+        productoNombre: detalle.productoNombre,
+        tipo: producto.tipo,
+        estado: detalle.estado,
+        dimension: detalle.dimension,
+        origenId: detalle.origenId,
+        origenNombre: detalle.origenNombre,
+        cantidadLosas: Math.ceil(detalle.metrosCuadrados / dimensionToArea(detalle.dimension)),
+        metrosCuadrados: round2(detalle.metrosCuadrados),
+      }
+    })
+
+    await validateInventarioSalida(detallesMovimiento, this.productoRepository)
 
     const primerDetalle = detalles[0]
     const productoNombre =
@@ -55,8 +99,10 @@ export class CreateVentaUseCase {
         ? `${primerDetalle.productoNombre} +${detalles.length - 1}`
         : primerDetalle.productoNombre
 
-    return this.repository.create({
+    const ventaCreada = await this.repository.create({
       ...dto,
+      estado: 'pendiente_aprobacion_almacen',
+      motivoMovimientoAlmacen,
       productoId: primerDetalle.productoId,
       productoNombre,
       detallesProductos: detalles,
@@ -66,7 +112,32 @@ export class CreateVentaUseCase {
       descuento,
       subtotal,
       total,
+      movimientoInventarioId: undefined,
     })
+
+    try {
+      const now = new Date().toISOString()
+      const movimiento = await this.movimientoRepository.create({
+        fechaSolicitud: now,
+        tipo: 'salida',
+        origen: 'venta',
+        estado: 'pendiente',
+        referenciaId: ventaCreada.id,
+        motivo: motivoMovimientoAlmacen,
+        solicitadoPorId: actor.userId,
+        solicitadoPorNombre: actor.userName,
+        detalles: detallesMovimiento,
+      })
+
+      const ventaActualizada = await this.repository.update(ventaCreada.id, {
+        movimientoInventarioId: movimiento.id,
+      })
+
+      return ventaActualizada ?? { ...ventaCreada, movimientoInventarioId: movimiento.id }
+    } catch (error) {
+      await this.repository.delete(ventaCreada.id)
+      throw error
+    }
   }
 }
 
@@ -136,56 +207,6 @@ function validateDetalles(detalles: VentaDetalleProducto[]): void {
     if (item.precioM2 < 0) {
       throw new DomainError('El precio por m2 no puede ser negativo', 400, 'VENTA_PRECIO_INVALIDO')
     }
-  }
-}
-
-async function descontarInventarioPorVenta(
-  detalles: VentaDetalleProducto[],
-  productoRepository: ProductoRepositoryPort,
-): Promise<void> {
-  const productos = await productoRepository.findAll()
-  const productosPorId = new Map(productos.map((item) => [item.id, item]))
-  const consumoPorProducto = new Map<string, { metros: number; detalle: VentaDetalleProducto }>()
-
-  for (const detalle of detalles) {
-    const consumo = consumoPorProducto.get(detalle.productoId)
-    if (!consumo) {
-      consumoPorProducto.set(detalle.productoId, { metros: detalle.metrosCuadrados, detalle })
-      continue
-    }
-    consumoPorProducto.set(detalle.productoId, {
-      metros: consumo.metros + detalle.metrosCuadrados,
-      detalle: consumo.detalle,
-    })
-  }
-
-  for (const [productoId, { metros, detalle }] of consumoPorProducto.entries()) {
-    const producto = productosPorId.get(productoId)
-    if (!producto) {
-      throw new DomainError(
-        `Producto ${detalle.productoNombre} no existe`,
-        404,
-        'PRODUCTO_NOT_FOUND',
-      )
-    }
-    if (producto.metrosCuadrados + 1e-6 < metros) {
-      throw new DomainError(
-        `Stock insuficiente para ${producto.nombre}: disponible ${producto.metrosCuadrados.toFixed(2)} m2, solicitado ${metros.toFixed(2)} m2`,
-        409,
-        'STOCK_INSUFICIENTE',
-      )
-    }
-  }
-
-  for (const [productoId, { metros }] of consumoPorProducto.entries()) {
-    const producto = productosPorId.get(productoId) as Producto
-    const losasADescontar = Math.ceil(metros / dimensionToArea(producto.dimension))
-    const cantidadLosas = Math.max(0, producto.cantidadLosas - losasADescontar)
-    const metrosCuadrados = round2(Math.max(0, producto.metrosCuadrados - metros))
-    await productoRepository.update(productoId, {
-      cantidadLosas,
-      metrosCuadrados,
-    })
   }
 }
 

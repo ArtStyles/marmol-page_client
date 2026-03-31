@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { useConfiguracion } from '@/hooks/use-configuracion'
@@ -17,7 +17,7 @@ import {
 } from '../lib/ventas-helpers'
 import type { FormDetalleProducto } from '../model/types'
 
-type ClienteField = 'clienteNombre' | 'clienteEmail' | 'clienteTelefono'
+type ClienteField = 'clienteNombre' | 'clienteEmail' | 'clienteTelefono' | 'motivoMovimientoAlmacen'
 
 export const useVentasPageState = () => {
   const { productos } = useInventarioStore()
@@ -39,6 +39,7 @@ export const useVentasPageState = () => {
     clienteNombre: '',
     clienteEmail: '',
     clienteTelefono: '',
+    motivoMovimientoAlmacen: '',
     detallesProductos: [createDetalleFormulario(1)] as FormDetalleProducto[],
   })
 
@@ -113,7 +114,7 @@ export const useVentasPageState = () => {
 
   const fechasOrdenadas = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a))
 
-  const ventasCompletadas = ventas
+  const ventasCompletadas = ventas.filter((venta) => venta.estado === 'completada')
   const totalRevenue = ventasCompletadas.reduce((sum, venta) => sum + venta.total, 0)
 
   const totalM2PorDimension = ventasCompletadas.reduce<Record<Dimension, number>>(
@@ -299,6 +300,11 @@ export const useVentasPageState = () => {
       return acc
     }, createEmptyMetros())
 
+        const motivoMovimientoAlmacen = formData.motivoMovimientoAlmacen.trim()
+    if (motivoMovimientoAlmacen.length < 5) {
+      setFormError('Debes indicar un motivo de salida de almacen (minimo 5 caracteres).')
+      return
+    }
     const primerDetalle = detallesVenta[0]
     const nombreResumen =
       detallesVenta.length > 1
@@ -324,7 +330,8 @@ export const useVentasPageState = () => {
       clienteEmail: formData.clienteEmail,
       clienteTelefono: formData.clienteTelefono,
       fecha: new Date().toISOString().split('T')[0],
-      estado: 'completada',
+      estado: 'pendiente_aprobacion_almacen',
+      motivoMovimientoAlmacen,
     }
 
     try {
@@ -344,7 +351,8 @@ export const useVentasPageState = () => {
       clienteNombre: '',
       clienteEmail: '',
       clienteTelefono: '',
-      detallesProductos: [createDetalleFormulario(1)],
+    motivoMovimientoAlmacen: '',
+    detallesProductos: [createDetalleFormulario(1)],
     })
     setDetalleCounter(2)
     setFormError(null)
@@ -403,3 +411,4 @@ export const useVentasPageState = () => {
     resetForm,
   }
 }
+

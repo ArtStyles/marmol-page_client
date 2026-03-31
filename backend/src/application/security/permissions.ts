@@ -19,8 +19,10 @@ export const PERMISSION_DEFINITIONS: PermissionDefinitionSeed[] = [
   { code: 'dashboard:view', module: 'dashboard', name: 'Ver dashboard', description: 'Acceso al panel principal.' },
   { code: 'inventario:read', module: 'inventario', name: 'Ver inventario', description: 'Consultar inventario y productos.' },
   { code: 'inventario:write', module: 'inventario', name: 'Editar inventario', description: 'Crear, editar y eliminar productos de inventario.' },
+  { code: 'inventario:approve', module: 'inventario', name: 'Aprobar movimientos de almacen', description: 'Aprobar o rechazar entradas y salidas de almacen.' },
   { code: 'produccion:read', module: 'produccion', name: 'Ver produccion', description: 'Consultar produccion diaria.' },
   { code: 'produccion:write', module: 'produccion', name: 'Editar produccion', description: 'Registrar y modificar produccion diaria.' },
+  { code: 'produccion:approve_taller', module: 'produccion', name: 'Aprobar produccion de taller', description: 'Aprobar o rechazar registros de produccion diaria del taller.' },
   { code: 'equipos:read', module: 'equipos', name: 'Ver equipos', description: 'Consultar equipos operativos.' },
   { code: 'equipos:write', module: 'equipos', name: 'Editar equipos', description: 'Crear, editar y eliminar equipos.' },
   { code: 'asignaciones:read', module: 'asignaciones', name: 'Ver asignaciones', description: 'Consultar asignaciones de produccion.' },
@@ -86,8 +88,10 @@ export const SYSTEM_PERMISSION_GROUPS: SystemPermissionGroupSeed[] = [
       'dashboard:view',
       'inventario:read',
       'inventario:write',
+      'inventario:approve',
       'produccion:read',
       'produccion:write',
+      'produccion:approve_taller',
       'equipos:read',
       'equipos:write',
       'asignaciones:read',
@@ -149,6 +153,22 @@ export const SYSTEM_PERMISSION_GROUPS: SystemPermissionGroupSeed[] = [
     ]),
   },
   {
+    id: 'grp_almacen',
+    systemKey: 'role:almacen',
+    name: 'Jefe de Almacen',
+    description: 'Control exclusivo de movimientos y aprobaciones de almacen.',
+    permissionCodes: validCodes([
+      'dashboard:view',
+      'inventario:read',
+      'inventario:write',
+      'inventario:approve',
+      'produccion:read',
+      'ventas:read',
+      'mermas:read',
+      'historial:read',
+    ]),
+  },
+  {
     id: 'grp_produccion',
     systemKey: 'role:produccion',
     name: 'Jefe de Turno de Produccion',
@@ -157,6 +177,7 @@ export const SYSTEM_PERMISSION_GROUPS: SystemPermissionGroupSeed[] = [
       'dashboard:view',
       'produccion:read',
       'produccion:write',
+      'produccion:approve_taller',
       'equipos:read',
       'equipos:write',
       'asignaciones:read',
@@ -187,6 +208,7 @@ const ROLE_DEFAULT_GROUP_KEYS: Record<AdminRole, string> = {
   Administrador: 'role:administrador',
   Contadora: 'role:contadora',
   'Gestor de Ventas': 'role:ventas',
+  'Jefe de Almacen': 'role:almacen',
   'Jefe de Turno de Produccion': 'role:produccion',
   'Jefe de Turno de Producción': 'role:produccion',
   Obrero: 'role:obrero',
@@ -220,4 +242,3 @@ export function normalizePermissionCodes(permissionCodes: string[]): string[] {
 export function hasPermission(permissionCodes: string[], permissionCode: string): boolean {
   return permissionCodes.includes(permissionCode)
 }
-

@@ -48,6 +48,8 @@ import {
   GetProduccionUseCase,
   GetProduccionByIdUseCase,
   CreateProduccionUseCase,
+  ApproveProduccionTallerUseCase,
+  ApproveEntradaProduccionAlmacenUseCase,
   UpdateProduccionUseCase,
   DeleteProduccionUseCase,
   GetProduccionTrabajadoresUseCase,
@@ -85,6 +87,12 @@ import {
   DeleteHistorialPagoUseCase,
 } from '../application/use-cases/historial-pagos/historial-pago.use-cases.js'
 import { GetLogsUseCase, CreateLogUseCase } from '../application/use-cases/logs/log.use-cases.js'
+import {
+  GetInventarioMovimientosUseCase,
+  GetInventarioMovimientoByIdUseCase,
+  ApproveInventarioMovimientoUseCase,
+  RejectInventarioMovimientoUseCase,
+} from '../application/use-cases/inventario-movimientos/inventario-movimiento.use-cases.js'
 import {
   GetWorkshopsUseCase,
   GetWorkshopByIdUseCase,
@@ -144,6 +152,9 @@ const historialPagoRepo = usePostgres
 const logRepo = usePostgres
   ? new postgres.PostgresLogRepository()
   : new inMemory.InMemoryLogRepository()
+const inventarioMovimientoRepo = usePostgres
+  ? new postgres.PostgresInventarioMovimientoRepository()
+  : new inMemory.InMemoryInventarioMovimientoRepository()
 const workshopRepo = usePostgres
   ? new postgres.PostgresWorkshopRepository()
   : new inMemory.InMemoryWorkshopRepository()
@@ -189,10 +200,13 @@ export const deleteEquipoUseCase = new DeleteEquipoUseCase(equipoRepo)
 
 export const getProduccionUseCase = new GetProduccionUseCase(produccionRepo)
 export const getProduccionByIdUseCase = new GetProduccionByIdUseCase(produccionRepo)
-export const createProduccionUseCase = new CreateProduccionUseCase(
+export const createProduccionUseCase = new CreateProduccionUseCase(produccionRepo)
+export const approveProduccionTallerUseCase = new ApproveProduccionTallerUseCase(produccionRepo)
+export const approveEntradaProduccionAlmacenUseCase = new ApproveEntradaProduccionAlmacenUseCase(
   produccionRepo,
   bloqueRepo,
   productoRepo,
+  inventarioMovimientoRepo,
 )
 export const updateProduccionUseCase = new UpdateProduccionUseCase(produccionRepo)
 export const deleteProduccionUseCase = new DeleteProduccionUseCase(produccionRepo)
@@ -205,13 +219,21 @@ export const deleteProduccionTrabajadorUseCase = new DeleteProduccionTrabajadorU
 
 export const getMermasUseCase = new GetMermasUseCase(mermaRepo)
 export const getMermaByIdUseCase = new GetMermaByIdUseCase(mermaRepo)
-export const createMermaUseCase = new CreateMermaUseCase(mermaRepo, bloqueRepo, productoRepo)
+export const createMermaUseCase = new CreateMermaUseCase(
+  mermaRepo,
+  productoRepo,
+  inventarioMovimientoRepo,
+)
 export const updateMermaUseCase = new UpdateMermaUseCase(mermaRepo)
 export const deleteMermaUseCase = new DeleteMermaUseCase(mermaRepo)
 
 export const getVentasUseCase = new GetVentasUseCase(ventaRepo)
 export const getVentaByIdUseCase = new GetVentaByIdUseCase(ventaRepo)
-export const createVentaUseCase = new CreateVentaUseCase(ventaRepo, productoRepo)
+export const createVentaUseCase = new CreateVentaUseCase(
+  ventaRepo,
+  productoRepo,
+  inventarioMovimientoRepo,
+)
 export const updateVentaUseCase = new UpdateVentaUseCase(ventaRepo)
 export const deleteVentaUseCase = new DeleteVentaUseCase(ventaRepo)
 
@@ -233,6 +255,26 @@ export const deleteHistorialPagoUseCase = new DeleteHistorialPagoUseCase(histori
 
 export const getLogsUseCase = new GetLogsUseCase(logRepo)
 export const createLogUseCase = new CreateLogUseCase(logRepo)
+export const getInventarioMovimientosUseCase = new GetInventarioMovimientosUseCase(
+  inventarioMovimientoRepo,
+)
+export const getInventarioMovimientoByIdUseCase = new GetInventarioMovimientoByIdUseCase(
+  inventarioMovimientoRepo,
+)
+export const approveInventarioMovimientoUseCase = new ApproveInventarioMovimientoUseCase(
+  inventarioMovimientoRepo,
+  productoRepo,
+  bloqueRepo,
+  ventaRepo,
+  mermaRepo,
+  produccionRepo,
+)
+export const rejectInventarioMovimientoUseCase = new RejectInventarioMovimientoUseCase(
+  inventarioMovimientoRepo,
+  ventaRepo,
+  mermaRepo,
+  produccionRepo,
+)
 
 export const getWorkshopsUseCase = new GetWorkshopsUseCase(workshopRepo)
 export const getWorkshopByIdUseCase = new GetWorkshopByIdUseCase(workshopRepo)

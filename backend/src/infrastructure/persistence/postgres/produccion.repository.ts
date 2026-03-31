@@ -4,7 +4,7 @@ import type {
 } from '../../../domain/ports/index.js'
 import type { ProduccionDiaria, ProduccionTrabajador } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
-import { nextId, toDateOnly } from './helpers.js'
+import { nextId, toDateOnly, toTimestampIso } from './helpers.js'
 import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToProduccion(r: Record<string, unknown>): ProduccionDiaria {
@@ -22,7 +22,22 @@ function rowToProduccion(r: Record<string, unknown>): ProduccionDiaria {
     totalM2: Number(r.total_m2),
     detallesAcciones: r.detalles_acciones as ProduccionDiaria['detallesAcciones'],
     canEdit: r.can_edit as boolean | undefined,
-    editableUntil: r.editable_until != null ? String(r.editable_until) : undefined,
+    editableUntil: toTimestampIso(r.editable_until),
+    aprobacionTallerEstado:
+      (r.aprobacion_taller_estado as ProduccionDiaria['aprobacionTallerEstado']) ?? 'pendiente',
+    aprobacionTallerPorId: (r.aprobacion_taller_por_id as string | null) ?? undefined,
+    aprobacionTallerPorNombre: (r.aprobacion_taller_por_nombre as string | null) ?? undefined,
+    aprobacionTallerFecha: toTimestampIso(r.aprobacion_taller_fecha),
+    aprobacionTallerMotivoRechazo:
+      (r.aprobacion_taller_motivo_rechazo as string | null) ?? undefined,
+    aprobacionAlmacenEstado:
+      (r.aprobacion_almacen_estado as ProduccionDiaria['aprobacionAlmacenEstado']) ?? 'pendiente',
+    aprobacionAlmacenPorId: (r.aprobacion_almacen_por_id as string | null) ?? undefined,
+    aprobacionAlmacenPorNombre: (r.aprobacion_almacen_por_nombre as string | null) ?? undefined,
+    aprobacionAlmacenFecha: toTimestampIso(r.aprobacion_almacen_fecha),
+    aprobacionAlmacenMotivo: (r.aprobacion_almacen_motivo as string | null) ?? undefined,
+    inventarioAplicado: (r.inventario_aplicado as boolean | null) ?? false,
+    movimientoInventarioIds: (r.movimiento_inventario_ids as string[] | null) ?? [],
   }
 }
 
@@ -50,10 +65,39 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
   async create(data: Omit<ProduccionDiaria, 'id'>): Promise<ProduccionDiaria> {
     const pool = getPool()
     const workshopId = getCurrentWorkshopId()
+
+    const existing = await pool.query<{ id: string }>(
+      `SELECT id
+       FROM produccion
+       WHERE workshop_id = $1
+         AND fecha = $2
+         AND origen_id = $3
+         AND tipo = $4
+         AND dimension = $5
+       ORDER BY created_at DESC, id DESC
+       LIMIT 1`,
+      [workshopId, data.fecha, data.origenId, data.tipo, data.dimension],
+    )
+
+    if (existing.rows.length > 0) {
+      const currentId = existing.rows[0].id
+      const updated = await this.update(currentId, data)
+      if (!updated) {
+        throw new Error(`No se pudo actualizar produccion existente ${currentId}`)
+      }
+      return updated
+    }
+
     const id = await nextId(pool, 'PG', 'produccion')
     await pool.query(
-      `INSERT INTO produccion (id, workshop_id, fecha, origen_id, origen_nombre, tipo, dimension, cantidad_picar, cantidad_pulir, cantidad_escuadrar, total_losas, total_m2, detalles_acciones, can_edit, editable_until)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      `INSERT INTO produccion (
+        id, workshop_id, fecha, origen_id, origen_nombre, tipo, dimension, cantidad_picar, cantidad_pulir, cantidad_escuadrar,
+        total_losas, total_m2, detalles_acciones, can_edit, editable_until,
+        aprobacion_taller_estado, aprobacion_taller_por_id, aprobacion_taller_por_nombre, aprobacion_taller_fecha, aprobacion_taller_motivo_rechazo,
+        aprobacion_almacen_estado, aprobacion_almacen_por_id, aprobacion_almacen_por_nombre, aprobacion_almacen_fecha, aprobacion_almacen_motivo,
+        inventario_aplicado, movimiento_inventario_ids
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
       [
         id,
         workshopId,
@@ -70,6 +114,18 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
         data.detallesAcciones ? JSON.stringify(data.detallesAcciones) : null,
         data.canEdit ?? null,
         data.editableUntil ?? null,
+        data.aprobacionTallerEstado ?? 'pendiente',
+        data.aprobacionTallerPorId ?? null,
+        data.aprobacionTallerPorNombre ?? null,
+        data.aprobacionTallerFecha ?? null,
+        data.aprobacionTallerMotivoRechazo ?? null,
+        data.aprobacionAlmacenEstado ?? 'pendiente',
+        data.aprobacionAlmacenPorId ?? null,
+        data.aprobacionAlmacenPorNombre ?? null,
+        data.aprobacionAlmacenFecha ?? null,
+        data.aprobacionAlmacenMotivo ?? null,
+        data.inventarioAplicado ?? false,
+        JSON.stringify(data.movimientoInventarioIds ?? []),
       ]
     )
     return this.findById(id) as Promise<ProduccionDiaria>
@@ -82,7 +138,13 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
     const pool = getPool()
     const workshopId = getCurrentWorkshopId()
     await pool.query(
-      `UPDATE produccion SET fecha=$2, origen_id=$3, origen_nombre=$4, tipo=$5, dimension=$6, cantidad_picar=$7, cantidad_pulir=$8, cantidad_escuadrar=$9, total_losas=$10, total_m2=$11, detalles_acciones=$12, can_edit=$13, editable_until=$14 WHERE id=$1 AND workshop_id=$15`,
+      `UPDATE produccion SET
+        fecha=$2, origen_id=$3, origen_nombre=$4, tipo=$5, dimension=$6, cantidad_picar=$7, cantidad_pulir=$8, cantidad_escuadrar=$9,
+        total_losas=$10, total_m2=$11, detalles_acciones=$12, can_edit=$13, editable_until=$14,
+        aprobacion_taller_estado=$15, aprobacion_taller_por_id=$16, aprobacion_taller_por_nombre=$17, aprobacion_taller_fecha=$18, aprobacion_taller_motivo_rechazo=$19,
+        aprobacion_almacen_estado=$20, aprobacion_almacen_por_id=$21, aprobacion_almacen_por_nombre=$22, aprobacion_almacen_fecha=$23, aprobacion_almacen_motivo=$24,
+        inventario_aplicado=$25, movimiento_inventario_ids=$26
+      WHERE id=$1 AND workshop_id=$27`,
       [
         id,
         merged.fecha,
@@ -98,6 +160,18 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
         merged.detallesAcciones ? JSON.stringify(merged.detallesAcciones) : null,
         merged.canEdit ?? null,
         merged.editableUntil ?? null,
+        merged.aprobacionTallerEstado ?? 'pendiente',
+        merged.aprobacionTallerPorId ?? null,
+        merged.aprobacionTallerPorNombre ?? null,
+        merged.aprobacionTallerFecha ?? null,
+        merged.aprobacionTallerMotivoRechazo ?? null,
+        merged.aprobacionAlmacenEstado ?? 'pendiente',
+        merged.aprobacionAlmacenPorId ?? null,
+        merged.aprobacionAlmacenPorNombre ?? null,
+        merged.aprobacionAlmacenFecha ?? null,
+        merged.aprobacionAlmacenMotivo ?? null,
+        merged.inventarioAplicado ?? false,
+        JSON.stringify(merged.movimientoInventarioIds ?? []),
         workshopId,
       ]
     )

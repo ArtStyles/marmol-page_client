@@ -1,12 +1,22 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
+import { Button } from '@/components/admin/admin-button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   ChartContainer,
@@ -17,9 +27,20 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 import { useInventarioStore } from '@/hooks/use-inventario'
+import {
+  approveInventarioMovimiento,
+  getInventarioMovimientos,
+  rejectInventarioMovimiento,
+} from '@/lib/resources-api'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { useProduccionStore } from '@/hooks/use-produccion'
 import { dimensiones, estadosInventario, tiposProducto } from '@/lib/data'
-import { losasAMetros, type Dimension, type Producto } from '@/lib/types'
+import {
+  losasAMetros,
+  type Dimension,
+  type InventarioMovimiento,
+  type Producto,
+} from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { BarChart3, Search } from 'lucide-react'
@@ -101,6 +122,23 @@ const estadoBadgeClass: Record<Producto['estado'], string> = {
   Pulido: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   Escuadrado: 'border-amber-200 bg-amber-50 text-amber-700',
 }
+const movimientoEstadoBadgeClass: Record<InventarioMovimiento['estado'], string> = {
+  pendiente: 'border-amber-200 bg-amber-50 text-amber-700',
+  aprobado: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  rechazado: 'border-rose-200 bg-rose-50 text-rose-700',
+}
+
+const movimientoEstadoLabel: Record<InventarioMovimiento['estado'], string> = {
+  pendiente: 'Pendiente',
+  aprobado: 'Aprobado',
+  rechazado: 'Rechazado',
+}
+
+const movimientoTipoBadgeClass: Record<InventarioMovimiento['tipo'], string> = {
+  entrada: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  salida: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+}
+
 
 function buildEstadoRows(items: Producto[]): EstadoRow[] {
   return estadoOrden.map((estado) => {
@@ -129,6 +167,22 @@ function isMetricView(value: string): value is MetricView {
   return value === 'both' || value === 'losas' || value === 'm2'
 }
 
+function formatDateTime(value: string | undefined): string {
+  if (!value) return '--'
+  const parsed = new Date(value)
+  if (!Number.isFinite(parsed.getTime())) return value
+
+  return new Intl.DateTimeFormat('es-CU', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(parsed)
+}
+
 export default function InventarioPage() {
   const { productos } = useInventarioStore()
   const { produccion } = useProduccionStore()
@@ -137,6 +191,61 @@ export default function InventarioPage() {
   const [estadoFilter, setEstadoFilter] = useState<string>('all')
   const [dimensionFilter, setDimensionFilter] = useState<string>('all')
   const [metricView, setMetricView] = useState<MetricView>('both')
+  const [movimientos, setMovimientos] = useState<InventarioMovimiento[]>([])
+  const [movimientosLoading, setMovimientosLoading] = useState(true)
+  const [movimientosError, setMovimientosError] = useState<string | null>(null)
+  const [movimientoActionLoadingById, setMovimientoActionLoadingById] = useState<Record<string, boolean>>({})
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false)
+  const [approveDialogTargetId, setApproveDialogTargetId] = useState<string | null>(null)
+  const [approveDialogObservaciones, setApproveDialogObservaciones] = useState('')
+  const [approveDialogError, setApproveDialogError] = useState<string | null>(null)
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
+  const [rejectDialogTargetId, setRejectDialogTargetId] = useState<string | null>(null)
+  const [rejectDialogMotivo, setRejectDialogMotivo] = useState('')
+  const [rejectDialogError, setRejectDialogError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+    if (!raw) return
+    try {
+      setCurrentUser(JSON.parse(raw) as AdminUser)
+    } catch {
+      window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+
+    const loadMovimientos = async () => {
+      setMovimientosLoading(true)
+      setMovimientosError(null)
+      try {
+        const data = await getInventarioMovimientos()
+        if (!alive) return
+        setMovimientos(data)
+      } catch (error) {
+        if (!alive) return
+        setMovimientosError(
+          error instanceof Error
+            ? error.message
+            : 'No se pudo cargar el historial de movimientos de almacen.',
+        )
+      } finally {
+        if (alive) setMovimientosLoading(false)
+      }
+    }
+
+    void loadMovimientos()
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const canApproveMovimientos = currentUser ? hasPermission(currentUser, 'inventario:approve') : false
 
   const showLosas = metricView !== 'm2'
   const showM2 = metricView !== 'losas'
@@ -296,6 +405,121 @@ export default function InventarioPage() {
     )
   }, [partidasPorOrigen])
 
+  const movimientosOrdenados = useMemo(
+    () => [...movimientos].sort((a, b) => b.fechaSolicitud.localeCompare(a.fechaSolicitud)),
+    [movimientos],
+  )
+
+  const movimientosPendientes = useMemo(
+    () => movimientos.filter((movimiento) => movimiento.estado === 'pendiente').length,
+    [movimientos],
+  )
+
+  const approveDialogTarget = useMemo(
+    () => movimientos.find((movimiento) => movimiento.id === approveDialogTargetId) ?? null,
+    [approveDialogTargetId, movimientos],
+  )
+  const rejectDialogTarget = useMemo(
+    () => movimientos.find((movimiento) => movimiento.id === rejectDialogTargetId) ?? null,
+    [movimientos, rejectDialogTargetId],
+  )
+  const isApproveDialogLoading = approveDialogTargetId
+    ? !!movimientoActionLoadingById[approveDialogTargetId]
+    : false
+  const isRejectDialogLoading = rejectDialogTargetId
+    ? !!movimientoActionLoadingById[rejectDialogTargetId]
+    : false
+
+  const closeApproveDialog = () => {
+    if (isApproveDialogLoading) return
+    setApproveDialogOpen(false)
+    setApproveDialogTargetId(null)
+    setApproveDialogObservaciones('')
+    setApproveDialogError(null)
+  }
+
+  const closeRejectDialog = () => {
+    if (isRejectDialogLoading) return
+    setRejectDialogOpen(false)
+    setRejectDialogTargetId(null)
+    setRejectDialogMotivo('')
+    setRejectDialogError(null)
+  }
+
+  const handleApproveMovimiento = (movimientoId: string) => {
+    if (!canApproveMovimientos) return
+    setApproveDialogTargetId(movimientoId)
+    setApproveDialogObservaciones('')
+    setApproveDialogError(null)
+    setApproveDialogOpen(true)
+  }
+
+  const confirmApproveMovimiento = async () => {
+    if (!approveDialogTargetId) return
+    setMovimientosError(null)
+    setApproveDialogError(null)
+    setMovimientoActionLoadingById((prev) => ({ ...prev, [approveDialogTargetId]: true }))
+
+    try {
+      const observaciones = approveDialogObservaciones.trim()
+      const updated = await approveInventarioMovimiento(approveDialogTargetId, {
+        observaciones: observaciones ? observaciones : undefined,
+      })
+      setMovimientos((prev) =>
+        prev.map((movimiento) => (movimiento.id === updated.id ? updated : movimiento)),
+      )
+      closeApproveDialog()
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'No se pudo aprobar el movimiento de almacen.'
+      setMovimientosError(message)
+      setApproveDialogError(message)
+    } finally {
+      setMovimientoActionLoadingById((prev) => ({ ...prev, [approveDialogTargetId]: false }))
+    }
+  }
+
+  const handleRejectMovimiento = (movimientoId: string) => {
+    if (!canApproveMovimientos) return
+    setRejectDialogTargetId(movimientoId)
+    setRejectDialogMotivo('')
+    setRejectDialogError(null)
+    setRejectDialogOpen(true)
+  }
+
+  const confirmRejectMovimiento = async () => {
+    if (!rejectDialogTargetId) return
+    const motivoNormalizado = rejectDialogMotivo.trim()
+    if (motivoNormalizado.length < 5) {
+      setRejectDialogError('El motivo de rechazo debe tener al menos 5 caracteres.')
+      return
+    }
+    setMovimientosError(null)
+    setRejectDialogError(null)
+    setMovimientoActionLoadingById((prev) => ({ ...prev, [rejectDialogTargetId]: true }))
+
+    try {
+      const updated = await rejectInventarioMovimiento(rejectDialogTargetId, {
+        motivoRechazo: motivoNormalizado,
+      })
+      setMovimientos((prev) =>
+        prev.map((movimiento) => (movimiento.id === updated.id ? updated : movimiento)),
+      )
+      closeRejectDialog()
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'No se pudo rechazar el movimiento de almacen.'
+      setMovimientosError(message)
+      setRejectDialogError(message)
+    } finally {
+      setMovimientoActionLoadingById((prev) => ({ ...prev, [rejectDialogTargetId]: false }))
+    }
+  }
+
   const breakageChartData = useMemo(
     () => [
       {
@@ -433,7 +657,7 @@ export default function InventarioPage() {
             </p>
           </div>
           <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
-            Solo lectura
+            {canApproveMovimientos ? 'Control de aprobacion' : 'Solo lectura'}
           </Badge>
         </div>
 
@@ -501,6 +725,241 @@ export default function InventarioPage() {
             </div>
           </div>
         </div>
+
+
+        <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Historial exclusivo de almacen</p>
+              <h2 className="text-lg font-semibold text-slate-900">Entradas y salidas con aprobacion</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Todo movimiento debe aprobarse por jefatura de almacen antes de completarse.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={cn('w-fit', movimientosPendientes > 0 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700')}>
+                Pendientes: {movimientosPendientes}
+              </Badge>
+              <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
+                {canApproveMovimientos ? 'Aprobador: almacen' : 'Solo consulta'}
+              </Badge>
+            </div>
+          </div>
+
+          {movimientosError ? (
+            <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {movimientosError}
+            </p>
+          ) : null}
+
+          {movimientosLoading ? (
+            <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
+              Cargando movimientos de almacen...
+            </div>
+          ) : movimientosOrdenados.length === 0 ? (
+            <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
+              Sin movimientos registrados.
+            </div>
+          ) : (
+            <div className="mt-4 divide-y divide-slate-200/60 overflow-hidden rounded-xl border border-slate-200/80">
+              {movimientosOrdenados.map((movimiento) => {
+                const totalLosas = movimiento.detalles.reduce((sum, detalle) => sum + detalle.cantidadLosas, 0)
+                const totalM2 = movimiento.detalles.reduce((sum, detalle) => sum + detalle.metrosCuadrados, 0)
+                const isActionLoading = !!movimientoActionLoadingById[movimiento.id]
+                const detalleResumen = movimiento.detalles
+                  .slice(0, 2)
+                  .map((detalle) => `${detalle.origenNombre} ${detalle.dimension}`)
+                  .join(' | ')
+
+                return (
+                  <div key={movimiento.id} className="bg-white/70 px-3 py-3">
+                    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-900">{movimiento.id}</p>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              'border-slate-200 bg-slate-50 text-slate-700',
+                              movimientoTipoBadgeClass[movimiento.tipo],
+                            )}
+                          >
+                            {movimiento.tipo.toUpperCase()} / {movimiento.origen}
+                          </Badge>
+                          <Badge variant="outline" className={cn('text-[11px]', movimientoEstadoBadgeClass[movimiento.estado])}>
+                            {movimientoEstadoLabel[movimiento.estado]}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">
+                          Fecha: {formatDateTime(movimiento.fechaSolicitud)} - Motivo: {movimiento.motivo}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {totalLosas.toLocaleString()} losas - {totalM2.toFixed(2)} m2 - {movimiento.detalles.length} detalle(s)
+                        </p>
+                        {detalleResumen ? (
+                          <p className="mt-1 text-[11px] text-slate-500">{detalleResumen}</p>
+                        ) : null}
+                        {movimiento.motivoRechazo ? (
+                          <p className="mt-1 text-[11px] text-rose-700">Rechazo: {movimiento.motivoRechazo}</p>
+                        ) : null}
+                      </div>
+
+                      {canApproveMovimientos && movimiento.estado === 'pendiente' ? (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={isActionLoading}
+                            onClick={() => {
+                              void handleApproveMovimiento(movimiento.id)
+                            }}
+                          >
+                            {isActionLoading ? 'Procesando...' : 'Aprobar'}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="border-rose-200 text-rose-700"
+                            disabled={isActionLoading}
+                            onClick={() => {
+                              void handleRejectMovimiento(movimiento.id)
+                            }}
+                          >
+                            Rechazar
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500">
+                          {movimiento.estado === 'pendiente'
+                            ? 'Pendiente por aprobacion de almacen'
+                            : movimiento.fechaResolucion
+                              ? `Resuelto: ${formatDateTime(movimiento.fechaResolucion)}`
+                              : 'Resuelto'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <Dialog
+          open={approveDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) closeApproveDialog()
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Aprobar movimiento de almacen</DialogTitle>
+              <DialogDescription>
+                Puedes agregar observaciones opcionales antes de aprobar.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              {approveDialogTarget ? (
+                <p className="text-xs text-slate-600">
+                  {approveDialogTarget.id} - {approveDialogTarget.tipo.toUpperCase()} / {approveDialogTarget.origen}
+                </p>
+              ) : null}
+              <Textarea
+                value={approveDialogObservaciones}
+                onChange={(event) => {
+                  setApproveDialogObservaciones(event.target.value)
+                  if (approveDialogError) setApproveDialogError(null)
+                }}
+                rows={4}
+                placeholder="Observaciones (opcional)."
+                disabled={isApproveDialogLoading}
+              />
+              {approveDialogError ? (
+                <p className="text-xs text-destructive">{approveDialogError}</p>
+              ) : null}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeApproveDialog}
+                disabled={isApproveDialogLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  void confirmApproveMovimiento()
+                }}
+                disabled={isApproveDialogLoading}
+              >
+                {isApproveDialogLoading ? 'Procesando...' : 'Aprobar'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={rejectDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) closeRejectDialog()
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Rechazar movimiento de almacen</DialogTitle>
+              <DialogDescription>
+                Escribe el motivo del rechazo (minimo 5 caracteres).
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              {rejectDialogTarget ? (
+                <p className="text-xs text-slate-600">
+                  {rejectDialogTarget.id} - {rejectDialogTarget.tipo.toUpperCase()} / {rejectDialogTarget.origen}
+                </p>
+              ) : null}
+              <Textarea
+                value={rejectDialogMotivo}
+                onChange={(event) => {
+                  setRejectDialogMotivo(event.target.value)
+                  if (rejectDialogError) setRejectDialogError(null)
+                }}
+                rows={4}
+                placeholder="Motivo del rechazo."
+                disabled={isRejectDialogLoading}
+              />
+              {rejectDialogError ? (
+                <p className="text-xs text-destructive">{rejectDialogError}</p>
+              ) : null}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeRejectDialog}
+                disabled={isRejectDialogLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                tone="danger"
+                onClick={() => {
+                  void confirmRejectMovimiento()
+                }}
+                disabled={isRejectDialogLoading}
+              >
+                {isRejectDialogLoading ? 'Procesando...' : 'Confirmar rechazo'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -730,4 +1189,3 @@ export default function InventarioPage() {
     </AdminShell>
   )
 }
-

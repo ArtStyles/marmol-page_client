@@ -1,8 +1,19 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/admin/admin-button'
 import { Card, CardContent } from '@/components/ui/card'
-import type { ProduccionDiaria } from '@/lib/types'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
+import type { EstadoAprobacion, ProduccionDiaria } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import type { DateEditPolicy } from '../model/types'
 import {
@@ -18,16 +29,146 @@ import {
 } from '../lib/produccion-helpers'
 
 type Props = {
+  canApproveAlmacen: boolean
+  canApproveTaller: boolean
   fechasOrdenadas: string[]
   getDatePolicy: (fecha: string) => DateEditPolicy
   groupedByDate: Record<string, ProduccionDiaria[]>
+  onApproveAlmacen: (produccionId: string, motivo: string) => Promise<boolean>
+  onApproveTaller: (
+    produccionId: string,
+    aprobado: boolean,
+    motivoRechazo?: string,
+  ) => Promise<boolean>
+  almacenApprovalLoadingById: Record<string, boolean>
+  tallerApprovalLoadingById: Record<string, boolean>
+}
+
+const approvalBadgeClass: Record<EstadoAprobacion, string> = {
+  pendiente: 'border-amber-200 bg-amber-50 text-amber-700',
+  aprobado: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  rechazado: 'border-rose-200 bg-rose-50 text-rose-700',
+}
+
+const approvalLabel: Record<EstadoAprobacion, string> = {
+  pendiente: 'Pendiente',
+  aprobado: 'Aprobado',
+  rechazado: 'Rechazado',
+}
+
+const resolveAprobacion = (value: ProduccionDiaria['aprobacionTallerEstado']): EstadoAprobacion => {
+  if (value === 'aprobado' || value === 'rechazado') return value
+  return 'pendiente'
 }
 
 export function ProduccionRegistrosList({
+  canApproveAlmacen,
+  canApproveTaller,
   fechasOrdenadas,
   getDatePolicy,
   groupedByDate,
+  onApproveAlmacen,
+  onApproveTaller,
+  almacenApprovalLoadingById,
+  tallerApprovalLoadingById,
 }: Props) {
+  const [almacenModalOpen, setAlmacenModalOpen] = useState(false)
+  const [almacenTarget, setAlmacenTarget] = useState<{
+    id: string
+    origenNombre: string
+    fecha: string
+  } | null>(null)
+  const [almacenMotivo, setAlmacenMotivo] = useState('')
+  const [almacenModalError, setAlmacenModalError] = useState<string | null>(null)
+  const [tallerRejectModalOpen, setTallerRejectModalOpen] = useState(false)
+  const [tallerRejectTarget, setTallerRejectTarget] = useState<{
+    id: string
+    origenNombre: string
+    fecha: string
+  } | null>(null)
+  const [tallerRejectMotivo, setTallerRejectMotivo] = useState('')
+  const [tallerRejectModalError, setTallerRejectModalError] = useState<string | null>(null)
+
+  const isAlmacenSubmitLoading = useMemo(() => {
+    if (!almacenTarget) return false
+    return !!almacenApprovalLoadingById[almacenTarget.id]
+  }, [almacenApprovalLoadingById, almacenTarget])
+  const isTallerRejectSubmitLoading = useMemo(() => {
+    if (!tallerRejectTarget) return false
+    return !!tallerApprovalLoadingById[tallerRejectTarget.id]
+  }, [tallerApprovalLoadingById, tallerRejectTarget])
+
+  const openAlmacenModal = (item: ProduccionDiaria) => {
+    setAlmacenTarget({
+      id: item.id,
+      origenNombre: item.origenNombre,
+      fecha: item.fecha,
+    })
+    setAlmacenMotivo('')
+    setAlmacenModalError(null)
+    setAlmacenModalOpen(true)
+  }
+
+  const closeAlmacenModal = () => {
+    if (isAlmacenSubmitLoading) return
+    setAlmacenModalOpen(false)
+    setAlmacenTarget(null)
+    setAlmacenMotivo('')
+    setAlmacenModalError(null)
+  }
+  const openTallerRejectModal = (item: ProduccionDiaria) => {
+    setTallerRejectTarget({
+      id: item.id,
+      origenNombre: item.origenNombre,
+      fecha: item.fecha,
+    })
+    setTallerRejectMotivo('')
+    setTallerRejectModalError(null)
+    setTallerRejectModalOpen(true)
+  }
+
+  const closeTallerRejectModal = () => {
+    if (isTallerRejectSubmitLoading) return
+    setTallerRejectModalOpen(false)
+    setTallerRejectTarget(null)
+    setTallerRejectMotivo('')
+    setTallerRejectModalError(null)
+  }
+
+  const confirmAlmacenEntry = async () => {
+    if (!almacenTarget) return
+    const motivo = almacenMotivo.trim()
+    if (motivo.length < 5) {
+      setAlmacenModalError('El motivo debe tener al menos 5 caracteres.')
+      return
+    }
+
+    const ok = await onApproveAlmacen(almacenTarget.id, motivo)
+    if (ok) {
+      closeAlmacenModal()
+      return
+    }
+
+    setAlmacenModalError('No se pudo registrar la entrada de almacen.')
+  }
+
+  const confirmTallerReject = async () => {
+    if (!tallerRejectTarget) return
+    const motivo = tallerRejectMotivo.trim()
+    if (motivo.length < 5) {
+      setTallerRejectModalError('El motivo debe tener al menos 5 caracteres.')
+      return
+    }
+
+    const ok = await onApproveTaller(tallerRejectTarget.id, false, motivo)
+    if (ok) {
+      closeTallerRejectModal()
+      return
+    }
+
+    setTallerRejectModalError('No se pudo rechazar la aprobacion de taller.')
+  }
+
   return (
     <Card className=" bg-transparent border-none outline-none shadow-none p-0 ">
       <CardContent className="p-0">
@@ -72,7 +213,12 @@ export function ProduccionRegistrosList({
                   </div>
 
                   <div className="divide-y divide-slate-200/60">
-                    {registros.map((item) => {
+                    {registros.map((item, itemIndex) => {
+                      const aprobacionTaller = resolveAprobacion(item.aprobacionTallerEstado)
+                      const aprobacionAlmacen = resolveAprobacion(item.aprobacionAlmacenEstado)
+                      const isTallerLoading = !!tallerApprovalLoadingById[item.id]
+                      const isAlmacenLoading = !!almacenApprovalLoadingById[item.id]
+
                       const accionesActivas = actionOrder
                         .map((accion) => {
                           const detalles = getAccionDetalles(item, accion)
@@ -105,7 +251,7 @@ export function ProduccionRegistrosList({
                         .filter((accion) => accion.totalLosasAccion > 0)
 
                       return (
-                        <div key={item.id} className="px-4 py-3">
+                        <div key={`${fecha}-${item.id}-${itemIndex}`} className="px-4 py-3">
                           <div className="grid gap-1 lg:grid-cols-[1fr_3fr] lg:items-start">
                             <div>
                               <p className="text-sm font-semibold text-slate-900">{item.origenNombre}</p>
@@ -115,6 +261,64 @@ export function ProduccionRegistrosList({
                               <p className="mt-1 text-[11px] font-medium text-slate-600">
                                 Total: {item.totalLosas} losas / {item.totalM2.toFixed(2)} m2
                               </p>
+
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                <Badge variant="outline" className={cn('text-[10px]', approvalBadgeClass[aprobacionTaller])}>
+                                  Taller: {approvalLabel[aprobacionTaller]}
+                                </Badge>
+                                <Badge variant="outline" className={cn('text-[10px]', approvalBadgeClass[aprobacionAlmacen])}>
+                                  Almacen: {approvalLabel[aprobacionAlmacen]}
+                                </Badge>
+                              </div>
+
+                              {(canApproveTaller || canApproveAlmacen) && (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {canApproveTaller && aprobacionTaller !== 'aprobado' && (
+                                    <>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 px-2 text-[11px]"
+                                        disabled={isTallerLoading || isAlmacenLoading}
+                                        onClick={() => {
+                                          void onApproveTaller(item.id, true)
+                                        }}
+                                      >
+                                        {isTallerLoading ? 'Procesando...' : 'Aprobar taller'}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 px-2 text-[11px] border-rose-200 text-rose-700"
+                                        disabled={isTallerLoading || isAlmacenLoading}
+                                        onClick={() => {
+                                          openTallerRejectModal(item)
+                                        }}
+                                      >
+                                        Rechazar taller
+                                      </Button>
+                                    </>
+                                  )}
+
+                                  {canApproveAlmacen &&
+                                    aprobacionTaller === 'aprobado' &&
+                                    aprobacionAlmacen !== 'aprobado' && (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        className="h-7 px-2 text-[11px]"
+                                        disabled={isTallerLoading || isAlmacenLoading}
+                                        onClick={() => {
+                                          openAlmacenModal(item)
+                                        }}
+                                      >
+                                        {isAlmacenLoading ? 'Procesando...' : 'Dar entrada almacen'}
+                                      </Button>
+                                    )}
+                                </div>
+                              )}
                             </div>
 
                             <div className="overflow-x-auto">
@@ -157,9 +361,9 @@ export function ProduccionRegistrosList({
                                       </div>
 
                                       <div className="divide-y divide-slate-200/70">
-                                        {accion.detalles.map((detalle) => (
+                                        {accion.detalles.map((detalle, detalleIndex) => (
                                           <div
-                                            key={detalle.id}
+                                            key={`${item.id}-${accion.accion}-${detalle.id ?? 'detalle'}-${detalleIndex}`}
                                             className="grid grid-cols-[118px_minmax(0,1fr)_92px_92px_110px_120px] items-center gap-2 px-2.5 py-1.5"
                                           >
                                             <span />
@@ -207,6 +411,129 @@ export function ProduccionRegistrosList({
             })}
           </div>
         )}
+
+        <Dialog
+          open={almacenModalOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              closeAlmacenModal()
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Entrada a almacen</DialogTitle>
+              <DialogDescription>
+                Registra el motivo para aprobar la entrada al almacen.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              {almacenTarget ? (
+                <p className="text-xs text-slate-600">
+                  {almacenTarget.fecha} - {almacenTarget.origenNombre}
+                </p>
+              ) : null}
+
+              <Textarea
+                value={almacenMotivo}
+                onChange={(event) => {
+                  setAlmacenMotivo(event.target.value)
+                  if (almacenModalError) setAlmacenModalError(null)
+                }}
+                placeholder="Ejemplo: Entrada aprobada tras validacion de losas y metraje."
+                rows={4}
+                disabled={isAlmacenSubmitLoading}
+              />
+
+              {almacenModalError ? (
+                <p className="text-xs text-destructive">{almacenModalError}</p>
+              ) : null}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeAlmacenModal}
+                disabled={isAlmacenSubmitLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  void confirmAlmacenEntry()
+                }}
+                disabled={isAlmacenSubmitLoading}
+              >
+                {isAlmacenSubmitLoading ? 'Procesando...' : 'Confirmar entrada'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={tallerRejectModalOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              closeTallerRejectModal()
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Rechazar aprobacion de taller</DialogTitle>
+              <DialogDescription>
+                Escribe el motivo de rechazo para este registro.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              {tallerRejectTarget ? (
+                <p className="text-xs text-slate-600">
+                  {tallerRejectTarget.fecha} - {tallerRejectTarget.origenNombre}
+                </p>
+              ) : null}
+
+              <Textarea
+                value={tallerRejectMotivo}
+                onChange={(event) => {
+                  setTallerRejectMotivo(event.target.value)
+                  if (tallerRejectModalError) setTallerRejectModalError(null)
+                }}
+                placeholder="Ejemplo: Se detecto inconsistencia en losas o metraje reportado."
+                rows={4}
+                disabled={isTallerRejectSubmitLoading}
+              />
+
+              {tallerRejectModalError ? (
+                <p className="text-xs text-destructive">{tallerRejectModalError}</p>
+              ) : null}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeTallerRejectModal}
+                disabled={isTallerRejectSubmitLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                tone="danger"
+                onClick={() => {
+                  void confirmTallerReject()
+                }}
+                disabled={isTallerRejectSubmitLoading}
+              >
+                {isTallerRejectSubmitLoading ? 'Procesando...' : 'Confirmar rechazo'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   )

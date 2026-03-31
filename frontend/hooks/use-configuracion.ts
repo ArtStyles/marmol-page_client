@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { getConfiguracion, updateConfiguracion } from '@/lib/resources-api'
@@ -13,7 +13,10 @@ const emptyConfiguracion: ConfiguracionSistema = {
   salariosFijosPorRol: {
     Administrador: 0,
     'Gestor de Ventas': 0,
-    'Jefe de Turno de ProducciÃ³n': 0,
+    'Jefe de Almacen': 0,
+    'Jefe de Turno de Produccion': 0,
+    'Jefe de Turno de Producción': 0,
+    'Jefe de Turno de ProducciÃƒÂ³n': 0,
   },
   preciosM2: {
     '40x40': { crudo: 0, pulido: 0 },
@@ -113,4 +116,3 @@ export function useConfiguracion() {
     error,
   }
 }
-

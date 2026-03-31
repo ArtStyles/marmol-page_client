@@ -1,8 +1,10 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { AdminShell } from '@/components/admin/admin-shell'
 import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { Search } from 'lucide-react'
 import { useProduccionPageState } from '../hooks/use-produccion-page-state'
 import { ProduccionCreateDialog } from '../components/create-dialog/produccion-create-dialog'
@@ -12,6 +14,10 @@ import { ProduccionRegistrosList } from '../components/produccion-registros-list
 export default function ProduccionPage() {
   const {
     addUsage,
+    almacenApprovalLoadingById,
+    approvalError,
+    approveProduccionAlmacenRegistro,
+    approveProduccionTallerRegistro,
     dependenciesError,
     dateEditPolicy,
     dateFilter,
@@ -37,15 +43,33 @@ export default function ProduccionPage() {
     setFormData,
     setIsDialogOpen,
     setSearchTerm,
-    toggleUsageDimension,
+    tallerApprovalLoadingById,
     topOrigenesResumen,
     today,
     totalLosasResumen,
     totalM2Resumen,
+    toggleUsageDimension,
     trabajadoresActivos,
     updateUsage,
     updateUsageDimension,
   } = useProduccionPageState()
+
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+    if (!raw) return
+    try {
+      setCurrentUser(JSON.parse(raw) as AdminUser)
+    } catch {
+      window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    }
+  }, [])
+
+  const canApproveTaller = currentUser ? hasPermission(currentUser, 'produccion:approve_taller') : false
+  const canApproveAlmacen = currentUser ? hasPermission(currentUser, 'inventario:approve') : false
+
   const rightPanel = (
     <ProduccionRightPanel
       fechaResumen={fechaResumen}
@@ -57,6 +81,7 @@ export default function ProduccionPage() {
       totalM2Resumen={totalM2Resumen}
     />
   )
+
   return (
     <AdminShell rightPanel={rightPanel}>
       <div className="space-y-6">
@@ -70,6 +95,7 @@ export default function ProduccionPage() {
             {loadingDependencies ? (
               <p className="mt-2 text-sm text-slate-500">Cargando catalogos de produccion...</p>
             ) : null}
+            {approvalError ? <p className="mt-2 text-sm text-destructive">{approvalError}</p> : null}
           </div>
           <ProduccionCreateDialog
             addUsage={addUsage}
@@ -132,9 +158,15 @@ export default function ProduccionPage() {
         </div>
 
         <ProduccionRegistrosList
+          canApproveAlmacen={canApproveAlmacen}
+          canApproveTaller={canApproveTaller}
           fechasOrdenadas={fechasOrdenadas}
           groupedByDate={groupedByDate}
           getDatePolicy={getDatePolicy}
+          onApproveAlmacen={approveProduccionAlmacenRegistro}
+          onApproveTaller={approveProduccionTallerRegistro}
+          almacenApprovalLoadingById={almacenApprovalLoadingById}
+          tallerApprovalLoadingById={tallerApprovalLoadingById}
         />
       </div>
     </AdminShell>

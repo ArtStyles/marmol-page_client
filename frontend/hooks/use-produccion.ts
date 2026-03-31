@@ -48,6 +48,8 @@ export function useProduccionStore() {
   const [error, setError] = useState<string | null>(null)
   const syncQueueRef = useRef(Promise.resolve())
   const hasHydratedRef = useRef(false)
+  const previousProduccionRef = useRef<ProduccionDiaria[]>([])
+  const skipNextSyncRef = useRef(false)
 
   useEffect(() => {
     let active = true
@@ -57,6 +59,7 @@ export function useProduccionStore() {
         setError(null)
         const items = await getProduccion()
         if (!active) return
+        previousProduccionRef.current = items
         setProduccionState(items)
       } catch {
         if (!active) return
@@ -102,28 +105,43 @@ export function useProduccionStore() {
     )
   }, [])
 
+  useEffect(() => {
+    if (!hasHydratedRef.current) return
+
+    const prev = previousProduccionRef.current
+    const next = produccion
+    if (prev === next) return
+
+    previousProduccionRef.current = next
+
+    if (skipNextSyncRef.current) {
+      skipNextSyncRef.current = false
+      return
+    }
+
+    syncQueueRef.current = syncQueueRef.current
+      .then(() => syncProduccion(prev, next))
+      .catch(() => {
+        setError('No se pudo sincronizar produccion con el backend.')
+      })
+  }, [produccion, syncProduccion])
+
   const setProduccion = useCallback(
     (value: SetStateAction<ProduccionDiaria[]>) => {
-      setProduccionState((prev) => {
-        const next = typeof value === 'function' ? value(prev) : value
-
-        if (hasHydratedRef.current) {
-          syncQueueRef.current = syncQueueRef.current
-            .then(() => syncProduccion(prev, next))
-            .catch(() => {
-              setError('No se pudo sincronizar produccion con el backend.')
-            })
-        }
-
-        return next
-      })
+      setProduccionState((prev) => (typeof value === 'function' ? value(prev) : value))
     },
-    [syncProduccion],
+    [],
   )
+
+  const replaceProduccion = useCallback((value: SetStateAction<ProduccionDiaria[]>) => {
+    skipNextSyncRef.current = true
+    setProduccionState((prev) => (typeof value === 'function' ? value(prev) : value))
+  }, [])
 
   return {
     produccion,
     setProduccion,
+    replaceProduccion,
     loading,
     error,
   }

@@ -9,10 +9,12 @@ export type EstadoLosa = 'Crudo' | 'Pulido'
 export type EstadoInventario = 'Picado' | 'Pulido' | 'Escuadrado'
 export type AccionLosa = 'picar' | 'pulir' | 'escuadrar'
 export type TipoEquipo = 'Pulidora' | 'Cortadora' | 'Escuadradora'
+export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado'
 
 export type RolTrabajador =
   | 'Administrador'
   | 'Gestor de Ventas'
+  | 'Jefe de Almacen'
   | 'Jefe de Turno de Producción'
   | 'Obrero'
 
@@ -122,6 +124,18 @@ export interface ProduccionDiaria {
   detallesAcciones?: ProduccionDetalleAccion[]
   canEdit?: boolean
   editableUntil?: string
+  aprobacionTallerEstado?: EstadoAprobacion
+  aprobacionTallerPorId?: string
+  aprobacionTallerPorNombre?: string
+  aprobacionTallerFecha?: string
+  aprobacionTallerMotivoRechazo?: string
+  aprobacionAlmacenEstado?: EstadoAprobacion
+  aprobacionAlmacenPorId?: string
+  aprobacionAlmacenPorNombre?: string
+  aprobacionAlmacenFecha?: string
+  aprobacionAlmacenMotivo?: string
+  inventarioAplicado?: boolean
+  movimientoInventarioIds?: string[]
 }
 
 export interface ProduccionTrabajador {
@@ -160,6 +174,8 @@ export interface Merma {
   metrosCuadrados: number
   motivo: MotivoMerma
   observaciones: string
+  estadoInventario?: EstadoAprobacion
+  movimientoInventarioId?: string
 }
 
 export interface VentaDetalleProducto {
@@ -190,7 +206,9 @@ export interface Venta {
   clienteEmail: string
   clienteTelefono: string
   fecha: string
-  estado: 'pendiente' | 'completada' | 'cancelada'
+  estado: 'pendiente' | 'completada' | 'cancelada' | 'pendiente_aprobacion_almacen'
+  motivoMovimientoAlmacen?: string
+  movimientoInventarioId?: string
 }
 
 export interface Trabajador {
@@ -280,6 +298,7 @@ export type AdminRole =
   | 'Administrador'
   | 'Contadora'
   | 'Gestor de Ventas'
+  | 'Jefe de Almacen'
   | 'Jefe de Turno de Produccion'
   | 'Jefe de Turno de Producción'
   | 'Obrero'
@@ -325,4 +344,39 @@ export interface AdminUser {
   workshopId: string
   permissions?: string[]
   permissionGroups?: string[]
+}
+
+export type InventarioMovimientoTipo = 'entrada' | 'salida'
+export type InventarioMovimientoOrigen = 'produccion' | 'venta' | 'merma' | 'proceso' | 'ajuste'
+export type InventarioMovimientoEstado = EstadoAprobacion
+
+export interface InventarioMovimientoDetalle {
+  id: string
+  productoId?: string
+  productoNombre: string
+  tipo: TipoProducto
+  estado?: EstadoInventario
+  dimension: Dimension
+  origenId: string
+  origenNombre: string
+  cantidadLosas: number
+  metrosCuadrados: number
+}
+
+export interface InventarioMovimiento {
+  id: string
+  fechaSolicitud: string
+  fechaResolucion?: string
+  tipo: InventarioMovimientoTipo
+  origen: InventarioMovimientoOrigen
+  estado: InventarioMovimientoEstado
+  referenciaId?: string
+  motivo: string
+  observaciones?: string
+  solicitadoPorId?: string
+  solicitadoPorNombre?: string
+  aprobadoPorId?: string
+  aprobadoPorNombre?: string
+  motivoRechazo?: string
+  detalles: InventarioMovimientoDetalle[]
 }

@@ -45,6 +45,15 @@ function nextSet(prev: Set<string>, key: string, enabled: boolean): Set<string> 
   return next
 }
 
+function isLockedSystemGroup(group: PermissionGroup | null | undefined): boolean {
+  if (!group) return false
+  return group.id === 'grp_super_admin' || group.systemKey === 'role:super_admin'
+}
+
+function isLockedSuperAdminUser(user: UserPermissionAccess | null | undefined): boolean {
+  return user?.role === 'Super Admin'
+}
+
 export default function PermisosPage() {
   const [sessionUser, setSessionUser] = useState<AdminUser | null>(null)
   const [loading, setLoading] = useState(true)
@@ -91,6 +100,33 @@ export default function PermisosPage() {
     () => users.find((user) => user.userId === selectedUserId) ?? null,
     [users, selectedUserId],
   )
+  const selectedUserIsSuperAdmin = isLockedSuperAdminUser(selectedUser)
+  const selectedUserEffectivePermissions = useMemo(
+    () => new Set(selectedUser?.effectivePermissionCodes ?? []),
+    [selectedUser],
+  )
+  const selectedUserGroupPermissions = useMemo(() => {
+    const inherited = new Set<string>()
+    for (const groupId of userGroupIds) {
+      const group = groups.find((item) => item.id === groupId)
+      for (const permissionCode of group?.permissionCodes ?? []) {
+        inherited.add(permissionCode)
+      }
+    }
+    return inherited
+  }, [groups, userGroupIds])
+  const selectedUserVisiblePermissions = useMemo(() => {
+    if (selectedUserIsSuperAdmin) return selectedUserEffectivePermissions
+    return new Set([
+      ...selectedUserGroupPermissions,
+      ...userDirectPermissions,
+    ])
+  }, [
+    selectedUserIsSuperAdmin,
+    selectedUserEffectivePermissions,
+    selectedUserGroupPermissions,
+    userDirectPermissions,
+  ])
 
   const rightPanel = (
     <div className="space-y-4">
@@ -140,9 +176,11 @@ export default function PermisosPage() {
       setDefinitions(definitionsData)
       setGroups(groupsData)
       setUsers(usersData)
-      if (!selectedUserId && usersData[0]) {
-        setSelectedUserId(usersData[0].userId)
-      }
+      const currentSelectionExists = selectedUserId
+        ? usersData.some((user) => user.userId === selectedUserId)
+        : false
+      if (currentSelectionExists) return
+      setSelectedUserId(usersData[0]?.userId ?? null)
     } catch (error) {
       setSyncError(error instanceof Error ? error.message : 'No se pudieron cargar permisos.')
     } finally {
@@ -212,8 +250,8 @@ export default function PermisosPage() {
       setSyncError('El grupo requiere nombre y al menos un permiso.')
       return
     }
-    if (selectedGroup?.isSystem) {
-      setSyncError('Los grupos del sistema no se pueden editar desde esta vista.')
+    if (isLockedSystemGroup(selectedGroup)) {
+      setSyncError('El grupo Super Admin no se puede editar desde esta vista.')
       return
     }
 
@@ -236,8 +274,8 @@ export default function PermisosPage() {
 
   const handleDeleteGroup = async () => {
     if (!canWriteGroups || !selectedGroupId) return
-    if (selectedGroup?.isSystem) {
-      setSyncError('Los grupos del sistema no se pueden eliminar.')
+    if (isLockedSystemGroup(selectedGroup)) {
+      setSyncError('El grupo Super Admin no se puede eliminar.')
       return
     }
     if (typeof window !== 'undefined') {
@@ -260,6 +298,10 @@ export default function PermisosPage() {
 
   const handleSaveUserAccess = async () => {
     if (!canWriteUsers || !selectedUser) return
+    if (selectedUserIsSuperAdmin) {
+      setSyncError('El acceso del Super Admin esta gestionado por el sistema y no se puede editar.')
+      return
+    }
     setUserSubmitting(true)
     setSyncError(null)
     try {
@@ -296,7 +338,7 @@ export default function PermisosPage() {
               <CardHeader className="space-y-1">
                 <CardTitle className="text-lg">Grupos de permisos</CardTitle>
                 <p className="text-xs text-slate-500">
-                  Los grupos del sistema son de solo lectura.
+                  Puedes editar grupos del sistema, excepto Super Admin.
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -331,7 +373,7 @@ export default function PermisosPage() {
                       onChange={(event) =>
                         setGroupForm((prev) => ({ ...prev, name: event.target.value }))
                       }
-                      disabled={selectedGroup?.isSystem}
+                      disabled={isLockedSystemGroup(selectedGroup)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -342,7 +384,7 @@ export default function PermisosPage() {
                         setGroupForm((prev) => ({ ...prev, description: event.target.value }))
                       }
                       rows={3}
-                      disabled={selectedGroup?.isSystem}
+                      disabled={isLockedSystemGroup(selectedGroup)}
                     />
                   </div>
 
@@ -371,7 +413,7 @@ export default function PermisosPage() {
                                     ),
                                   }))
                                 }
-                                disabled={selectedGroup?.isSystem}
+                                disabled={isLockedSystemGroup(selectedGroup)}
                               />
                               <span>
                                 <span className="block text-sm text-slate-900">{definition.name}</span>
@@ -392,7 +434,7 @@ export default function PermisosPage() {
                       type="button"
                       onClick={handleSaveGroup}
                       disabled={
-                        !canWriteGroups || selectedGroup?.isSystem === true || groupSubmitting
+                        !canWriteGroups || isLockedSystemGroup(selectedGroup) || groupSubmitting
                       }
                     >
                       <ShieldPlus className="mr-2 h-4 w-4" />
@@ -405,7 +447,7 @@ export default function PermisosPage() {
                       disabled={
                         !canWriteGroups ||
                         !selectedGroupId ||
-                        selectedGroup?.isSystem === true ||
+                        isLockedSystemGroup(selectedGroup) ||
                         groupSubmitting
                       }
                     >
@@ -432,6 +474,11 @@ export default function PermisosPage() {
                     onChange={(event) => setSelectedUserId(event.target.value)}
                     className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900"
                   >
+                    {users.length === 0 ? (
+                      <option value="" disabled>
+                        No hay usuarios disponibles
+                      </option>
+                    ) : null}
                     {users.map((user) => (
                       <option key={user.userId} value={user.userId}>
                         {user.name} · {user.role}
@@ -454,6 +501,11 @@ export default function PermisosPage() {
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                         Grupos asignados
                       </p>
+                      {selectedUserIsSuperAdmin ? (
+                        <p className="text-[11px] text-amber-700">
+                          Super Admin siempre conserva acceso total. Esta configuracion es de solo lectura.
+                        </p>
+                      ) : null}
                       <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-2">
                         {groups.map((group) => (
                           <label key={group.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-slate-50">
@@ -462,7 +514,7 @@ export default function PermisosPage() {
                               onCheckedChange={(checked) =>
                                 setUserGroupIds((prev) => nextSet(prev, group.id, checked === true))
                               }
-                              disabled={!canWriteUsers}
+                              disabled={!canWriteUsers || selectedUserIsSuperAdmin}
                             />
                             <span className="text-sm text-slate-800">
                               {group.name}
@@ -475,8 +527,13 @@ export default function PermisosPage() {
 
                     <div className="space-y-2">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Permisos directos
+                        {selectedUserIsSuperAdmin ? 'Permisos efectivos (sistema)' : 'Permisos directos'}
                       </p>
+                      {!selectedUserIsSuperAdmin ? (
+                        <p className="text-[11px] text-slate-500">
+                          Los permisos heredados por grupo aparecen marcados y son de solo lectura aqui.
+                        </p>
+                      ) : null}
                       {groupedDefinitions.map(([module, items]) => (
                         <div key={module} className="rounded-lg border border-slate-200 bg-white p-2">
                           <p className="mb-2 text-xs font-semibold text-slate-700">{toTitleCase(module)}</p>
@@ -487,17 +544,28 @@ export default function PermisosPage() {
                                 className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 hover:bg-slate-50"
                               >
                                 <Checkbox
-                                  checked={userDirectPermissions.has(definition.code)}
-                                  onCheckedChange={(checked) =>
+                                  checked={selectedUserVisiblePermissions.has(definition.code)}
+                                  onCheckedChange={(checked) => {
+                                    if (selectedUserGroupPermissions.has(definition.code)) return
                                     setUserDirectPermissions((prev) =>
                                       nextSet(prev, definition.code, checked === true),
                                     )
+                                  }}
+                                  disabled={
+                                    !canWriteUsers ||
+                                    selectedUserIsSuperAdmin ||
+                                    selectedUserGroupPermissions.has(definition.code)
                                   }
-                                  disabled={!canWriteUsers}
                                 />
                                 <span>
                                   <span className="block text-sm text-slate-900">{definition.name}</span>
                                   <span className="block text-xs text-slate-500">{definition.code}</span>
+                                  {!selectedUserIsSuperAdmin &&
+                                  selectedUserGroupPermissions.has(definition.code) ? (
+                                    <span className="block text-[11px] text-amber-700">
+                                      Heredado por grupo
+                                    </span>
+                                  ) : null}
                                 </span>
                               </label>
                             ))}
@@ -509,7 +577,7 @@ export default function PermisosPage() {
                     <Button
                       type="button"
                       onClick={handleSaveUserAccess}
-                      disabled={!canWriteUsers || userSubmitting}
+                      disabled={!canWriteUsers || userSubmitting || selectedUserIsSuperAdmin}
                     >
                       <Save className="mr-2 h-4 w-4" />
                       Guardar acceso del usuario

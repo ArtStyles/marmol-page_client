@@ -35,7 +35,7 @@ export const AdminShell = ({ children, rightPanel, navItems }: AdminShellProps) 
 
           <section className="space-y-5">{children}</section>
 
-          <RightPanelSlot rightPanel={rightPanel} />
+          <RightPanelSlot rightPanel={rightPanel} sessionUser={sessionUser} />
         </div>
 
         <MobileNavigation

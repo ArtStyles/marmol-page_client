@@ -1,18 +1,33 @@
+﻿import { DomainError } from '../../errors/domain.error.js'
 import type {
+  AprobarEntradaProduccionAlmacenDto,
+  AprobarProduccionTallerDto,
   CreateProduccionDto,
-  UpdateProduccionDto,
-  ProduccionResponseDto,
   CreateProduccionTrabajadorDto,
-  UpdateProduccionTrabajadorDto,
+  ProduccionResponseDto,
   ProduccionTrabajadorResponseDto,
+  UpdateProduccionDto,
+  UpdateProduccionTrabajadorDto,
 } from '../../dtos/index.js'
-import type { ProduccionDetalleAccion, ProduccionDiaria } from '../../../domain/entities/index.js'
+import type {
+  EstadoInventario,
+  InventarioMovimientoDetalle,
+  ProduccionDetalleAccion,
+  ProduccionDiaria,
+} from '../../../domain/entities/index.js'
 import type {
   BloqueRepositoryPort,
-  ProductoRepositoryPort,
+  InventarioMovimientoRepositoryPort,
   ProduccionRepositoryPort,
   ProduccionTrabajadorRepositoryPort,
+  ProductoRepositoryPort,
 } from '../../../domain/ports/index.js'
+import { applyInventarioEntrada } from '../inventario-movimientos/inventario-movimiento.helpers.js'
+
+interface ProduccionActor {
+  userId: string
+  userName: string
+}
 
 export class GetProduccionUseCase {
   constructor(private readonly repository: ProduccionRepositoryPort) {}
@@ -31,16 +46,192 @@ export class GetProduccionByIdUseCase {
 }
 
 export class CreateProduccionUseCase {
+  constructor(private readonly repository: ProduccionRepositoryPort) {}
+
+  async execute(dto: CreateProduccionDto): Promise<ProduccionResponseDto> {
+    return this.repository.create({
+      ...dto,
+      aprobacionTallerEstado: 'pendiente',
+      aprobacionAlmacenEstado: 'pendiente',
+      inventarioAplicado: false,
+      movimientoInventarioIds: [],
+    })
+  }
+}
+
+export class ApproveProduccionTallerUseCase {
+  constructor(private readonly repository: ProduccionRepositoryPort) {}
+
+  async execute(
+    id: string,
+    dto: AprobarProduccionTallerDto,
+    actor: ProduccionActor,
+  ): Promise<ProduccionResponseDto> {
+    const produccion = await this.repository.findById(id)
+    if (!produccion) {
+      throw new DomainError(`Produccion ${id} no existe`, 404, 'PRODUCCION_NOT_FOUND')
+    }
+
+    if (produccion.inventarioAplicado) {
+      throw new DomainError(
+        'La produccion ya fue aplicada al inventario y no puede cambiarse su aprobacion de taller.',
+        409,
+        'PRODUCCION_INVENTARIO_CERRADO',
+      )
+    }
+
+    const now = new Date().toISOString()
+
+    if (!dto.aprobado) {
+      const motivoRechazo = dto.motivoRechazo?.trim()
+      if (!motivoRechazo) {
+        throw new DomainError(
+          'Debe indicar un motivo de rechazo para taller.',
+          400,
+          'PRODUCCION_TALLER_MOTIVO_REQUERIDO',
+        )
+      }
+
+      const rejected = await this.repository.update(id, {
+        aprobacionTallerEstado: 'rechazado',
+        aprobacionTallerPorId: actor.userId,
+        aprobacionTallerPorNombre: actor.userName,
+        aprobacionTallerFecha: now,
+        aprobacionTallerMotivoRechazo: motivoRechazo,
+        aprobacionAlmacenEstado: 'pendiente',
+        aprobacionAlmacenPorId: undefined,
+        aprobacionAlmacenPorNombre: undefined,
+        aprobacionAlmacenFecha: undefined,
+        aprobacionAlmacenMotivo: undefined,
+        inventarioAplicado: false,
+      })
+
+      if (!rejected) {
+        throw new DomainError(
+          `No se pudo actualizar produccion ${id}`,
+          500,
+          'PRODUCCION_UPDATE_FAILED',
+        )
+      }
+
+      return rejected
+    }
+
+    const approved = await this.repository.update(id, {
+      aprobacionTallerEstado: 'aprobado',
+      aprobacionTallerPorId: actor.userId,
+      aprobacionTallerPorNombre: actor.userName,
+      aprobacionTallerFecha: now,
+      aprobacionTallerMotivoRechazo: undefined,
+    })
+
+    if (!approved) {
+      throw new DomainError(
+        `No se pudo actualizar produccion ${id}`,
+        500,
+        'PRODUCCION_UPDATE_FAILED',
+      )
+    }
+
+    return approved
+  }
+}
+
+export class ApproveEntradaProduccionAlmacenUseCase {
   constructor(
     private readonly repository: ProduccionRepositoryPort,
     private readonly bloqueRepository: BloqueRepositoryPort,
     private readonly productoRepository: ProductoRepositoryPort,
+    private readonly movimientoRepository: InventarioMovimientoRepositoryPort,
   ) {}
 
-  async execute(dto: CreateProduccionDto): Promise<ProduccionResponseDto> {
-    await upsertInventarioPorProduccion(dto, this.productoRepository)
-    await actualizarBloquePorProduccion(dto, this.bloqueRepository)
-    return this.repository.create(dto)
+  async execute(
+    id: string,
+    dto: AprobarEntradaProduccionAlmacenDto,
+    actor: ProduccionActor,
+  ): Promise<ProduccionResponseDto> {
+    const produccion = await this.repository.findById(id)
+    if (!produccion) {
+      throw new DomainError(`Produccion ${id} no existe`, 404, 'PRODUCCION_NOT_FOUND')
+    }
+
+    if (produccion.aprobacionTallerEstado !== 'aprobado') {
+      throw new DomainError(
+        'La produccion debe estar aprobada por taller antes de dar entrada a almacen.',
+        409,
+        'PRODUCCION_TALLER_NO_APROBADA',
+      )
+    }
+
+    if (produccion.inventarioAplicado || produccion.aprobacionAlmacenEstado === 'aprobado') {
+      throw new DomainError(
+        'La produccion ya fue aplicada en almacen.',
+        409,
+        'PRODUCCION_ALMACEN_YA_APROBADA',
+      )
+    }
+
+    const motivo = dto.motivo.trim()
+    if (motivo.length < 5) {
+      throw new DomainError(
+        'Debe registrar un motivo valido para dar entrada de almacen.',
+        400,
+        'PRODUCCION_ALMACEN_MOTIVO_REQUERIDO',
+      )
+    }
+
+    const detallesEntrada = buildDetallesEntradaDesdeProduccion(produccion)
+    if (detallesEntrada.length === 0) {
+      throw new DomainError(
+        'La produccion no tiene losas efectivas para ingresar a inventario.',
+        409,
+        'PRODUCCION_SIN_ENTRADA_EFECTIVA',
+      )
+    }
+
+    await applyInventarioEntrada(detallesEntrada, this.productoRepository)
+    await actualizarBloquePorProduccion(produccion, this.bloqueRepository)
+
+    const now = new Date().toISOString()
+    const movimiento = await this.movimientoRepository.create({
+      fechaSolicitud: now,
+      fechaResolucion: now,
+      tipo: 'entrada',
+      origen: 'produccion',
+      estado: 'aprobado',
+      referenciaId: produccion.id,
+      motivo,
+      observaciones: `Entrada aprobada para produccion ${produccion.id}`,
+      solicitadoPorId: produccion.aprobacionTallerPorId,
+      solicitadoPorNombre: produccion.aprobacionTallerPorNombre,
+      aprobadoPorId: actor.userId,
+      aprobadoPorNombre: actor.userName,
+      detalles: detallesEntrada,
+    })
+
+    const movimientoInventarioIds = produccion.movimientoInventarioIds?.includes(movimiento.id)
+      ? (produccion.movimientoInventarioIds ?? [])
+      : [...(produccion.movimientoInventarioIds ?? []), movimiento.id]
+
+    const updated = await this.repository.update(id, {
+      aprobacionAlmacenEstado: 'aprobado',
+      aprobacionAlmacenPorId: actor.userId,
+      aprobacionAlmacenPorNombre: actor.userName,
+      aprobacionAlmacenFecha: now,
+      aprobacionAlmacenMotivo: motivo,
+      inventarioAplicado: true,
+      movimientoInventarioIds,
+    })
+
+    if (!updated) {
+      throw new DomainError(
+        `No se pudo actualizar produccion ${id}`,
+        500,
+        'PRODUCCION_UPDATE_FAILED',
+      )
+    }
+
+    return updated
   }
 }
 
@@ -48,6 +239,19 @@ export class UpdateProduccionUseCase {
   constructor(private readonly repository: ProduccionRepositoryPort) {}
 
   async execute(id: string, dto: UpdateProduccionDto): Promise<ProduccionResponseDto | null> {
+    const current = await this.repository.findById(id)
+    if (!current) {
+      return null
+    }
+
+    if (current.aprobacionTallerEstado === 'aprobado' || current.inventarioAplicado) {
+      throw new DomainError(
+        'No se puede editar una produccion ya aprobada.',
+        409,
+        'PRODUCCION_EDIT_LOCKED',
+      )
+    }
+
     return this.repository.update(id, dto)
   }
 }
@@ -56,6 +260,19 @@ export class DeleteProduccionUseCase {
   constructor(private readonly repository: ProduccionRepositoryPort) {}
 
   async execute(id: string): Promise<boolean> {
+    const current = await this.repository.findById(id)
+    if (!current) {
+      return false
+    }
+
+    if (current.inventarioAplicado) {
+      throw new DomainError(
+        'No se puede eliminar una produccion que ya movio inventario.',
+        409,
+        'PRODUCCION_DELETE_LOCKED',
+      )
+    }
+
     return this.repository.delete(id)
   }
 }
@@ -90,7 +307,7 @@ export class UpdateProduccionTrabajadorUseCase {
 
   async execute(
     id: string,
-    dto: UpdateProduccionTrabajadorDto
+    dto: UpdateProduccionTrabajadorDto,
   ): Promise<ProduccionTrabajadorResponseDto | null> {
     return this.repository.update(id, dto)
   }
@@ -104,22 +321,23 @@ export class DeleteProduccionTrabajadorUseCase {
   }
 }
 
-async function upsertInventarioPorProduccion(
-  dto: CreateProduccionDto,
-  productoRepository: ProductoRepositoryPort,
-): Promise<void> {
-  const productos = await productoRepository.findAll()
-  const totalPerdidasPorAccion = buildPerdidasPorAccion(dto.detallesAcciones)
-  const mapaEstado = {
+function buildDetallesEntradaDesdeProduccion(
+  registro: ProduccionDiaria,
+): InventarioMovimientoDetalle[] {
+  const totalPerdidasPorAccion = buildPerdidasPorAccion(registro.detallesAcciones)
+  const mapaEstado: Record<'picar' | 'pulir' | 'escuadrar', EstadoInventario> = {
     picar: 'Picado',
     pulir: 'Pulido',
     escuadrar: 'Escuadrado',
-  } as const
+  }
+
   const acciones = [
-    { accion: 'picar', cantidad: dto.cantidadPicar },
-    { accion: 'pulir', cantidad: dto.cantidadPulir },
-    { accion: 'escuadrar', cantidad: dto.cantidadEscuadrar },
+    { accion: 'picar', cantidad: registro.cantidadPicar },
+    { accion: 'pulir', cantidad: registro.cantidadPulir },
+    { accion: 'escuadrar', cantidad: registro.cantidadEscuadrar },
   ] as const
+
+  const detalles: InventarioMovimientoDetalle[] = []
 
   for (const { accion, cantidad } of acciones) {
     const perdidas = totalPerdidasPorAccion[accion] ?? 0
@@ -129,40 +347,26 @@ async function upsertInventarioPorProduccion(
     }
 
     const estado = mapaEstado[accion]
-    const existente = productos.find(
-      (item) =>
-        item.origenId === dto.origenId &&
-        item.tipo === dto.tipo &&
-        item.dimension === dto.dimension &&
-        item.estado === estado,
-    )
-    const metros = round2(efectivas * dimensionToArea(dto.dimension))
+    const metros = round2(efectivas * dimensionToArea(registro.dimension))
 
-    if (existente) {
-      await productoRepository.update(existente.id, {
-        cantidadLosas: existente.cantidadLosas + efectivas,
-        metrosCuadrados: round2(existente.metrosCuadrados + metros),
-      })
-      continue
-    }
-
-    await productoRepository.create({
-      nombre: `${dto.tipo} ${dto.origenNombre} ${dto.dimension} ${estado}`,
-      tipo: dto.tipo,
+    detalles.push({
+      id: `imd-${accion}-${registro.id}`,
+      productoNombre: `${registro.tipo} ${registro.origenNombre} ${registro.dimension} ${estado}`,
+      tipo: registro.tipo,
       estado,
-      dimension: dto.dimension,
-      origenId: dto.origenId,
-      origenNombre: dto.origenNombre,
+      dimension: registro.dimension,
+      origenId: registro.origenId,
+      origenNombre: registro.origenNombre,
       cantidadLosas: efectivas,
       metrosCuadrados: metros,
-      precioM2: 0,
-      imagen: '/placeholder.jpg',
     })
   }
+
+  return detalles
 }
 
 async function actualizarBloquePorProduccion(
-  dto: CreateProduccionDto,
+  dto: Pick<ProduccionDiaria, 'origenId' | 'dimension' | 'totalM2' | 'totalLosas' | 'detallesAcciones'>,
   bloqueRepository: BloqueRepositoryPort,
 ): Promise<void> {
   const bloque = await bloqueRepository.findById(dto.origenId)

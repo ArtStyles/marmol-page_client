@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { DomainError } from '../../../application/errors/domain.error.js'
 import {
+  ALL_PERMISSION_CODES,
   PERMISSION_DEFINITIONS,
   getDefaultPermissionCodesByRole,
   getDefaultSystemGroupKeyForRole,
@@ -41,6 +42,32 @@ function nextCustomGroupId(): string {
   return `grp_custom_${randomBytes(6).toString('hex')}`
 }
 
+function isLockedSystemGroup(group: Pick<PermissionGroup, 'id' | 'systemKey'>): boolean {
+  return group.id === 'grp_super_admin' || group.systemKey === 'role:super_admin'
+}
+
+function withSuperAdminFullAccess(role: AdminRole, permissionCodes: string[]): string[] {
+  if (role !== 'Super Admin') return permissionCodes
+  return [...ALL_PERMISSION_CODES]
+}
+
+function normalizeAdminRoleFromTrabajadorRole(role: string): AdminRole {
+  const normalized = role.trim()
+  if (
+    normalized === 'Jefe de Turno de Produccion' ||
+    normalized === 'Jefe de Turno de Producción' ||
+    normalized === 'Jefe de Turno de ProducciÃ³n'
+  ) {
+    return 'Jefe de Turno de Produccion'
+  }
+  if (normalized === 'Administrador') return 'Administrador'
+  if (normalized === 'Contadora') return 'Contadora'
+  if (normalized === 'Gestor de Ventas') return 'Gestor de Ventas'
+  if (normalized === 'Jefe de Almacen') return 'Jefe de Almacen'
+  if (normalized === 'Super Admin') return 'Super Admin'
+  return 'Obrero'
+}
+
 function mapPermissionGroup(row: Record<string, unknown>): PermissionGroup {
   return {
     id: row.id as string,
@@ -77,6 +104,33 @@ const GROUP_SELECT = `
 `
 
 export class PostgresPermissionRepository implements PermissionRepositoryPort {
+  private async ensureWorkshopAdminUsers(workshopId: string): Promise<void> {
+    const pool = getPool()
+    await pool.query(
+      `INSERT INTO admin_users (id, name, email, workshop_id, password_hash, role)
+       SELECT
+         'TRA-' || t.id,
+         t.nombre,
+         LOWER(t.email),
+         t.workshop_id,
+         COALESCE(NULLIF(t.contrasena, ''), md5(t.email || ':' || NOW()::text)),
+         CASE
+           WHEN t.rol IN ('Jefe de Turno de Produccion', 'Jefe de Turno de Producción', 'Jefe de Turno de ProducciÃ³n') THEN 'Jefe de Turno de Produccion'
+           WHEN t.rol IN ('Administrador', 'Contadora', 'Gestor de Ventas', 'Jefe de Almacen', 'Super Admin', 'Obrero') THEN t.rol
+           ELSE 'Obrero'
+         END
+       FROM trabajadores t
+       WHERE t.workshop_id = $1
+         AND NOT EXISTS (
+           SELECT 1
+           FROM admin_users u
+           WHERE LOWER(u.email) = LOWER(t.email)
+         )
+       ON CONFLICT (id) DO NOTHING`,
+      [workshopId],
+    )
+  }
+
   async listDefinitions(): Promise<PermissionDefinition[]> {
     const pool = getPool()
     const result = await pool.query(
@@ -186,9 +240,9 @@ export class PostgresPermissionRepository implements PermissionRepositoryPort {
   async updateGroup(id: string, data: PermissionGroupUpdateInput): Promise<PermissionGroup | null> {
     const current = await this.findGroupById(id)
     if (!current) return null
-    if (current.isSystem) {
+    if (isLockedSystemGroup(current)) {
       throw new DomainError(
-        'System groups cannot be modified',
+        'Super admin group cannot be modified',
         403,
         'PERMISSION_GROUP_SYSTEM_LOCKED',
       )
@@ -256,9 +310,9 @@ export class PostgresPermissionRepository implements PermissionRepositoryPort {
   async deleteGroup(id: string): Promise<boolean> {
     const current = await this.findGroupById(id)
     if (!current) return false
-    if (current.isSystem) {
+    if (isLockedSystemGroup(current)) {
       throw new DomainError(
-        'System groups cannot be deleted',
+        'Super admin group cannot be deleted',
         403,
         'PERMISSION_GROUP_SYSTEM_LOCKED',
       )
@@ -272,6 +326,7 @@ export class PostgresPermissionRepository implements PermissionRepositoryPort {
   async listUserAccess(): Promise<UserPermissionAccess[]> {
     const pool = getPool()
     const workshopId = getActiveWorkshopId()
+    await this.ensureWorkshopAdminUsers(workshopId)
     const result = await pool.query(
       `SELECT
          u.id AS user_id,
@@ -294,7 +349,7 @@ export class PostgresPermissionRepository implements PermissionRepositoryPort {
       userId: row.user_id as string,
       name: row.name as string,
       email: row.email as string,
-      role: row.role as AdminRole,
+      role: normalizeAdminRoleFromTrabajadorRole(row.role as string),
       workshopId: row.workshop_id as string,
       assignedGroupIds: asStringArray(row.assigned_group_ids),
       directPermissionCodes: normalizePermissionCodes(asStringArray(row.direct_permission_codes)),
@@ -325,6 +380,7 @@ export class PostgresPermissionRepository implements PermissionRepositoryPort {
   ): Promise<UserPermissionAccess | null> {
     const pool = getPool()
     const workshopId = getActiveWorkshopId()
+    await this.ensureWorkshopAdminUsers(workshopId)
     const userResult = await pool.query(
       `SELECT id, name, email, role, workshop_id
        FROM admin_users
@@ -334,6 +390,14 @@ export class PostgresPermissionRepository implements PermissionRepositoryPort {
       [userId, workshopId],
     )
     if (userResult.rows.length === 0) return null
+    const role = normalizeAdminRoleFromTrabajadorRole(userResult.rows[0].role as string)
+    if (role === 'Super Admin') {
+      throw new DomainError(
+        'Super admin access is managed by system and cannot be edited.',
+        403,
+        'SUPER_ADMIN_ACCESS_LOCKED',
+      )
+    }
 
     const normalizedGroups = [...new Set(data.permissionGroupIds)]
     if (normalizedGroups.length > 0) {
@@ -386,7 +450,6 @@ export class PostgresPermissionRepository implements PermissionRepositoryPort {
       client.release()
     }
 
-    const role = userResult.rows[0].role as AdminRole
     const resolved = await this.resolveUserAccess(userId, role)
 
     return {
@@ -451,11 +514,11 @@ export class PostgresPermissionRepository implements PermissionRepositoryPort {
         ? getDefaultPermissionCodesByRole(role)
         : []
 
-    const permissionCodes = normalizePermissionCodes([
+    const permissionCodes = withSuperAdminFullAccess(role, normalizePermissionCodes([
       ...groupPermissions,
       ...fallbackPermissions,
       ...directPermissions,
-    ])
+    ]))
 
     return {
       permissionCodes,

@@ -1,9 +1,10 @@
-import type {
+﻿import type {
   BloqueOLote,
   CatalogoItem,
   ConfiguracionSistema,
   Equipo,
   HistorialPago,
+  InventarioMovimiento,
   Merma,
   ProduccionDiaria,
   ProduccionTrabajador,
@@ -130,6 +131,24 @@ export const createProduccion = (input: Omit<ProduccionDiaria, 'id'>): Promise<P
     body: input,
   })
 
+export const approveProduccionTaller = (
+  produccionId: string,
+  input: { aprobado: boolean; motivoRechazo?: string },
+): Promise<ProduccionDiaria> =>
+  apiRequest<ProduccionDiaria>(`/produccion/${produccionId}/aprobar-taller`, {
+    method: 'PATCH',
+    body: input,
+  })
+
+export const approveProduccionAlmacen = (
+  produccionId: string,
+  input: { motivo: string },
+): Promise<ProduccionDiaria> =>
+  apiRequest<ProduccionDiaria>(`/produccion/${produccionId}/aprobar-almacen`, {
+    method: 'PATCH',
+    body: input,
+  })
+
 export const updateProduccion = (
   produccionId: string,
   patch: Partial<ProduccionDiaria>,
@@ -187,6 +206,30 @@ export const getVentas = (): Promise<Venta[]> => apiRequest<Venta[]>('/ventas')
 export const createVenta = (input: Omit<Venta, 'id'>): Promise<Venta> =>
   apiRequest<Venta>('/ventas', {
     method: 'POST',
+    body: input,
+  })
+
+export const getInventarioMovimientos = (): Promise<InventarioMovimiento[]> =>
+  apiRequest<InventarioMovimiento[]>('/inventario-movimientos')
+
+export const getInventarioMovimientoById = (id: string): Promise<InventarioMovimiento> =>
+  apiRequest<InventarioMovimiento>(`/inventario-movimientos/${id}`)
+
+export const approveInventarioMovimiento = (
+  id: string,
+  input: { observaciones?: string },
+): Promise<InventarioMovimiento> =>
+  apiRequest<InventarioMovimiento>(`/inventario-movimientos/${id}/aprobar`, {
+    method: 'PATCH',
+    body: input,
+  })
+
+export const rejectInventarioMovimiento = (
+  id: string,
+  input: { motivoRechazo: string },
+): Promise<InventarioMovimiento> =>
+  apiRequest<InventarioMovimiento>(`/inventario-movimientos/${id}/rechazar`, {
+    method: 'PATCH',
     body: input,
   })
 

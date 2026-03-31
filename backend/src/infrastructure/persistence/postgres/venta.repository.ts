@@ -22,6 +22,8 @@ function rowToVenta(r: Record<string, unknown>): Venta {
     clienteTelefono: r.cliente_telefono as string,
     fecha: toDateOnly(r.fecha),
     estado: r.estado as Venta['estado'],
+    motivoMovimientoAlmacen: (r.motivo_movimiento_almacen as string | null) ?? undefined,
+    movimientoInventarioId: (r.movimiento_inventario_id as string | null) ?? undefined,
   }
 }
 
@@ -51,8 +53,12 @@ export class PostgresVentaRepository implements VentaRepositoryPort {
     const workshopId = getCurrentWorkshopId()
     const id = await nextId(pool, 'V', 'ventas')
     await pool.query(
-      `INSERT INTO ventas (id, workshop_id, producto_id, producto_nombre, detalles_productos, cantidad_m2, metros_por_dimension, precio_m2, descuento, fondo_operativo, subtotal, total, cliente_nombre, cliente_email, cliente_telefono, fecha, estado)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+      `INSERT INTO ventas (
+        id, workshop_id, producto_id, producto_nombre, detalles_productos, cantidad_m2, metros_por_dimension,
+        precio_m2, descuento, fondo_operativo, subtotal, total, cliente_nombre, cliente_email, cliente_telefono,
+        fecha, estado, motivo_movimiento_almacen, movimiento_inventario_id
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
       [
         id,
         workshopId,
@@ -71,6 +77,8 @@ export class PostgresVentaRepository implements VentaRepositoryPort {
         data.clienteTelefono,
         data.fecha,
         data.estado,
+        data.motivoMovimientoAlmacen ?? null,
+        data.movimientoInventarioId ?? null,
       ]
     )
     return this.findById(id) as Promise<Venta>
@@ -83,7 +91,11 @@ export class PostgresVentaRepository implements VentaRepositoryPort {
     const pool = getPool()
     const workshopId = getCurrentWorkshopId()
     await pool.query(
-      `UPDATE ventas SET producto_id=$2, producto_nombre=$3, detalles_productos=$4, cantidad_m2=$5, metros_por_dimension=$6, precio_m2=$7, descuento=$8, fondo_operativo=$9, subtotal=$10, total=$11, cliente_nombre=$12, cliente_email=$13, cliente_telefono=$14, fecha=$15, estado=$16 WHERE id=$1 AND workshop_id=$17`,
+      `UPDATE ventas SET
+        producto_id=$2, producto_nombre=$3, detalles_productos=$4, cantidad_m2=$5, metros_por_dimension=$6, precio_m2=$7,
+        descuento=$8, fondo_operativo=$9, subtotal=$10, total=$11, cliente_nombre=$12, cliente_email=$13, cliente_telefono=$14,
+        fecha=$15, estado=$16, motivo_movimiento_almacen=$17, movimiento_inventario_id=$18
+      WHERE id=$1 AND workshop_id=$19`,
       [
         id,
         merged.productoId,
@@ -101,6 +113,8 @@ export class PostgresVentaRepository implements VentaRepositoryPort {
         merged.clienteTelefono,
         merged.fecha,
         merged.estado,
+        merged.motivoMovimientoAlmacen ?? null,
+        merged.movimientoInventarioId ?? null,
         workshopId,
       ]
     )

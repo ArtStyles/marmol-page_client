@@ -289,6 +289,15 @@ export default function VentasPage() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <Label>Motivo de salida de almacen</Label>
+                  <Input
+                    value={formData.motivoMovimientoAlmacen}
+                    onChange={(event) => handleClienteFieldChange('motivoMovimientoAlmacen', event.target.value)}
+                    placeholder="Ej: salida por venta cliente Hotel X"
+                    required
+                  />
+                </div>
                 {detallesCalculados.length > 0 && (
                   <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
                     <h4 className="font-medium text-slate-900">Resumen de venta</h4>
@@ -342,7 +351,7 @@ export default function VentasPage() {
                   <Button type="button" variant="outline" onClick={() => resetForm()} className="flex-1 bg-transparent">
                     Cancelar
                   </Button>
-                  <Button type="submit" className="flex-1" disabled={detallesCalculados.length === 0 || totalM2Form <= 0}>
+                  <Button type="submit" className="flex-1" disabled={detallesCalculados.length === 0 || totalM2Form <= 0 || formData.motivoMovimientoAlmacen.trim().length < 5}>
                     Registrar venta
                   </Button>
                 </div>

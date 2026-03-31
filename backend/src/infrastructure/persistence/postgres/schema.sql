@@ -121,6 +121,18 @@ CREATE TABLE IF NOT EXISTS produccion (
   detalles_acciones JSONB,
   can_edit BOOLEAN,
   editable_until TIMESTAMPTZ,
+  aprobacion_taller_estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (aprobacion_taller_estado IN ('pendiente', 'aprobado', 'rechazado')),
+  aprobacion_taller_por_id TEXT,
+  aprobacion_taller_por_nombre TEXT,
+  aprobacion_taller_fecha TIMESTAMPTZ,
+  aprobacion_taller_motivo_rechazo TEXT,
+  aprobacion_almacen_estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (aprobacion_almacen_estado IN ('pendiente', 'aprobado', 'rechazado')),
+  aprobacion_almacen_por_id TEXT,
+  aprobacion_almacen_por_nombre TEXT,
+  aprobacion_almacen_fecha TIMESTAMPTZ,
+  aprobacion_almacen_motivo TEXT,
+  inventario_aplicado BOOLEAN NOT NULL DEFAULT false,
+  movimiento_inventario_ids JSONB NOT NULL DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -158,6 +170,8 @@ CREATE TABLE IF NOT EXISTS mermas (
   metros_cuadrados NUMERIC(10,2) NOT NULL,
   motivo TEXT NOT NULL,
   observaciones TEXT NOT NULL DEFAULT '',
+  estado_inventario TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado_inventario IN ('pendiente', 'aprobado', 'rechazado')),
+  movimiento_inventario_id TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -179,7 +193,30 @@ CREATE TABLE IF NOT EXISTS ventas (
   cliente_email TEXT NOT NULL,
   cliente_telefono TEXT NOT NULL,
   fecha DATE NOT NULL,
-  estado TEXT NOT NULL CHECK (estado IN ('pendiente', 'completada', 'cancelada')),
+  estado TEXT NOT NULL CHECK (estado IN ('pendiente', 'completada', 'cancelada', 'pendiente_aprobacion_almacen')),
+  motivo_movimiento_almacen TEXT,
+  movimiento_inventario_id TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Historial exclusivo de movimientos de almacen
+CREATE TABLE IF NOT EXISTS inventario_movimientos (
+  id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
+  fecha_solicitud TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  fecha_resolucion TIMESTAMPTZ,
+  tipo TEXT NOT NULL CHECK (tipo IN ('entrada', 'salida')),
+  origen TEXT NOT NULL CHECK (origen IN ('produccion', 'venta', 'merma', 'proceso', 'ajuste')),
+  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'aprobado', 'rechazado')),
+  referencia_id TEXT,
+  motivo TEXT NOT NULL,
+  observaciones TEXT NOT NULL DEFAULT '',
+  solicitado_por_id TEXT,
+  solicitado_por_nombre TEXT,
+  aprobado_por_id TEXT,
+  aprobado_por_nombre TEXT,
+  motivo_rechazo TEXT,
+  detalles JSONB NOT NULL DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -317,6 +354,22 @@ ALTER TABLE gastos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'T
 ALTER TABLE historial_pagos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE system_logs ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_taller_estado TEXT NOT NULL DEFAULT 'pendiente';
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_taller_por_id TEXT;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_taller_por_nombre TEXT;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_taller_fecha TIMESTAMPTZ;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_taller_motivo_rechazo TEXT;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_almacen_estado TEXT NOT NULL DEFAULT 'pendiente';
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_almacen_por_id TEXT;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_almacen_por_nombre TEXT;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_almacen_fecha TIMESTAMPTZ;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_almacen_motivo TEXT;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS inventario_aplicado BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS movimiento_inventario_ids JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS motivo_movimiento_almacen TEXT;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS movimiento_inventario_id TEXT;
+ALTER TABLE mermas ADD COLUMN IF NOT EXISTS estado_inventario TEXT NOT NULL DEFAULT 'pendiente';
+ALTER TABLE mermas ADD COLUMN IF NOT EXISTS movimiento_inventario_id TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_configuracion_workshop_id ON configuracion(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_bloques_workshop_id ON bloques(workshop_id);
@@ -325,6 +378,8 @@ CREATE INDEX IF NOT EXISTS idx_catalogo_items_workshop_id ON catalogo_items(work
 CREATE INDEX IF NOT EXISTS idx_trabajadores_workshop_id ON trabajadores(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_equipos_workshop_id ON equipos(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_produccion_workshop_id ON produccion(workshop_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_produccion_unique_daily_combo
+  ON produccion(workshop_id, fecha, origen_id, tipo, dimension);
 CREATE INDEX IF NOT EXISTS idx_produccion_trabajadores_workshop_id ON produccion_trabajadores(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_mermas_workshop_id ON mermas(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_ventas_workshop_id ON ventas(workshop_id);
@@ -332,6 +387,7 @@ CREATE INDEX IF NOT EXISTS idx_gastos_workshop_id ON gastos(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_historial_pagos_workshop_id ON historial_pagos(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_system_logs_workshop_id ON system_logs(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_admin_users_workshop_id ON admin_users(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_inventario_movimientos_workshop_id ON inventario_movimientos(workshop_id);
 
 -- Seed minimo: solo usuarios para autenticacion (sin datos operativos demo)
 -- Password en texto plano solo para desarrollo local.
@@ -340,6 +396,7 @@ INSERT INTO admin_users (id, name, email, workshop_id, password_hash, role) VALU
   ('ADM-001', 'Admin Principal', 'admin@marmol.local', 'TLR-001', 'admin123', 'Administrador'),
   ('CONT-001', 'Contadora General', 'contadora@marmol.local', 'TLR-001', 'conta123', 'Contadora'),
   ('VEN-001', 'Gestor de Ventas', 'ventas@marmol.local', 'TLR-001', 'ventas123', 'Gestor de Ventas'),
+  ('ALM-001', 'Jefe de Almacen', 'almacen@marmol.local', 'TLR-001', 'almacen123', 'Jefe de Almacen'),
   ('PROD-001', 'Jefe de Turno', 'produccion@marmol.local', 'TLR-001', 'prod123', 'Jefe de Turno de Produccion'),
   ('OBR-001', 'Carlos Mendoza', 'carlos.mendoza@taller.com', 'TLR-001', 'obrero123', 'Obrero'),
   ('ADM-002', 'Admin Guadalajara', 'admin.gdl@marmol.local', 'TLR-002', 'admingdl123', 'Administrador'),
@@ -350,8 +407,10 @@ INSERT INTO admin_permission_definitions (code, module, name, description) VALUE
   ('dashboard:view', 'dashboard', 'Ver dashboard', 'Acceso al panel principal.'),
   ('inventario:read', 'inventario', 'Ver inventario', 'Consultar inventario y productos.'),
   ('inventario:write', 'inventario', 'Editar inventario', 'Crear, editar y eliminar productos de inventario.'),
+  ('inventario:approve', 'inventario', 'Aprobar movimientos de almacen', 'Aprobar o rechazar entradas y salidas de almacen.'),
   ('produccion:read', 'produccion', 'Ver produccion', 'Consultar produccion diaria.'),
   ('produccion:write', 'produccion', 'Editar produccion', 'Registrar y modificar produccion diaria.'),
+  ('produccion:approve_taller', 'produccion', 'Aprobar produccion de taller', 'Aprobar o rechazar registros de produccion diaria del taller.'),
   ('equipos:read', 'equipos', 'Ver equipos', 'Consultar equipos operativos.'),
   ('equipos:write', 'equipos', 'Editar equipos', 'Crear, editar y eliminar equipos.'),
   ('asignaciones:read', 'asignaciones', 'Ver asignaciones', 'Consultar asignaciones de produccion.'),
@@ -395,6 +454,7 @@ INSERT INTO admin_permission_groups (id, name, description, is_system, system_ke
   ('grp_administrador', 'Administrador', 'Gestion operativa completa y administracion de accesos.', true, 'role:administrador'),
   ('grp_contadora', 'Contadora', 'Acceso de consulta contable y financiera.', true, 'role:contadora'),
   ('grp_ventas', 'Gestor de Ventas', 'Operacion comercial y seguimiento de pagos.', true, 'role:ventas'),
+  ('grp_almacen', 'Jefe de Almacen', 'Control exclusivo de movimientos y aprobaciones de almacen.', true, 'role:almacen'),
   ('grp_produccion', 'Jefe de Turno de Produccion', 'Operacion de produccion, equipos, asignaciones y mermas.', true, 'role:produccion'),
   ('grp_obrero', 'Obrero', 'Acceso a su panel operativo y consulta de su produccion/pagos.', true, 'role:obrero')
 ON CONFLICT (id) DO UPDATE
@@ -410,6 +470,7 @@ WHERE group_id IN (
   'grp_administrador',
   'grp_contadora',
   'grp_ventas',
+  'grp_almacen',
   'grp_produccion',
   'grp_obrero'
 );
@@ -423,8 +484,10 @@ INSERT INTO admin_permission_group_permissions (group_id, permission_code) VALUE
   ('grp_administrador', 'dashboard:view'),
   ('grp_administrador', 'inventario:read'),
   ('grp_administrador', 'inventario:write'),
+  ('grp_administrador', 'inventario:approve'),
   ('grp_administrador', 'produccion:read'),
   ('grp_administrador', 'produccion:write'),
+  ('grp_administrador', 'produccion:approve_taller'),
   ('grp_administrador', 'equipos:read'),
   ('grp_administrador', 'equipos:write'),
   ('grp_administrador', 'asignaciones:read'),
@@ -470,9 +533,19 @@ INSERT INTO admin_permission_group_permissions (group_id, permission_code) VALUE
   ('grp_ventas', 'historial:read'),
   ('grp_ventas', 'inventario:read'),
 
+  ('grp_almacen', 'dashboard:view'),
+  ('grp_almacen', 'inventario:read'),
+  ('grp_almacen', 'inventario:write'),
+  ('grp_almacen', 'inventario:approve'),
+  ('grp_almacen', 'produccion:read'),
+  ('grp_almacen', 'ventas:read'),
+  ('grp_almacen', 'mermas:read'),
+  ('grp_almacen', 'historial:read'),
+
   ('grp_produccion', 'dashboard:view'),
   ('grp_produccion', 'produccion:read'),
   ('grp_produccion', 'produccion:write'),
+  ('grp_produccion', 'produccion:approve_taller'),
   ('grp_produccion', 'equipos:read'),
   ('grp_produccion', 'equipos:write'),
   ('grp_produccion', 'asignaciones:read'),
@@ -497,6 +570,7 @@ WITH role_group_map AS (
       WHEN u.role = 'Administrador' THEN 'grp_administrador'
       WHEN u.role = 'Contadora' THEN 'grp_contadora'
       WHEN u.role = 'Gestor de Ventas' THEN 'grp_ventas'
+      WHEN u.role = 'Jefe de Almacen' THEN 'grp_almacen'
       WHEN u.role = 'Jefe de Turno de Produccion' THEN 'grp_produccion'
       WHEN u.role = 'Jefe de Turno de Producción' THEN 'grp_produccion'
       WHEN u.role = 'Obrero' THEN 'grp_obrero'

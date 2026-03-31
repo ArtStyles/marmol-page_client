@@ -41,3 +41,22 @@ export function toDateOnly(value: unknown): string {
 
   return raw
 }
+
+/**
+ * Normaliza valores timestamp/timestamptz a ISO-8601.
+ * Evita reenviar strings locales tipo "GMT-0400" que PostgreSQL no reconoce.
+ */
+export function toTimestampIso(value: unknown): string | undefined {
+  if (value == null) return undefined
+  if (value instanceof Date) return value.toISOString()
+
+  const raw = String(value).trim()
+  if (!raw) return undefined
+
+  const parsed = new Date(raw)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString()
+  }
+
+  return raw
+}

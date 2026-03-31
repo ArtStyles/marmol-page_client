@@ -1,4 +1,4 @@
-import type { ConfiguracionPort } from '../../../domain/ports/index.js'
+﻿import type { ConfiguracionPort } from '../../../domain/ports/index.js'
 import type { ConfiguracionSistema } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
 import { getCurrentWorkshopId } from './tenant.js'
@@ -12,7 +12,8 @@ const emptyConfiguracion: ConfiguracionSistema = {
   salariosFijosPorRol: {
     Administrador: 0,
     'Gestor de Ventas': 0,
-    'Jefe de Turno de Producción': 0,
+    'Jefe de Almacen': 0,
+    'Jefe de Turno de Producci\u00f3n': 0,
   },
   preciosM2: {
     '40x40': { crudo: 0, pulido: 0 },
@@ -142,3 +143,5 @@ export class PostgresConfiguracionAdapter implements ConfiguracionPort {
     return this.get()
   }
 }
+
+

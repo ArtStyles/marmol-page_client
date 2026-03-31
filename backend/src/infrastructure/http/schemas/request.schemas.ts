@@ -1,4 +1,4 @@
-import { z } from 'zod'
+﻿import { z } from 'zod'
 
 const dimensionSchema = z.enum(['40x40', '60x40', '80x40'])
 const tipoProductoSchema = z.enum(['Piso', 'Plancha'])
@@ -9,7 +9,8 @@ const accionLosaSchema = z.enum(['picar', 'pulir', 'escuadrar'])
 const rolTrabajadorSchema = z.enum([
   'Administrador',
   'Gestor de Ventas',
-  'Jefe de Turno de Producción',
+  'Jefe de Almacen',
+  'Jefe de Turno de ProducciÃ³n',
   'Obrero',
 ])
 const motivoMermaSchema = z.enum([
@@ -220,7 +221,8 @@ export const createVentaSchema = z.object({
   clienteEmail: z.string().email(),
   clienteTelefono: z.string(),
   fecha: z.string(),
-  estado: z.enum(['pendiente', 'completada', 'cancelada']),
+  estado: z.enum(['pendiente', 'completada', 'cancelada', 'pendiente_aprobacion_almacen']),
+  motivoMovimientoAlmacen: z.string().min(5),
 })
 
 export const updateVentaSchema = createVentaSchema.partial()
@@ -258,7 +260,7 @@ export const updateConfiguracionSchema = z.object({
   reportesVentas: z.boolean().optional(),
 })
 
-// ----- Producción diaria -----
+// ----- ProducciÃ³n diaria -----
 const produccionDetalleAccionSchema = z.object({
   accion: accionLosaSchema,
   trabajadorId: z.string().optional(),
@@ -295,6 +297,25 @@ export const createProduccionSchema = z.object({
   detallesAcciones: z.array(produccionDetalleAccionSchema).optional(),
 })
 
+export const approveProduccionTallerSchema = z
+  .object({
+    aprobado: z.boolean(),
+    motivoRechazo: z.string().min(5).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.aprobado && !value.motivoRechazo) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Debe indicar un motivo al rechazar el registro de taller.',
+        path: ['motivoRechazo'],
+      })
+    }
+  })
+
+export const approveProduccionAlmacenSchema = z.object({
+  motivo: z.string().min(5),
+})
+
 export const updateProduccionSchema = createProduccionSchema
   .extend({
     canEdit: z.boolean().optional(),
@@ -302,7 +323,7 @@ export const updateProduccionSchema = createProduccionSchema
   })
   .partial()
 
-// ----- Producción por trabajador -----
+// ----- ProducciÃ³n por trabajador -----
 export const createProduccionTrabajadorSchema = z.object({
   fecha: z.string(),
   trabajadorId: z.string(),
@@ -321,6 +342,14 @@ export const createProduccionTrabajadorSchema = z.object({
 })
 
 export const updateProduccionTrabajadorSchema = createProduccionTrabajadorSchema.partial()
+
+export const approveInventarioMovimientoSchema = z.object({
+  observaciones: z.string().optional(),
+})
+
+export const rejectInventarioMovimientoSchema = z.object({
+  motivoRechazo: z.string().min(5),
+})
 
 // ----- Historial de pagos -----
 export const createHistorialPagoSchema = z.object({
@@ -341,3 +370,4 @@ export const updateHistorialPagoSchema = createHistorialPagoSchema.partial()
 export type CreateBloqueInput = z.infer<typeof createBloqueSchema>
 export type UpdateBloqueInput = z.infer<typeof updateBloqueSchema>
 export type LoginInput = z.infer<typeof loginSchema>
+

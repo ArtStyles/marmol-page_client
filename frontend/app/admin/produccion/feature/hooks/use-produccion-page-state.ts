@@ -1,7 +1,13 @@
 'use client'
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { getBloques, getEquipos, getTrabajadores } from '@/lib/resources-api'
+import {
+  approveProduccionAlmacen,
+  approveProduccionTaller,
+  getBloques,
+  getEquipos,
+  getTrabajadores,
+} from '@/lib/resources-api'
 import { useProduccionStore } from '@/hooks/use-produccion'
 import {
   losasAMetros,
@@ -28,7 +34,7 @@ import {
 } from '../lib/produccion-helpers'
 
 export const useProduccionPageState = () => {
-  const { produccion, setProduccion } = useProduccionStore()
+  const { produccion, setProduccion, replaceProduccion } = useProduccionStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -39,6 +45,9 @@ export const useProduccionPageState = () => {
   const [trabajadores, setTrabajadores] = useState<Trabajador[]>([])
   const [formError, setFormError] = useState('')
   const [formData, setFormData] = useState<FormData>(createInitialFormData)
+  const [approvalError, setApprovalError] = useState<string | null>(null)
+  const [tallerApprovalLoadingById, setTallerApprovalLoadingById] = useState<Record<string, boolean>>({})
+  const [almacenApprovalLoadingById, setAlmacenApprovalLoadingById] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     let alive = true
@@ -558,10 +567,84 @@ export const useProduccionPageState = () => {
     resetFormAndClose()
   }
 
+  const approveProduccionTallerRegistro = async (
+    produccionId: string,
+    aprobado: boolean,
+    motivoRechazo?: string,
+  ): Promise<boolean> => {
+    if (!aprobado && (!motivoRechazo || motivoRechazo.trim().length < 5)) {
+      setApprovalError('Debes indicar un motivo de rechazo de al menos 5 caracteres.')
+      return false
+    }
+
+    setApprovalError(null)
+    setTallerApprovalLoadingById((prev) => ({ ...prev, [produccionId]: true }))
+
+    try {
+      const updated = await approveProduccionTaller(produccionId, {
+        aprobado,
+        motivoRechazo: motivoRechazo?.trim(),
+      })
+
+      replaceProduccion((prev) =>
+        prev.map((registro) => (registro.id === updated.id ? updated : registro)),
+      )
+
+      return true
+    } catch (error) {
+      setApprovalError(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo actualizar la aprobacion de taller.',
+      )
+      return false
+    } finally {
+      setTallerApprovalLoadingById((prev) => ({ ...prev, [produccionId]: false }))
+    }
+  }
+
+  const approveProduccionAlmacenRegistro = async (
+    produccionId: string,
+    motivo: string,
+  ): Promise<boolean> => {
+    const motivoNormalizado = motivo.trim()
+    if (motivoNormalizado.length < 5) {
+      setApprovalError('Debes indicar un motivo de entrada al almacen de al menos 5 caracteres.')
+      return false
+    }
+
+    setApprovalError(null)
+    setAlmacenApprovalLoadingById((prev) => ({ ...prev, [produccionId]: true }))
+
+    try {
+      const updated = await approveProduccionAlmacen(produccionId, {
+        motivo: motivoNormalizado,
+      })
+
+      replaceProduccion((prev) =>
+        prev.map((registro) => (registro.id === updated.id ? updated : registro)),
+      )
+
+      return true
+    } catch (error) {
+      setApprovalError(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo registrar la entrada de almacen para esta produccion.',
+      )
+      return false
+    } finally {
+      setAlmacenApprovalLoadingById((prev) => ({ ...prev, [produccionId]: false }))
+    }
+  }
   const getDatePolicy = (fecha: string) => resolveDateEditPolicy(produccion, fecha)
 
   return {
     addUsage,
+    almacenApprovalLoadingById,
+    approvalError,
+    approveProduccionAlmacenRegistro,
+    approveProduccionTallerRegistro,
     dependenciesError,
     dateEditPolicy,
     dateFilter,
@@ -591,6 +674,7 @@ export const useProduccionPageState = () => {
     topOrigenesResumen,
     today,
     totalLosasResumen,
+    tallerApprovalLoadingById,
     totalM2Resumen,
     toggleUsageDimension,
     trabajadoresActivos,
@@ -598,3 +682,4 @@ export const useProduccionPageState = () => {
     updateUsageDimension,
   }
 }
+

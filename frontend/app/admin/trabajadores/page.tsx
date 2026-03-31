@@ -40,7 +40,7 @@ import { useConfiguracion } from '@/hooks/use-configuracion'
 const roles: Trabajador['rol'][] = [
   'Administrador',
   'Gestor de Ventas',
-  'Jefe de Turno de ProducciÃ³n',
+  'Jefe de Turno de Producción',
   'Obrero',
 ]
 
@@ -124,7 +124,7 @@ export default function TrabajadoresPage() {
 
   const getEsquemaCompensacion = (worker: Trabajador) =>
     worker.rol === 'Obrero'
-      ? 'Pago por producciÃƒÂ³n'
+      ? 'Pago por producción'
       : `Salario fijo $${getSalarioFijoPorRol(worker.rol).toLocaleString()}`
 
   const filteredTrabajadores = trabajadores.filter(t => 
@@ -133,7 +133,7 @@ export default function TrabajadoresPage() {
     (t.usuario ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  // EstadÃƒÆ’Ã‚Â­sticas
+  // Estadísticas
   const activos = trabajadores.filter(t => t.estado === 'activo')
   const obreros = trabajadores.filter((t) => t.rol === 'Obrero')
   const totalLosasProducidas = obreros.reduce((sum, t) => sum + t.losasProducidas, 0)
@@ -167,7 +167,7 @@ export default function TrabajadoresPage() {
             <span className="font-semibold">${totalPagos.toLocaleString()}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span>NÃƒÂ³mina fija activa</span>
+            <span>Nómina fija activa</span>
             <span className="font-semibold">${totalSalariosFijosActivos.toLocaleString()}</span>
           </div>
           <div className="flex items-center justify-between">
@@ -276,7 +276,7 @@ export default function TrabajadoresPage() {
 
   const handleDelete = async (id: string) => {
     if (!canManageWorkers) return
-    if (confirm('Ãƒâ€šÃ‚Â¿EstÃƒÆ’Ã‚Â¡s seguro de eliminar este trabajador?')) {
+    if (confirm('¿Estás seguro de eliminar este trabajador?')) {
       try {
         await deleteTrabajador(id)
         setTrabajadores(trabajadores.filter(t => t.id !== id))
@@ -447,7 +447,7 @@ export default function TrabajadoresPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>TelÃƒÆ’Ã‚Â©fono</Label>
+                  <Label>Teléfono</Label>
                   <Input
                     type="tel"
                     value={formData.telefono}
@@ -590,7 +590,7 @@ export default function TrabajadoresPage() {
               <div className="hidden lg:grid lg:grid-cols-[minmax(0,1.8fr)_110px_190px_90px_120px_120px_120px_176px] border-b border-slate-200/70 bg-slate-50/70 px-4 py-2">
                 <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Trabajador</span>
                 <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Estado</span>
-                <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">CompensaciÃƒÂ³n</span>
+                <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Compensación</span>
                 <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Losas</span>
                 <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Pagos</span>
                 <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Bonos</span>
@@ -634,7 +634,7 @@ export default function TrabajadoresPage() {
                       </div>
 
                       <div className="flex items-center justify-between text-sm lg:block">
-                        <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">CompensaciÃƒÂ³n</span>
+                        <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Compensación</span>
                         <span className="text-xs font-medium text-slate-700">{getEsquemaCompensacion(worker)}</span>
                       </div>
 
@@ -732,7 +732,7 @@ export default function TrabajadoresPage() {
                     <p className="font-medium">{selectedWorker.rol}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">CompensaciÃƒÂ³n</p>
+                    <p className="text-muted-foreground">Compensación</p>
                     <p className="font-medium">{getEsquemaCompensacion(selectedWorker)}</p>
                   </div>
                   <div>
@@ -752,7 +752,7 @@ export default function TrabajadoresPage() {
                     </div>
                   )}
                   <div>
-                    <p className="text-muted-foreground">TelÃƒÆ’Ã‚Â©fono</p>
+                    <p className="text-muted-foreground">Teléfono</p>
                     <p className="font-medium">{selectedWorker.telefono}</p>
                   </div>
                   <div>
@@ -763,7 +763,7 @@ export default function TrabajadoresPage() {
 
                 <div className="border-t pt-4">
                   <h4 className="mb-3 font-medium">
-                    {selectedEsObrero ? 'Resumen de producciÃƒÂ³n' : 'Resumen de compensaciÃƒÂ³n'}
+                    {selectedEsObrero ? 'Resumen de producción' : 'Resumen de compensación'}
                   </h4>
                   {selectedEsObrero ? (
                     <div className="grid grid-cols-2 gap-3 text-center">
@@ -822,12 +822,12 @@ export default function TrabajadoresPage() {
 
                 <div className="border-t pt-4">
                   <h4 className="mb-3 font-medium">
-                    {selectedEsObrero ? 'HistÃƒÂ³rico de producciÃƒÂ³n y pagos' : 'HistÃƒÂ³rico de pagos'}
+                    {selectedEsObrero ? 'Histórico de producción y pagos' : 'Histórico de pagos'}
                   </h4>
                   <div className="space-y-3">
                     {historialMovimientos.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        {selectedEsObrero ? 'Sin registros de producciÃƒÂ³n ni pagos.' : 'Sin registros de pagos.'}
+                        {selectedEsObrero ? 'Sin registros de producción ni pagos.' : 'Sin registros de pagos.'}
                       </p>
                     ) : (
                       historialMovimientos.map((item, index) => (

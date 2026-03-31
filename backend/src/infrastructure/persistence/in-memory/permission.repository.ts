@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { DomainError } from '../../../application/errors/domain.error.js'
 import {
+  ALL_PERMISSION_CODES,
   PERMISSION_DEFINITIONS,
   SYSTEM_PERMISSION_GROUPS,
   getDefaultPermissionCodesByRole,
@@ -21,7 +22,7 @@ import type {
   UserAccessUpdateInput,
 } from '../../../domain/ports/index.js'
 import { getActiveWorkshopId } from '../../tenant/tenant-context.js'
-import { listAdminUsers } from '../../../store/index.js'
+import { getTrabajadores, listAdminUsers } from '../../../store/index.js'
 
 type MutableGroup = PermissionGroup
 
@@ -46,6 +47,15 @@ function nextCustomGroupId(): string {
   return `grp_custom_${randomBytes(6).toString('hex')}`
 }
 
+function isLockedSystemGroup(group: Pick<PermissionGroup, 'id' | 'systemKey'>): boolean {
+  return group.id === 'grp_super_admin' || group.systemKey === 'role:super_admin'
+}
+
+function withSuperAdminFullAccess(role: AdminUser['role'], permissionCodes: string[]): string[] {
+  if (role !== 'Super Admin') return permissionCodes
+  return [...ALL_PERMISSION_CODES]
+}
+
 function normalizeGroupIds(input: string[]): string[] {
   const set = new Set<string>()
   for (const groupId of input) {
@@ -54,8 +64,39 @@ function normalizeGroupIds(input: string[]): string[] {
   return [...set]
 }
 
+function normalizeAdminRoleFromTrabajadorRole(role: string): AdminUser['role'] {
+  const normalized = role.trim()
+  if (
+    normalized === 'Jefe de Turno de Produccion' ||
+    normalized === 'Jefe de Turno de Producción' ||
+    normalized === 'Jefe de Turno de ProducciÃ³n'
+  ) {
+    return 'Jefe de Turno de Produccion'
+  }
+  if (normalized === 'Administrador') return 'Administrador'
+  if (normalized === 'Contadora') return 'Contadora'
+  if (normalized === 'Gestor de Ventas') return 'Gestor de Ventas'
+  if (normalized === 'Jefe de Almacen') return 'Jefe de Almacen'
+  if (normalized === 'Super Admin') return 'Super Admin'
+  return 'Obrero'
+}
+
 function getUsers(): AdminUser[] {
-  return listAdminUsers().map((user) => ({ ...user }))
+  const adminUsers = listAdminUsers().map((user) => ({ ...user }))
+  const workshopId = getActiveWorkshopId()
+  const existingEmails = new Set(adminUsers.map((user) => user.email.toLowerCase()))
+
+  const derivedWorkers = getTrabajadores()
+    .filter((worker) => !existingEmails.has(worker.email.toLowerCase()))
+    .map((worker) => ({
+      id: `TRA-${worker.id}`,
+      name: worker.nombre,
+      email: worker.email,
+      role: normalizeAdminRoleFromTrabajadorRole(worker.rol),
+      workshopId,
+    } satisfies AdminUser))
+
+  return [...adminUsers, ...derivedWorkers]
 }
 
 function getScopedUsers(): AdminUser[] {
@@ -95,11 +136,11 @@ function effectivePermissionsForUser(user: AdminUser): string[] {
   })
   const fallbackPermissions =
     groupPermissions.length > 0 ? [] : getDefaultPermissionCodesByRole(user.role)
-  return normalizePermissionCodes([
+  return withSuperAdminFullAccess(user.role, normalizePermissionCodes([
     ...groupPermissions,
     ...fallbackPermissions,
     ...directPermissionsForUser(user.id),
-  ])
+  ]))
 }
 
 function toUserAccess(user: AdminUser): UserPermissionAccess {
@@ -180,9 +221,9 @@ export class InMemoryPermissionRepository implements PermissionRepositoryPort {
   async updateGroup(id: string, data: PermissionGroupUpdateInput): Promise<PermissionGroup | null> {
     const current = groups.get(id)
     if (!current) return null
-    if (current.isSystem) {
+    if (isLockedSystemGroup(current)) {
       throw new DomainError(
-        'System groups cannot be modified',
+        'Super admin group cannot be modified',
         403,
         'PERMISSION_GROUP_SYSTEM_LOCKED',
       )
@@ -221,9 +262,9 @@ export class InMemoryPermissionRepository implements PermissionRepositoryPort {
   async deleteGroup(id: string): Promise<boolean> {
     const current = groups.get(id)
     if (!current) return false
-    if (current.isSystem) {
+    if (isLockedSystemGroup(current)) {
       throw new DomainError(
-        'System groups cannot be deleted',
+        'Super admin group cannot be deleted',
         403,
         'PERMISSION_GROUP_SYSTEM_LOCKED',
       )
@@ -255,6 +296,13 @@ export class InMemoryPermissionRepository implements PermissionRepositoryPort {
     if (!user) return null
     if (user.workshopId !== getActiveWorkshopId()) return null
     ensureUserExists(userId)
+    if (user.role === 'Super Admin') {
+      throw new DomainError(
+        'Super admin access is managed by system and cannot be edited.',
+        403,
+        'SUPER_ADMIN_ACCESS_LOCKED',
+      )
+    }
 
     const groupIds = normalizeGroupIds(data.permissionGroupIds)
     const directPermissionCodes = normalizePermissionCodes(data.directPermissionCodes)

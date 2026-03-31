@@ -1,4 +1,4 @@
-import pg from 'pg'
+﻿import pg from 'pg'
 
 const { Pool } = pg
 
@@ -17,6 +17,7 @@ const REQUIRED_TABLES = [
   'gastos',
   'historial_pagos',
   'system_logs',
+  'inventario_movimientos',
   'workshops',
   'admin_users',
 ] as const
@@ -119,3 +120,4 @@ export async function verifyPostgresSchema(): Promise<{
     missingTables,
   }
 }
+

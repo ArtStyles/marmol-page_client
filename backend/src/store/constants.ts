@@ -1,4 +1,4 @@
-import type { AccionLosa, Dimension, RolConSalarioFijo } from '../domain/entities/index.js'
+﻿import type { AccionLosa, Dimension, RolConSalarioFijo } from '../domain/entities/index.js'
 
 export const TARIFAS_ACCION_DEFAULT: Record<AccionLosa, number> = {
   picar: 400,
@@ -9,7 +9,8 @@ export const TARIFAS_ACCION_DEFAULT: Record<AccionLosa, number> = {
 export const SALARIOS_FIJOS_POR_ROL_DEFAULT: Record<RolConSalarioFijo, number> = {
   Administrador: 28000,
   'Gestor de Ventas': 18000,
-  'Jefe de Turno de Producción': 22000,
+  'Jefe de Almacen': 20000,
+  'Jefe de Turno de Producci\u00f3n': 22000,
 }
 
 export const PRECIOS_M2_DEFAULT: Record<Dimension, { crudo: number; pulido: number }> = {

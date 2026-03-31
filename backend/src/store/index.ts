@@ -1,10 +1,11 @@
-import type {
+﻿import type {
   BloqueOLote,
   CatalogoItem,
   ConfiguracionSistema,
   Equipo,
   Gasto,
   HistorialPago,
+  InventarioMovimiento,
   Merma,
   ProduccionDiaria,
   ProduccionTrabajador,
@@ -31,6 +32,7 @@ import {
   ventas,
   gastos,
   historialPagos,
+  inventarioMovimientos,
   logsSistema,
   workshops,
 } from './seed.js'
@@ -48,6 +50,7 @@ interface StoreState {
   ventas: Venta[]
   gastos: Gasto[]
   historialPagos: HistorialPago[]
+  inventarioMovimientos: InventarioMovimiento[]
   logs: SystemLog[]
   workshops: WorkshopTenant[]
 }
@@ -66,6 +69,7 @@ function cloneInitialState(): StoreState {
     ventas: [...ventas],
     gastos: [...gastos],
     historialPagos: [...historialPagos],
+    inventarioMovimientos: [...inventarioMovimientos],
     logs: [...logsSistema],
     workshops: [...workshops],
   }
@@ -388,6 +392,35 @@ export function deleteHistorialPago(id: string): boolean {
   return true
 }
 
+// --- Inventario Movimientos ---
+export function getInventarioMovimientos(): InventarioMovimiento[] {
+  return state.inventarioMovimientos
+}
+export function getInventarioMovimientoById(id: string): InventarioMovimiento | undefined {
+  return state.inventarioMovimientos.find((m) => m.id === id)
+}
+export function createInventarioMovimiento(data: Omit<InventarioMovimiento, 'id'>): InventarioMovimiento {
+  const id = `IM${String(state.inventarioMovimientos.length + 1).padStart(3, '0')}`
+  const item: InventarioMovimiento = { ...data, id }
+  state.inventarioMovimientos.push(item)
+  return item
+}
+export function updateInventarioMovimiento(
+  id: string,
+  data: Partial<InventarioMovimiento>,
+): InventarioMovimiento | null {
+  const i = state.inventarioMovimientos.findIndex((m) => m.id === id)
+  if (i === -1) return null
+  state.inventarioMovimientos[i] = { ...state.inventarioMovimientos[i], ...data }
+  return state.inventarioMovimientos[i]
+}
+export function deleteInventarioMovimiento(id: string): boolean {
+  const i = state.inventarioMovimientos.findIndex((m) => m.id === id)
+  if (i === -1) return false
+  state.inventarioMovimientos.splice(i, 1)
+  return true
+}
+
 // --- Logs ---
 export function getLogs(): SystemLog[] {
   return state.logs
@@ -497,6 +530,16 @@ const MOCK_ADMIN_USERS: Array<{ email: string; password: string; user: AdminUser
     },
   },
   {
+    email: 'almacen@marmol.local',
+    password: 'almacen123',
+    user: {
+      id: 'ALM-001',
+      name: 'Jefe de Almacen',
+      email: 'almacen@marmol.local',
+      role: 'Jefe de Almacen',
+      workshopId: 'TLR-001',
+    },
+  },  {
     email: 'produccion@marmol.local',
     password: 'prod123',
     user: {
@@ -554,3 +597,4 @@ export function loginAdmin(email: string, password: string, workshopId?: string)
   if (workshopId && entry.user.workshopId !== workshopId) return null
   return entry.user
 }
+

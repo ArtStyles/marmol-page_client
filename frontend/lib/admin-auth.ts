@@ -1,10 +1,11 @@
-import { normalizeAdminPath } from '@/lib/admin-routes'
+﻿import { normalizeAdminPath } from '@/lib/admin-routes'
 
 export type AdminRole =
   | 'Super Admin'
   | 'Administrador'
   | 'Contadora'
   | 'Gestor de Ventas'
+  | 'Jefe de Almacen'
   | 'Jefe de Turno de Produccion'
   | 'Jefe de Turno de Producción'
   | 'Obrero'
@@ -85,6 +86,17 @@ export const MOCK_ADMIN_USERS: Array<{
     },
   },
   {
+    email: 'almacen@marmol.local',
+    password: 'almacen123',
+    user: {
+      id: 'ALM-001',
+      name: 'Jefe de Almacen',
+      email: 'almacen@marmol.local',
+      role: 'Jefe de Almacen',
+      workshopId: 'TLR-001',
+    },
+  },
+  {
     email: 'produccion@marmol.local',
     password: 'prod123',
     user: {
@@ -135,8 +147,10 @@ const ROLE_PERMISSION_FALLBACK: Record<AdminRole, PermissionCode[]> = {
     'dashboard:view',
     'inventario:read',
     'inventario:write',
+    'inventario:approve',
     'produccion:read',
     'produccion:write',
+    'produccion:approve_taller',
     'equipos:read',
     'equipos:write',
     'asignaciones:read',
@@ -174,8 +188,10 @@ const ROLE_PERMISSION_FALLBACK: Record<AdminRole, PermissionCode[]> = {
     'dashboard:view',
     'inventario:read',
     'inventario:write',
+    'inventario:approve',
     'produccion:read',
     'produccion:write',
+    'produccion:approve_taller',
     'equipos:read',
     'equipos:write',
     'asignaciones:read',
@@ -223,10 +239,21 @@ const ROLE_PERMISSION_FALLBACK: Record<AdminRole, PermissionCode[]> = {
     'historial:read',
     'inventario:read',
   ],
+  'Jefe de Almacen': [
+    'dashboard:view',
+    'inventario:read',
+    'inventario:write',
+    'inventario:approve',
+    'produccion:read',
+    'ventas:read',
+    'mermas:read',
+    'historial:read',
+  ],
   'Jefe de Turno de Produccion': [
     'dashboard:view',
     'produccion:read',
     'produccion:write',
+    'produccion:approve_taller',
     'equipos:read',
     'equipos:write',
     'asignaciones:read',
@@ -241,6 +268,7 @@ const ROLE_PERMISSION_FALLBACK: Record<AdminRole, PermissionCode[]> = {
     'dashboard:view',
     'produccion:read',
     'produccion:write',
+    'produccion:approve_taller',
     'equipos:read',
     'equipos:write',
     'asignaciones:read',
@@ -292,7 +320,10 @@ export function getPermissionsForUser(user: AdminUser): PermissionCode[] {
   return getPermissionsForRole(user.role)
 }
 
-export function hasPermission(user: AdminUser | null | undefined, permissionCode: PermissionCode): boolean {
+export function hasPermission(
+  user: AdminUser | null | undefined,
+  permissionCode: PermissionCode,
+): boolean {
   if (!user) return false
   return getPermissionsForUser(user).includes(permissionCode)
 }

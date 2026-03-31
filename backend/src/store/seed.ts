@@ -5,6 +5,7 @@ import type {
   Equipo,
   Gasto,
   HistorialPago,
+  InventarioMovimiento,
   Merma,
   ProduccionDiaria,
   ProduccionTrabajador,
@@ -416,6 +417,8 @@ export const logsSistema: SystemLog[] = [
   { id: 'LOG005', fecha: '2026-02-01 13:22', usuario: 'produccion@marmol.local', accion: 'Merma registrada', modulo: 'Mermas', descripcion: 'Merma por partida al pulir (0.32 m2)', nivel: 'alerta' },
   { id: 'LOG006', fecha: '2026-02-01 14:05', usuario: 'admin@marmol.local', accion: 'Error de registro', modulo: 'Inventario', descripcion: 'Intento de registrar producto sin origen valido', nivel: 'error' },
 ]
+
+export const inventarioMovimientos: InventarioMovimiento[] = []
 
 export const gastos: Gasto[] = [
   {

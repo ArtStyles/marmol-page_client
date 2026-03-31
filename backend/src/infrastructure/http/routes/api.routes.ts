@@ -20,9 +20,13 @@ import {
   createGastoSchema,
   updateGastoSchema,
   createProduccionSchema,
+  approveProduccionTallerSchema,
+  approveProduccionAlmacenSchema,
   updateProduccionSchema,
   createProduccionTrabajadorSchema,
   updateProduccionTrabajadorSchema,
+  approveInventarioMovimientoSchema,
+  rejectInventarioMovimientoSchema,
   createHistorialPagoSchema,
   updateHistorialPagoSchema,
   createLogSchema,
@@ -43,6 +47,7 @@ import * as equipoCtrl from '../controllers/equipo.controller.js'
 import * as produccionCtrl from '../controllers/produccion.controller.js'
 import * as mermaCtrl from '../controllers/merma.controller.js'
 import * as ventaCtrl from '../controllers/venta.controller.js'
+import * as inventarioMovimientoCtrl from '../controllers/inventario-movimiento.controller.js'
 import * as gastoCtrl from '../controllers/gasto.controller.js'
 import * as historialPagoCtrl from '../controllers/historial-pago.controller.js'
 import * as logCtrl from '../controllers/log.controller.js'
@@ -101,6 +106,28 @@ api.delete(
   '/productos/:id',
   requirePermission('inventario:write'),
   asyncHandler(productoCtrl.deleteProducto),
+)
+api.get(
+  '/inventario-movimientos',
+  requirePermission('inventario:read'),
+  asyncHandler(inventarioMovimientoCtrl.getInventarioMovimientos),
+)
+api.get(
+  '/inventario-movimientos/:id',
+  requirePermission('inventario:read'),
+  asyncHandler(inventarioMovimientoCtrl.getInventarioMovimientoById),
+)
+api.patch(
+  '/inventario-movimientos/:id/aprobar',
+  requirePermission('inventario:approve'),
+  validateBody(approveInventarioMovimientoSchema),
+  asyncHandler(inventarioMovimientoCtrl.approveInventarioMovimiento),
+)
+api.patch(
+  '/inventario-movimientos/:id/rechazar',
+  requirePermission('inventario:approve'),
+  validateBody(rejectInventarioMovimientoSchema),
+  asyncHandler(inventarioMovimientoCtrl.rejectInventarioMovimiento),
 )
 
 // ----- Catalogo -----
@@ -178,6 +205,18 @@ api.post(
   requirePermission('produccion:write'),
   validateBody(createProduccionSchema),
   asyncHandler(produccionCtrl.createProduccion),
+)
+api.patch(
+  '/produccion/:id/aprobar-taller',
+  requirePermission('produccion:approve_taller'),
+  validateBody(approveProduccionTallerSchema),
+  asyncHandler(produccionCtrl.approveProduccionTaller),
+)
+api.patch(
+  '/produccion/:id/aprobar-almacen',
+  requirePermission('inventario:approve'),
+  validateBody(approveProduccionAlmacenSchema),
+  asyncHandler(produccionCtrl.approveProduccionAlmacen),
 )
 api.patch(
   '/produccion/:id',
@@ -373,4 +412,3 @@ api.patch(
 api.post('/auth/login', validateBody(loginSchema), asyncHandler(authCtrl.login))
 
 export default api
-
