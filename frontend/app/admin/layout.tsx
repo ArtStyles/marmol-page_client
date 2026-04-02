@@ -1,7 +1,7 @@
 'use client'
 
 import React from "react"
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/admin/admin-button'
@@ -34,7 +34,12 @@ import {
   loginAdmin,
   updateWorkshop,
 } from '@/lib/admin-api'
-import { setStoredAccessToken } from '@/lib/api-client'
+import {
+  ADMIN_AUTH_EXPIRED_EVENT,
+  clearStoredAdminSession,
+  isAccessTokenExpired,
+  setStoredAccessToken,
+} from '@/lib/api-client'
 
 export default function AdminLayout({
   children,
@@ -53,31 +58,54 @@ export default function AdminLayout({
   const router = useRouter()
   const workshopIdFromPath = useMemo(() => extractWorkshopIdFromAdminPath(pathname), [pathname])
 
+  const performLogout = useCallback((nextError?: string) => {
+    setAuthUser(null)
+    setSelectedWorkshopId(null)
+    clearStoredAdminSession()
+    setStoredAccessToken(null)
+    if (nextError !== undefined) {
+      setError(nextError)
+    }
+  }, [])
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
     const token = window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)
     const storedWorkshop = window.localStorage.getItem(WORKSHOP_STORAGE_KEY)
-    if (raw) {
-      try {
-        if (!token) {
-          window.localStorage.removeItem(ADMIN_STORAGE_KEY)
-        } else {
-          const parsed = JSON.parse(raw) as AdminUser
-          setAuthUser(parsed)
-          if (hasPermission(parsed, 'workshops:override_scope')) {
-            setSelectedWorkshopId(storedWorkshop ?? null)
-          } else {
-            setSelectedWorkshopId(parsed.workshopId ?? null)
-          }
-        }
-      } catch {
-        window.localStorage.removeItem(ADMIN_STORAGE_KEY)
-        window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY)
-      }
+    if (!raw || !token || isAccessTokenExpired(token)) {
+      clearStoredAdminSession()
+      setIsReady(true)
+      return
     }
+
+    try {
+      const parsed = JSON.parse(raw) as AdminUser
+      setAuthUser(parsed)
+      if (hasPermission(parsed, 'workshops:override_scope')) {
+        setSelectedWorkshopId(storedWorkshop ?? null)
+      } else {
+        setSelectedWorkshopId(parsed.workshopId ?? null)
+      }
+    } catch {
+      clearStoredAdminSession()
+    }
+
     setIsReady(true)
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const onAuthExpired = () => {
+      performLogout('Tu sesion expiro. Inicia sesion de nuevo.')
+    }
+
+    window.addEventListener(ADMIN_AUTH_EXPIRED_EVENT, onAuthExpired as EventListener)
+    return () => {
+      window.removeEventListener(ADMIN_AUTH_EXPIRED_EVENT, onAuthExpired as EventListener)
+    }
+  }, [performLogout])
 
   useEffect(() => {
     if (!authUser) return
@@ -134,11 +162,7 @@ export default function AdminLayout({
       }
     } catch {
       setError('Credenciales invalidas o backend no disponible.')
-      setAuthUser(null)
-      setStoredAccessToken(null)
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem(ADMIN_STORAGE_KEY)
-      }
+      performLogout()
       return
     } finally {
       setIsSubmitting(false)
@@ -146,14 +170,7 @@ export default function AdminLayout({
   }
 
   const handleLogout = () => {
-    setAuthUser(null)
-    setSelectedWorkshopId(null)
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(ADMIN_STORAGE_KEY)
-      window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
-      window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY)
-    }
-    setStoredAccessToken(null)
+    performLogout('')
   }
 
   const handleSelectWorkshop = (workshopId: string) => {

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Button } from '@/components/admin/admin-button'
@@ -40,6 +40,7 @@ import {
 
 export default function AdminDashboard() {
   const pathname = usePathname()
+  const router = useRouter()
   const workshopIdFromPath = useMemo(() => extractWorkshopIdFromAdminPath(pathname), [pathname])
   const adminPath = useMemo(
     () => (path: string) => routeWithWorkshop(path, workshopIdFromPath),
@@ -207,9 +208,8 @@ export default function AdminDashboard() {
   } as CSSProperties
 
   const handleGoToWorkshopSelector = () => {
-    if (typeof window === 'undefined') return
     window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
-    window.location.assign('/admin')
+    router.replace('/admin')
   }
 
   const rightPanel = (

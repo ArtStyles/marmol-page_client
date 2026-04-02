@@ -1,8 +1,19 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { Cormorant_Garamond, Manrope } from 'next/font/google'
-import { QuickCart } from '@/components/landing/quick-cart'
 import { ScrollToTop } from '@/components/landing/scroll-to-top'
+
+const QuickCart = dynamic(
+  () => import('@/components/landing/quick-cart').then((module) => module.QuickCart),
+  {
+    loading: () => (
+      <div className="rounded-[24px] border border-black/5 bg-white/80 p-6 text-sm text-[#6b5f55]">
+        Cargando carrito...
+      </div>
+    ),
+  },
+)
 
 const headingFont = Cormorant_Garamond({
   subsets: ['latin'],

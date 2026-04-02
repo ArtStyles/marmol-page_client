@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   ADMIN_STORAGE_KEY,
   ADMIN_TOKEN_STORAGE_KEY,
@@ -9,6 +10,7 @@ import {
   isPathAllowed,
   type AdminUser,
 } from '@/lib/admin-auth'
+import { clearStoredAdminSession, isAccessTokenExpired } from '@/lib/api-client'
 import { extractWorkshopIdFromAdminPath } from '@/lib/admin-routes'
 import { WORKSHOP_STORAGE_KEY } from '@/lib/workshops'
 import { buildDefaultNav } from '../lib/navigation'
@@ -17,13 +19,16 @@ import type { AdminNavItem } from '../model/types'
 const readSessionUser = (): AdminUser | null => {
   if (typeof window === 'undefined') return null
   const token = window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)
-  if (!token) return null
+  if (!token || isAccessTokenExpired(token)) {
+    clearStoredAdminSession()
+    return null
+  }
   const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
   if (!raw) return null
   try {
     return JSON.parse(raw) as AdminUser
   } catch {
-    window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    clearStoredAdminSession()
     return null
   }
 }
@@ -38,6 +43,7 @@ export const useAdminShellSession = (
   pathname: string,
   navItems?: AdminNavItem[],
 ): UseAdminShellSessionResult => {
+  const router = useRouter()
   const [sessionUser, setSessionUser] = useState<AdminUser | null>(() => readSessionUser())
 
   useEffect(() => {
@@ -73,11 +79,8 @@ export const useAdminShellSession = (
   }, [items, sessionUser])
 
   const handleLogout = () => {
-    if (typeof window === 'undefined') return
-    window.localStorage.removeItem(ADMIN_STORAGE_KEY)
-    window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY)
-    window.localStorage.removeItem(WORKSHOP_STORAGE_KEY)
-    window.location.assign('/admin')
+    clearStoredAdminSession()
+    router.replace('/admin')
   }
 
   return {
