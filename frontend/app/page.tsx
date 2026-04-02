@@ -1,7 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { Cormorant_Garamond, Manrope } from 'next/font/google'
 import { ScrollToTop } from '@/components/landing/scroll-to-top'
 
 const QuickCart = dynamic(
@@ -14,18 +13,6 @@ const QuickCart = dynamic(
     ),
   },
 )
-
-const headingFont = Cormorant_Garamond({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  display: 'swap',
-})
-
-const bodyFont = Manrope({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
-  display: 'swap',
-})
 
 const galleryItems = [
   {
@@ -47,13 +34,13 @@ const galleryItems = [
 
 export default function HomePage() {
   return (
-    <div className={`landing-root ${bodyFont.className} min-h-screen bg-[#f7f4ef] text-[#2b241f]`}>
+    <div className="landing-root min-h-screen bg-[#f7f4ef] font-sans text-[#2b241f]">
       <ScrollToTop />
       <header className="sticky top-0 z-50 w-full border-b border-black/5 bg-[#f7f4ef]/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <a
             href="#top"
-            className={`${headingFont.className} text-2xl font-semibold tracking-[0.14em] transition-opacity hover:opacity-80`}
+            className="font-serif text-2xl font-semibold tracking-[0.14em] transition-opacity hover:opacity-80"
           >
             Marmoles Elegance
           </a>
@@ -100,7 +87,7 @@ export default function HomePage() {
             <div className="flex flex-col justify-center motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-6 motion-safe:delay-100">
               <p className="text-[11px] uppercase tracking-[0.45em] text-[#8a7056]">Atelier de piedra</p>
               <h1
-                className={`${headingFont.className} mt-5 text-4xl leading-tight tracking-[0.08em] text-[#2b241f] sm:text-5xl`}
+                className="mt-5 font-serif text-4xl leading-tight tracking-[0.08em] text-[#2b241f] sm:text-5xl"
               >
                 Superficies serenas para interiores con calma.
               </h1>
@@ -156,9 +143,7 @@ export default function HomePage() {
               <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.45em] text-[#8a7056]">Coleccion</p>
-                  <h2
-                    className={`${headingFont.className} mt-4 text-3xl tracking-[0.1em] text-[#2b241f] sm:text-4xl`}
-                  >
+                  <h2 className="mt-4 font-serif text-3xl tracking-[0.1em] text-[#2b241f] sm:text-4xl">
                     Texturas con presencia editorial.
                   </h2>
                 </div>
@@ -185,7 +170,7 @@ export default function HomePage() {
                       <div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-black/20 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                     </div>
                     <figcaption className="mt-4">
-                      <p className={`${headingFont.className} text-lg text-[#2b241f]`}>
+                      <p className="font-serif text-lg text-[#2b241f]">
                         {item.title}
                       </p>
                       <p className="mt-1 text-xs uppercase tracking-[0.3em] text-[#8a7056]">
@@ -203,9 +188,7 @@ export default function HomePage() {
               <div className="grid gap-10 rounded-[32px] border border-black/5 bg-white/80 p-8 shadow-[0_40px_120px_-90px_rgba(44,32,20,0.55)] lg:grid-cols-[0.9fr_1.1fr]">
                 <div className="space-y-6">
                   <p className="text-[11px] uppercase tracking-[0.45em] text-[#8a7056]">Compra</p>
-                  <h2
-                    className={`${headingFont.className} text-3xl tracking-[0.08em] text-[#2b241f] sm:text-4xl`}
-                  >
+                  <h2 className="font-serif text-3xl tracking-[0.08em] text-[#2b241f] sm:text-4xl">
                     Compra directa por WhatsApp.
                   </h2>
                   <p className="text-sm text-[#5f554c]">
@@ -236,7 +219,7 @@ export default function HomePage() {
 
               <footer className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-black/5 pt-6 text-[11px] uppercase tracking-[0.3em] text-[#8a7056] sm:flex-row">
                 <span>Hecho en Mexico</span>
-                <span className={`${headingFont.className} text-sm tracking-[0.2em] text-[#2b241f]`}>
+                <span className="font-serif text-sm tracking-[0.2em] text-[#2b241f]">
                   Marmoles Elegance
                 </span>
                 <span>(c) {new Date().getFullYear()}</span>
