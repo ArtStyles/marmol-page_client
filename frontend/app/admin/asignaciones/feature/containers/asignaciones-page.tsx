@@ -151,24 +151,28 @@ export default function AsignacionesPage() {
                         <p className="text-base font-semibold text-slate-900">{worker.trabajadorNombre}</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-right">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Picar</p>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {formatLosas(worker.resumenAcciones.picar.losas)} / {worker.resumenAcciones.picar.m2.toFixed(2)} m2
-                          </p>
-                        </div>
-                        <div className="rounded-lg border border-emerald-200/70 bg-emerald-50/70 px-2.5 py-1 text-right text-emerald-700">
-                          <p className="text-[10px] uppercase tracking-[0.2em]">Pulir</p>
-                          <p className="text-sm font-semibold">
-                            {formatLosas(worker.resumenAcciones.pulir.losas)} / {worker.resumenAcciones.pulir.m2.toFixed(2)} m2
-                          </p>
-                        </div>
-                        <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-right">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Escuadrar</p>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {formatLosas(worker.resumenAcciones.escuadrar.losas)} / {worker.resumenAcciones.escuadrar.m2.toFixed(2)} m2
-                          </p>
-                        </div>
+                        {actionOrder.map((accion) => (
+                          <div
+                            key={`${worker.trabajadorId}-${accion}`}
+                            className={cn(
+                              'rounded-lg border px-2.5 py-1 text-right',
+                              accion === 'pulir'
+                                ? 'border-emerald-200/70 bg-emerald-50/70 text-emerald-700'
+                                : accion === 'resinar'
+                                  ? 'border-cyan-200/70 bg-cyan-50/70 text-cyan-700'
+                                  : accion === 'devastar'
+                                    ? 'border-violet-200/70 bg-violet-50/70 text-violet-700'
+                                    : 'border-slate-200 bg-white text-slate-900',
+                            )}
+                          >
+                            <p className={cn('text-[10px] uppercase tracking-[0.2em]', accion === 'pulir' || accion === 'resinar' || accion === 'devastar' ? '' : 'text-slate-500')}>
+                              {actionLabels[accion]}
+                            </p>
+                            <p className="text-sm font-semibold">
+                              {formatLosas(worker.resumenAcciones[accion].losas)} / {worker.resumenAcciones[accion].m2.toFixed(2)} m2
+                            </p>
+                          </div>
+                        ))}
                         <div className="rounded-lg border border-cyan-200/70 bg-cyan-50/70 px-2.5 py-1 text-right text-cyan-700">
                           <p className="text-[10px] uppercase tracking-[0.2em]">Ganancia est.</p>
                           <p className="text-sm font-semibold">{formatMoney(worker.totalPagoEstimado)}</p>

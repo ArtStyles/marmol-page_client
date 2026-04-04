@@ -141,8 +141,11 @@ function isSourceFilter(value: string): value is SourceFilter {
 
 function motivoMermaProduccion(accion: AccionLosa): string {
   if (accion === 'picar') return 'Partida al picar (produccion)'
+  if (accion === 'escuadrar') return 'Partida al escuadrar (produccion)'
+  if (accion === 'devastar') return 'Partida al devastar (produccion)'
+  if (accion === 'resinar') return 'Partida al resinar (produccion)'
   if (accion === 'pulir') return 'Partida al pulir (produccion)'
-  return 'Partida al escuadrar (produccion)'
+  return 'Partida en proceso (produccion)'
 }
 
 function formatLosas(value: number): string {

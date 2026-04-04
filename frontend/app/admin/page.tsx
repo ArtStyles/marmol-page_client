@@ -7,6 +7,7 @@ import type { CSSProperties } from 'react'
 import { Button } from '@/components/admin/admin-button'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   getBloques,
   getEquipos,
@@ -37,6 +38,20 @@ import {
   Factory,
   Package,
 } from 'lucide-react'
+
+function toDateKey(value: Date): string {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function startOfCurrentWeekSunday(reference: Date): Date {
+  const current = new Date(reference.getFullYear(), reference.getMonth(), reference.getDate())
+  const offset = current.getDay()
+  current.setDate(current.getDate() - offset)
+  return current
+}
 
 export default function AdminDashboard() {
   const pathname = usePathname()
@@ -81,10 +96,19 @@ export default function AdminDashboard() {
   const produccionHoy = produccionDiaria.filter((p) => p.fecha === fechaUltima)
   const totalM2Hoy = produccionHoy.reduce((sum, p) => sum + p.totalM2, 0)
 
-  const serieProduccion = fechasOrdenadas.slice(-7).map((fecha) => ({
-    fecha,
-    metros: produccionPorFecha[fecha] ?? 0,
-  }))
+  const serieProduccion = useMemo(() => {
+    const start = startOfCurrentWeekSunday(new Date())
+    return Array.from({ length: 7 }, (_, offset) => {
+      const day = new Date(start)
+      day.setDate(start.getDate() + offset)
+      const fecha = toDateKey(day)
+      return {
+        fecha,
+        metros: produccionPorFecha[fecha] ?? 0,
+      }
+    })
+  }, [produccionPorFecha])
+
   const maxSerie = serieProduccion.length
     ? Math.max(...serieProduccion.map((item) => item.metros), 1)
     : 1
@@ -364,19 +388,28 @@ export default function AdminDashboard() {
                 <span className="text-xs text-slate-500">{serieProduccion.length} dias</span>
               </div>
               {serieProduccion.length ? (
-                <div className="mt-4 flex items-end gap-2">
-                  {serieProduccion.map((item) => (
-                    <div key={item.fecha} className="flex flex-col items-center gap-2">
-                      <div className="relative h-24 w-8 overflow-hidden rounded-full bg-slate-200/70">
-                        <div
-                          className="absolute bottom-0 left-0 w-full rounded-full bg-gradient-to-t from-slate-900/70 to-slate-600/70"
-                          style={{ height: `${(item.metros / maxSerie) * 100}%` }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-slate-500">{item.fecha.slice(5)}</span>
-                    </div>
-                  ))}
-                </div>
+                <TooltipProvider delayDuration={100}>
+                  <div className="mt-4 grid grid-flow-col auto-cols-fr gap-1.5">
+                    {serieProduccion.map((item) => (
+                      <Tooltip key={item.fecha}>
+                        <TooltipTrigger asChild>
+                          <div className="flex min-w-0 cursor-default flex-col items-center gap-2">
+                            <div className="relative h-24 w-full max-w-8 overflow-hidden rounded-full bg-slate-200/70">
+                              <div
+                                className="absolute bottom-0 left-0 w-full rounded-full bg-gradient-to-t from-slate-900/70 to-slate-600/70"
+                                style={{ height: `${(item.metros / maxSerie) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-slate-500">{item.fecha.slice(5)}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" sideOffset={8} className="px-2 py-1 text-[11px]">
+                          <p className="font-medium text-current">{item.metros.toFixed(1)} m2</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </div>
+                </TooltipProvider>
               ) : (
                 <p className="mt-4 text-xs text-slate-500">Sin datos de produccion.</p>
               )}

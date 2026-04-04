@@ -18,6 +18,7 @@ function rowToProduccion(r: Record<string, unknown>): ProduccionDiaria {
     cantidadPicar: Number(r.cantidad_picar),
     cantidadPulir: Number(r.cantidad_pulir),
     cantidadEscuadrar: Number(r.cantidad_escuadrar),
+    cantidadDevastar: Number(r.cantidad_devastar),
     cantidadResinar: Number(r.cantidad_resinar),
     totalLosas: Number(r.total_losas),
     totalM2: Number(r.total_m2),
@@ -70,13 +71,13 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
     const id = await nextId(pool, 'PG', 'produccion')
     await pool.query(
       `INSERT INTO produccion (
-        id, workshop_id, fecha, origen_id, origen_nombre, tipo, dimension, cantidad_picar, cantidad_pulir, cantidad_escuadrar, cantidad_resinar,
+        id, workshop_id, fecha, origen_id, origen_nombre, tipo, dimension, cantidad_picar, cantidad_pulir, cantidad_escuadrar, cantidad_devastar, cantidad_resinar,
         total_losas, total_m2, detalles_acciones, can_edit, editable_until,
         aprobacion_taller_estado, aprobacion_taller_por_id, aprobacion_taller_por_nombre, aprobacion_taller_fecha, aprobacion_taller_motivo_rechazo,
         aprobacion_almacen_estado, aprobacion_almacen_por_id, aprobacion_almacen_por_nombre, aprobacion_almacen_fecha, aprobacion_almacen_motivo,
         inventario_aplicado, movimiento_inventario_ids
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)`,
       [
         id,
         workshopId,
@@ -88,6 +89,7 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
         data.cantidadPicar,
         data.cantidadPulir,
         data.cantidadEscuadrar,
+        data.cantidadDevastar,
         data.cantidadResinar,
         data.totalLosas,
         data.totalM2,
@@ -119,12 +121,12 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
     const workshopId = getCurrentWorkshopId()
     await pool.query(
       `UPDATE produccion SET
-        fecha=$2, origen_id=$3, origen_nombre=$4, tipo=$5, dimension=$6, cantidad_picar=$7, cantidad_pulir=$8, cantidad_escuadrar=$9, cantidad_resinar=$10,
-        total_losas=$11, total_m2=$12, detalles_acciones=$13, can_edit=$14, editable_until=$15,
-        aprobacion_taller_estado=$16, aprobacion_taller_por_id=$17, aprobacion_taller_por_nombre=$18, aprobacion_taller_fecha=$19, aprobacion_taller_motivo_rechazo=$20,
-        aprobacion_almacen_estado=$21, aprobacion_almacen_por_id=$22, aprobacion_almacen_por_nombre=$23, aprobacion_almacen_fecha=$24, aprobacion_almacen_motivo=$25,
-        inventario_aplicado=$26, movimiento_inventario_ids=$27
-      WHERE id=$1 AND workshop_id=$28`,
+        fecha=$2, origen_id=$3, origen_nombre=$4, tipo=$5, dimension=$6, cantidad_picar=$7, cantidad_pulir=$8, cantidad_escuadrar=$9, cantidad_devastar=$10, cantidad_resinar=$11,
+        total_losas=$12, total_m2=$13, detalles_acciones=$14, can_edit=$15, editable_until=$16,
+        aprobacion_taller_estado=$17, aprobacion_taller_por_id=$18, aprobacion_taller_por_nombre=$19, aprobacion_taller_fecha=$20, aprobacion_taller_motivo_rechazo=$21,
+        aprobacion_almacen_estado=$22, aprobacion_almacen_por_id=$23, aprobacion_almacen_por_nombre=$24, aprobacion_almacen_fecha=$25, aprobacion_almacen_motivo=$26,
+        inventario_aplicado=$27, movimiento_inventario_ids=$28
+      WHERE id=$1 AND workshop_id=$29`,
       [
         id,
         merged.fecha,
@@ -135,6 +137,7 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
         merged.cantidadPicar,
         merged.cantidadPulir,
         merged.cantidadEscuadrar,
+        merged.cantidadDevastar,
         merged.cantidadResinar,
         merged.totalLosas,
         merged.totalM2,

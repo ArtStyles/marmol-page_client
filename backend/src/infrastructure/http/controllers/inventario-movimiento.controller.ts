@@ -27,6 +27,14 @@ export async function createSalidaProcesoInventario(req: Request, res: Response)
   res.status(201).json(data)
 }
 
+export async function createRetornoProcesoInventario(req: Request, res: Response) {
+  const data = await container.createRetornoProcesoInventarioUseCase.execute(
+    req.body,
+    resolveActor(req),
+  )
+  res.status(201).json(data)
+}
+
 export async function approveInventarioMovimiento(req: Request, res: Response) {
   const data = await container.approveInventarioMovimientoUseCase.execute(
     req.params.id,

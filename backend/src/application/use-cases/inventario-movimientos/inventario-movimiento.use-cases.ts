@@ -1,6 +1,7 @@
 ﻿import { DomainError } from '../../errors/domain.error.js'
 import type {
   AprobarInventarioMovimientoDto,
+  CreateRetornoProcesoInventarioDto,
   CreateSalidaProcesoInventarioDto,
   InventarioMovimientoResponseDto,
   RechazarInventarioMovimientoDto,
@@ -41,12 +42,13 @@ export class GetInventarioMovimientoByIdUseCase {
 }
 
 const estadoRequeridoPorAccionProceso: Record<
-  'pulir' | 'escuadrar' | 'resinar',
-  'Pulido' | 'Picado'
+  'escuadrar' | 'devastar' | 'resinar' | 'pulir',
+  'Picado' | 'Escuadrado' | 'Devastado' | 'Resinado'
 > = {
-  pulir: 'Pulido',
   escuadrar: 'Picado',
-  resinar: 'Pulido',
+  devastar: 'Escuadrado',
+  resinar: 'Devastado',
+  pulir: 'Resinado',
 }
 
 function dimensionToArea(dimension: '40x40' | '60x40' | '80x40'): number {
@@ -142,6 +144,80 @@ export class CreateSalidaProcesoInventarioUseCase {
   }
 }
 
+export class CreateRetornoProcesoInventarioUseCase {
+  constructor(
+    private readonly repository: InventarioMovimientoRepositoryPort,
+    private readonly productoRepository: ProductoRepositoryPort,
+  ) {}
+
+  async execute(
+    dto: CreateRetornoProcesoInventarioDto,
+    actor: MovimientoActor,
+  ): Promise<InventarioMovimientoResponseDto> {
+    const producto = await this.productoRepository.findById(dto.productoId)
+    if (!producto) {
+      throw new DomainError(`Producto ${dto.productoId} no existe`, 404, 'PRODUCTO_NOT_FOUND')
+    }
+
+    if (producto.ubicacion !== 'proceso') {
+      throw new DomainError(
+        'Solo se puede solicitar retorno desde stock en proceso.',
+        409,
+        'RETORNO_PROCESO_ORIGEN_INVALIDO',
+      )
+    }
+
+    const cantidadLosas = Math.trunc(dto.cantidadLosas)
+    if (!Number.isInteger(cantidadLosas) || cantidadLosas <= 0) {
+      throw new DomainError(
+        'El retorno a almacen requiere cantidad de losas entera y mayor a 0.',
+        400,
+        'RETORNO_PROCESO_CANTIDAD_INVALIDA',
+      )
+    }
+
+    const motivo = dto.motivo.trim()
+    if (motivo.length < 5) {
+      throw new DomainError(
+        'Debe indicar un motivo valido para el retorno a almacen.',
+        400,
+        'RETORNO_PROCESO_MOTIVO_REQUERIDO',
+      )
+    }
+
+    const metrosCuadrados = round2(cantidadLosas * dimensionToArea(producto.dimension))
+    const detalle = {
+      id: `imd-ra-${producto.id}-${Date.now()}`,
+      productoId: producto.id,
+      productoNombre: producto.nombre,
+      tipo: producto.tipo,
+      estado: producto.estado,
+      ubicacionOrigen: 'proceso' as const,
+      ubicacionDestino: 'almacen' as const,
+      dimension: producto.dimension,
+      origenId: producto.origenId,
+      origenNombre: producto.origenNombre,
+      cantidadLosas,
+      metrosCuadrados,
+    }
+
+    await validateInventarioSalida([detalle], this.productoRepository)
+
+    const now = new Date().toISOString()
+    return this.repository.create({
+      fechaSolicitud: now,
+      tipo: 'salida',
+      origen: 'proceso',
+      estado: 'pendiente',
+      motivo,
+      observaciones: 'Retorno solicitado desde proceso hacia almacen sin cambio de estado.',
+      solicitadoPorId: actor.userId,
+      solicitadoPorNombre: actor.userName,
+      detalles: [detalle],
+    })
+  }
+}
+
 export class ApproveInventarioMovimientoUseCase {
   constructor(
     private readonly repository: InventarioMovimientoRepositoryPort,
@@ -178,7 +254,7 @@ export class ApproveInventarioMovimientoUseCase {
         await applyInventarioEntrada(
           movimiento.detalles.map((detalle) => ({
             ...detalle,
-            ubicacionDestino: 'proceso',
+            ubicacionDestino: detalle.ubicacionDestino ?? 'proceso',
           })),
           this.productoRepository,
         )

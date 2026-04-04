@@ -25,6 +25,7 @@ const REQUIRED_TABLES = [
 const REQUIRED_COLUMNS = [
   { table: 'productos', column: 'ubicacion' },
   { table: 'produccion', column: 'cantidad_resinar' },
+  { table: 'produccion', column: 'cantidad_devastar' },
 ] as const
 
 export interface DatabaseSummary {

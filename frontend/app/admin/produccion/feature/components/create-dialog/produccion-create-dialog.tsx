@@ -136,7 +136,7 @@ export function ProduccionCreateDialog({
           {!accionActiva ? (
             <div className="space-y-3">
               <Label>Selecciona accion</Label>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                 {actionOrder.map((accion) => (
                   <Button
                     key={accion}

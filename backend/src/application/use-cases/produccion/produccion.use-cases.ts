@@ -258,9 +258,14 @@ export class UpdateProduccionUseCase {
       )
     }
 
-    if (current.cantidadPulir > 0 || current.cantidadEscuadrar > 0 || current.cantidadResinar > 0) {
+    if (
+      current.cantidadEscuadrar > 0 ||
+      current.cantidadDevastar > 0 ||
+      current.cantidadResinar > 0 ||
+      current.cantidadPulir > 0
+    ) {
       throw new DomainError(
-        'No se puede editar una produccion de pulido/escuadrado/resinado porque consume stock fuera de almacen.',
+        'No se puede editar una produccion de escuadrado/devastado/resinado/pulido porque consume stock fuera de almacen.',
         409,
         'PRODUCCION_EDIT_PROCESO_LOCKED',
       )
@@ -287,9 +292,14 @@ export class DeleteProduccionUseCase {
       )
     }
 
-    if (current.cantidadPulir > 0 || current.cantidadEscuadrar > 0 || current.cantidadResinar > 0) {
+    if (
+      current.cantidadEscuadrar > 0 ||
+      current.cantidadDevastar > 0 ||
+      current.cantidadResinar > 0 ||
+      current.cantidadPulir > 0
+    ) {
       throw new DomainError(
-        'No se puede eliminar una produccion de pulido/escuadrado/resinado porque consume stock fuera de almacen.',
+        'No se puede eliminar una produccion de escuadrado/devastado/resinado/pulido porque consume stock fuera de almacen.',
         409,
         'PRODUCCION_DELETE_PROCESO_LOCKED',
       )
@@ -347,18 +357,20 @@ function buildDetallesEntradaDesdeProduccion(
   registro: ProduccionDiaria,
 ): InventarioMovimientoDetalle[] {
   const totalPerdidasPorAccion = buildPerdidasPorAccion(registro.detallesAcciones)
-  const mapaEstado: Record<'picar' | 'pulir' | 'escuadrar' | 'resinar', EstadoInventario> = {
+  const mapaEstado: Record<'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir', EstadoInventario> = {
     picar: 'Picado',
-    pulir: 'Pulido',
     escuadrar: 'Escuadrado',
-    resinar: 'Pulido',
+    devastar: 'Devastado',
+    resinar: 'Resinado',
+    pulir: 'Pulido',
   }
 
   const acciones = [
     { accion: 'picar', cantidad: registro.cantidadPicar },
-    { accion: 'pulir', cantidad: registro.cantidadPulir },
     { accion: 'escuadrar', cantidad: registro.cantidadEscuadrar },
+    { accion: 'devastar', cantidad: registro.cantidadDevastar },
     { accion: 'resinar', cantidad: registro.cantidadResinar },
+    { accion: 'pulir', cantidad: registro.cantidadPulir },
   ] as const
 
   const detalles: InventarioMovimientoDetalle[] = []
@@ -419,13 +431,14 @@ async function actualizarBloquePorProduccion(
 
 function buildPerdidasPorAccion(
   detalles: ProduccionDetalleAccion[] | undefined,
-): Record<'picar' | 'pulir' | 'escuadrar' | 'resinar', number> {
+) : Record<'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir', number> {
   const acc = {
     picar: 0,
-    pulir: 0,
     escuadrar: 0,
+    devastar: 0,
     resinar: 0,
-  } as Record<'picar' | 'pulir' | 'escuadrar' | 'resinar', number>
+    pulir: 0,
+  } as Record<'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir', number>
 
   for (const detalle of detalles ?? []) {
     const totalPartidas = (detalle.losasMermaTotal ?? 0) + (detalle.losasReutilizables ?? 0)
@@ -470,22 +483,24 @@ function validateResinaConsumo(dto: CreateProduccionDto): void {
 }
 
 const estadoRequeridoProcesoPorAccion: Record<
-  'pulir' | 'escuadrar' | 'resinar',
+  'escuadrar' | 'devastar' | 'resinar' | 'pulir',
   EstadoInventario
 > = {
-  pulir: 'Pulido',
   escuadrar: 'Picado',
-  resinar: 'Pulido',
+  devastar: 'Escuadrado',
+  resinar: 'Devastado',
+  pulir: 'Resinado',
 }
 
 async function consumeProcesoStockParaProduccion(
   dto: CreateProduccionDto,
   productoRepository: ProductoRepositoryPort,
 ): Promise<void> {
-  const consumos: Array<{ accion: 'pulir' | 'escuadrar' | 'resinar'; cantidad: number }> = [
-    { accion: 'pulir', cantidad: dto.cantidadPulir },
+  const consumos: Array<{ accion: 'escuadrar' | 'devastar' | 'resinar' | 'pulir'; cantidad: number }> = [
     { accion: 'escuadrar', cantidad: dto.cantidadEscuadrar },
+    { accion: 'devastar', cantidad: dto.cantidadDevastar },
     { accion: 'resinar', cantidad: dto.cantidadResinar },
+    { accion: 'pulir', cantidad: dto.cantidadPulir },
   ]
 
   for (const consumo of consumos) {

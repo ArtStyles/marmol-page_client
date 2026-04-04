@@ -7,6 +7,7 @@ import type { ConfiguracionSistema } from '@/lib/types'
 const emptyConfiguracion: ConfiguracionSistema = {
   tarifasGlobales: {
     picar: 0,
+    devastar: 0,
     pulir: 0,
     escuadrar: 0,
     resinar: 0,

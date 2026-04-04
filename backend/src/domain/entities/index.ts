@@ -6,9 +6,9 @@
 export type Dimension = '40x40' | '60x40' | '80x40'
 export type TipoProducto = 'Piso' | 'Plancha'
 export type EstadoLosa = 'Crudo' | 'Pulido'
-export type EstadoInventario = 'Picado' | 'Pulido' | 'Escuadrado'
+export type EstadoInventario = 'Picado' | 'Escuadrado' | 'Devastado' | 'Resinado' | 'Pulido'
 export type UbicacionInventario = 'almacen' | 'proceso'
-export type AccionLosa = 'picar' | 'pulir' | 'escuadrar' | 'resinar'
+export type AccionLosa = 'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir'
 export type TipoEquipo = 'Pulidora' | 'Cortadora' | 'Escuadradora'
 export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado'
 
@@ -82,9 +82,10 @@ export interface CatalogoItem {
 
 export interface TarifasTrabajador {
   picar: number
-  pulir: number
   escuadrar: number
+  devastar: number
   resinar: number
+  pulir: number
 }
 
 export interface Equipo {
@@ -121,9 +122,10 @@ export interface ProduccionDiaria {
   tipo: TipoProducto
   dimension: Dimension
   cantidadPicar: number
-  cantidadPulir: number
   cantidadEscuadrar: number
+  cantidadDevastar: number
   cantidadResinar: number
+  cantidadPulir: number
   totalLosas: number
   totalM2: number
   detallesAcciones?: ProduccionDetalleAccion[]

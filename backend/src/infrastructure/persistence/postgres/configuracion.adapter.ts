@@ -6,9 +6,10 @@ import { getCurrentWorkshopId } from './tenant.js'
 const emptyConfiguracion: ConfiguracionSistema = {
   tarifasGlobales: {
     picar: 0,
-    pulir: 0,
     escuadrar: 0,
+    devastar: 0,
     resinar: 0,
+    pulir: 0,
   },
   salariosFijosPorRol: {
     Administrador: 0,

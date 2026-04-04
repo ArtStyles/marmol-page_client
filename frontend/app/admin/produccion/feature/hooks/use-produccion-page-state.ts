@@ -36,12 +36,13 @@ import {
 } from '../lib/produccion-helpers'
 
 const estadoProcesoRequeridoPorAccion: Record<
-  'pulir' | 'escuadrar' | 'resinar',
+  'escuadrar' | 'devastar' | 'resinar' | 'pulir',
   Producto['estado']
 > = {
-  pulir: 'Pulido',
   escuadrar: 'Picado',
-  resinar: 'Pulido',
+  devastar: 'Escuadrado',
+  resinar: 'Devastado',
+  pulir: 'Resinado',
 }
 
 const buildPseudoOrigen = (
@@ -139,8 +140,8 @@ export const useProduccionPageState = () => {
   const origenesActivosByAccion = useMemo<Record<AccionLosa, BloqueOLote[]>>(() => {
     const bloquesPorId = new Map(bloquesYLotes.map((bloque) => [bloque.id, bloque]))
 
-    const procesoPulir = stockProcesoDisponible
-      .filter((producto) => producto.estado === estadoProcesoRequeridoPorAccion.pulir)
+    const procesoEscuadrar = stockProcesoDisponible
+      .filter((producto) => producto.estado === estadoProcesoRequeridoPorAccion.escuadrar)
       .map((producto) =>
         buildPseudoOrigen(
           producto.origenId,
@@ -148,8 +149,8 @@ export const useProduccionPageState = () => {
           bloquesPorId.get(producto.origenId),
         ),
       )
-    const procesoEscuadrar = stockProcesoDisponible
-      .filter((producto) => producto.estado === estadoProcesoRequeridoPorAccion.escuadrar)
+    const procesoDevastar = stockProcesoDisponible
+      .filter((producto) => producto.estado === estadoProcesoRequeridoPorAccion.devastar)
       .map((producto) =>
         buildPseudoOrigen(
           producto.origenId,
@@ -166,15 +167,25 @@ export const useProduccionPageState = () => {
           bloquesPorId.get(producto.origenId),
         ),
       )
+    const procesoPulir = stockProcesoDisponible
+      .filter((producto) => producto.estado === estadoProcesoRequeridoPorAccion.pulir)
+      .map((producto) =>
+        buildPseudoOrigen(
+          producto.origenId,
+          producto.origenNombre,
+          bloquesPorId.get(producto.origenId),
+        ),
+      )
 
     const dedupe = (items: BloqueOLote[]) =>
       Array.from(new Map(items.map((item) => [item.id, item])).values())
 
     return {
       picar: origenesActivos,
-      pulir: dedupe(procesoPulir),
       escuadrar: dedupe(procesoEscuadrar),
+      devastar: dedupe(procesoDevastar),
       resinar: dedupe(procesoResinar),
+      pulir: dedupe(procesoPulir),
     }
   }, [bloquesYLotes, origenesActivos, stockProcesoDisponible])
 
@@ -194,7 +205,7 @@ export const useProduccionPageState = () => {
       tipo: ProduccionDiaria['tipo'] | '',
       dimension: ProduccionDiaria['dimension'],
     ): number | null => {
-      if (accion !== 'pulir' && accion !== 'escuadrar' && accion !== 'resinar') return null
+      if (accion !== 'escuadrar' && accion !== 'devastar' && accion !== 'resinar' && accion !== 'pulir') return null
       if (!origenId || !tipo) return null
 
       const estadoRequerido = estadoProcesoRequeridoPorAccion[accion]
@@ -228,12 +239,13 @@ export const useProduccionPageState = () => {
   const resumenAcciones = produccionResumen.reduce<Record<AccionLosa, number>>(
     (acc, item) => {
       acc.picar += losasAMetros(getAccionLosas(item, 'picar'), item.dimension)
-      acc.pulir += losasAMetros(getAccionLosas(item, 'pulir'), item.dimension)
       acc.escuadrar += losasAMetros(getAccionLosas(item, 'escuadrar'), item.dimension)
+      acc.devastar += losasAMetros(getAccionLosas(item, 'devastar'), item.dimension)
       acc.resinar += losasAMetros(getAccionLosas(item, 'resinar'), item.dimension)
+      acc.pulir += losasAMetros(getAccionLosas(item, 'pulir'), item.dimension)
       return acc
     },
-    { picar: 0, pulir: 0, escuadrar: 0, resinar: 0 },
+    { picar: 0, escuadrar: 0, devastar: 0, resinar: 0, pulir: 0 },
   )
 
   const topOrigenesResumen = [...produccionResumen]
@@ -462,9 +474,10 @@ export const useProduccionPageState = () => {
     const origenesById = new Map(
       [
         ...bloquesYLotes,
-        ...origenesActivosByAccion.pulir,
         ...origenesActivosByAccion.escuadrar,
+        ...origenesActivosByAccion.devastar,
         ...origenesActivosByAccion.resinar,
+        ...origenesActivosByAccion.pulir,
       ].map((origen) => [origen.id, origen]),
     )
     const registrosPorCombo = new Map<
@@ -580,7 +593,7 @@ export const useProduccionPageState = () => {
             return
           }
 
-          if (accion === 'pulir' || accion === 'escuadrar' || accion === 'resinar') {
+          if (accion === 'escuadrar' || accion === 'devastar' || accion === 'resinar' || accion === 'pulir') {
             const estadoRequerido = estadoProcesoRequeridoPorAccion[accion]
             const stockKey = `${uso.origenId}::${uso.tipo}::${dimensionUso.dimension}::${estadoRequerido}`
             const disponible = stockProcesoPorClave.get(stockKey) ?? 0
@@ -619,9 +632,10 @@ export const useProduccionPageState = () => {
               dimension: dimensionUso.dimension,
               actionTotals: {
                 picar: 0,
-                pulir: 0,
                 escuadrar: 0,
+                devastar: 0,
                 resinar: 0,
+                pulir: 0,
               },
               detallesAcciones: [],
             }
@@ -662,10 +676,12 @@ export const useProduccionPageState = () => {
     const payloads: Array<Omit<ProduccionDiaria, 'id'>> = []
     for (const combo of registrosPorCombo.values()) {
       const cantidadPicar = combo.actionTotals.picar
-      const cantidadPulir = combo.actionTotals.pulir
       const cantidadEscuadrar = combo.actionTotals.escuadrar
+      const cantidadDevastar = combo.actionTotals.devastar
       const cantidadResinar = combo.actionTotals.resinar
-      const totalLosas = cantidadPicar + cantidadPulir + cantidadEscuadrar + cantidadResinar
+      const cantidadPulir = combo.actionTotals.pulir
+      const totalLosas =
+        cantidadPicar + cantidadEscuadrar + cantidadDevastar + cantidadResinar + cantidadPulir
 
       if (totalLosas <= 0) continue
 
@@ -676,9 +692,10 @@ export const useProduccionPageState = () => {
         tipo: combo.tipo,
         dimension: combo.dimension,
         cantidadPicar,
-        cantidadPulir,
         cantidadEscuadrar,
+        cantidadDevastar,
         cantidadResinar,
+        cantidadPulir,
         totalLosas,
         totalM2: losasAMetros(totalLosas, combo.dimension),
         detallesAcciones: combo.detallesAcciones,
@@ -813,6 +830,7 @@ export const useProduccionPageState = () => {
     setFormData,
     setIsDialogOpen,
     setSearchTerm,
+    stockProcesoDisponible,
     topOrigenesResumen,
     today,
     totalLosasResumen,

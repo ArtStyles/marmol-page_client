@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS configuracion (
   id TEXT PRIMARY KEY DEFAULT 'default',
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
-  tarifas_globales JSONB NOT NULL DEFAULT '{"picar":400,"pulir":250,"escuadrar":100,"resinar":250}',
+  tarifas_globales JSONB NOT NULL DEFAULT '{"picar":400,"escuadrar":100,"devastar":250,"resinar":250,"pulir":250}',
   salarios_fijos_por_rol JSONB NOT NULL DEFAULT '{}',
   precios_m2 JSONB NOT NULL DEFAULT '{}',
   nombre_empresa TEXT NOT NULL DEFAULT '',
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS productos (
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   nombre TEXT NOT NULL,
   tipo TEXT NOT NULL CHECK (tipo IN ('Piso', 'Plancha')),
-  estado TEXT NOT NULL CHECK (estado IN ('Picado', 'Pulido', 'Escuadrado')),
+  estado TEXT NOT NULL CHECK (estado IN ('Picado', 'Escuadrado', 'Devastado', 'Resinado', 'Pulido')),
   ubicacion TEXT NOT NULL DEFAULT 'almacen' CHECK (ubicacion IN ('almacen', 'proceso')),
   dimension TEXT NOT NULL CHECK (dimension IN ('40x40', '60x40', '80x40')),
   origen_id TEXT NOT NULL,
@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS produccion (
   cantidad_picar INTEGER NOT NULL DEFAULT 0,
   cantidad_pulir INTEGER NOT NULL DEFAULT 0,
   cantidad_escuadrar INTEGER NOT NULL DEFAULT 0,
+  cantidad_devastar INTEGER NOT NULL DEFAULT 0,
   cantidad_resinar INTEGER NOT NULL DEFAULT 0,
   total_losas INTEGER NOT NULL,
   total_m2 NUMERIC(10,2) NOT NULL,
@@ -145,7 +146,7 @@ CREATE TABLE IF NOT EXISTS produccion_trabajadores (
   fecha DATE NOT NULL,
   trabajador_id TEXT NOT NULL,
   trabajador_nombre TEXT NOT NULL,
-  accion TEXT NOT NULL CHECK (accion IN ('picar', 'pulir', 'escuadrar', 'resinar')),
+  accion TEXT NOT NULL CHECK (accion IN ('picar', 'escuadrar', 'devastar', 'resinar', 'pulir')),
   origen_id TEXT NOT NULL,
   origen_nombre TEXT NOT NULL,
   tipo TEXT NOT NULL CHECK (tipo IN ('Piso', 'Plancha')),
@@ -373,11 +374,19 @@ ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_almacen_fecha TIMESTA
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_almacen_motivo TEXT;
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS inventario_aplicado BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS movimiento_inventario_ids JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS cantidad_devastar INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS cantidad_resinar INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE produccion_trabajadores DROP CONSTRAINT IF EXISTS produccion_trabajadores_accion_check;
 ALTER TABLE produccion_trabajadores
   ADD CONSTRAINT produccion_trabajadores_accion_check
-  CHECK (accion IN ('picar', 'pulir', 'escuadrar', 'resinar'));
+  CHECK (accion IN ('picar', 'escuadrar', 'devastar', 'resinar', 'pulir'));
+ALTER TABLE productos DROP CONSTRAINT IF EXISTS productos_estado_check;
+ALTER TABLE productos
+  ADD CONSTRAINT productos_estado_check
+  CHECK (estado IN ('Picado', 'Escuadrado', 'Devastado', 'Resinado', 'Pulido'));
+UPDATE configuracion
+SET tarifas_globales = jsonb_set(COALESCE(tarifas_globales, '{}'::jsonb), '{devastar}', to_jsonb(250), true)
+WHERE NOT (COALESCE(tarifas_globales, '{}'::jsonb) ? 'devastar');
 UPDATE configuracion
 SET tarifas_globales = jsonb_set(COALESCE(tarifas_globales, '{}'::jsonb), '{resinar}', to_jsonb(250), true)
 WHERE NOT (COALESCE(tarifas_globales, '{}'::jsonb) ? 'resinar');

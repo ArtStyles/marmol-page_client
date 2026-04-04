@@ -91,6 +91,7 @@ import {
   GetInventarioMovimientosUseCase,
   GetInventarioMovimientoByIdUseCase,
   CreateSalidaProcesoInventarioUseCase,
+  CreateRetornoProcesoInventarioUseCase,
   ApproveInventarioMovimientoUseCase,
   RejectInventarioMovimientoUseCase,
 } from '../application/use-cases/inventario-movimientos/inventario-movimiento.use-cases.js'
@@ -263,6 +264,10 @@ export const getInventarioMovimientoByIdUseCase = new GetInventarioMovimientoByI
   inventarioMovimientoRepo,
 )
 export const createSalidaProcesoInventarioUseCase = new CreateSalidaProcesoInventarioUseCase(
+  inventarioMovimientoRepo,
+  productoRepo,
+)
+export const createRetornoProcesoInventarioUseCase = new CreateRetornoProcesoInventarioUseCase(
   inventarioMovimientoRepo,
   productoRepo,
 )

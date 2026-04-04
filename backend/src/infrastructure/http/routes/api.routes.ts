@@ -28,6 +28,7 @@ import {
   approveInventarioMovimientoSchema,
   rejectInventarioMovimientoSchema,
   createSalidaProcesoInventarioSchema,
+  createRetornoProcesoInventarioSchema,
   createHistorialPagoSchema,
   updateHistorialPagoSchema,
   createLogSchema,
@@ -123,6 +124,12 @@ api.post(
   requirePermission('inventario:write'),
   validateBody(createSalidaProcesoInventarioSchema),
   asyncHandler(inventarioMovimientoCtrl.createSalidaProcesoInventario),
+)
+api.post(
+  '/inventario-movimientos/proceso-retorno',
+  requirePermission('inventario:write'),
+  validateBody(createRetornoProcesoInventarioSchema),
+  asyncHandler(inventarioMovimientoCtrl.createRetornoProcesoInventario),
 )
 api.patch(
   '/inventario-movimientos/:id/aprobar',

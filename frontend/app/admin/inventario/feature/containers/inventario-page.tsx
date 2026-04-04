@@ -82,7 +82,7 @@ type AccionFiltroResumenRow = {
   m2: number
 }
 
-const estadoOrden: Producto['estado'][] = ['Picado', 'Pulido', 'Escuadrado']
+const estadoOrden: Producto['estado'][] = ['Picado', 'Escuadrado', 'Devastado', 'Resinado', 'Pulido']
 
 const inventoryChartConfig = {
   losas: {
@@ -122,8 +122,10 @@ const breakageChartConfig = {
 
 const estadoBadgeClass: Record<Producto['estado'], string> = {
   Picado: 'border-blue-200 bg-blue-50 text-blue-700',
-  Pulido: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   Escuadrado: 'border-amber-200 bg-amber-50 text-amber-700',
+  Devastado: 'border-violet-200 bg-violet-50 text-violet-700',
+  Resinado: 'border-cyan-200 bg-cyan-50 text-cyan-700',
+  Pulido: 'border-emerald-200 bg-emerald-50 text-emerald-700',
 }
 const movimientoEstadoBadgeClass: Record<InventarioMovimiento['estado'], string> = {
   pendiente: 'border-amber-200 bg-amber-50 text-amber-700',
@@ -143,12 +145,13 @@ const movimientoTipoBadgeClass: Record<InventarioMovimiento['tipo'], string> = {
 }
 
 const estadoRequeridoProcesoPorAccion: Record<
-  'pulir' | 'escuadrar' | 'resinar',
+  'escuadrar' | 'devastar' | 'resinar' | 'pulir',
   Producto['estado']
 > = {
-  pulir: 'Pulido',
   escuadrar: 'Picado',
-  resinar: 'Pulido',
+  devastar: 'Escuadrado',
+  resinar: 'Devastado',
+  pulir: 'Resinado',
 }
 
 
@@ -218,7 +221,7 @@ export default function InventarioPage() {
   const [rejectDialogMotivo, setRejectDialogMotivo] = useState('')
   const [rejectDialogError, setRejectDialogError] = useState<string | null>(null)
   const [procesoDialogOpen, setProcesoDialogOpen] = useState(false)
-  const [procesoAccionObjetivo, setProcesoAccionObjetivo] = useState<'pulir' | 'escuadrar' | 'resinar'>('pulir')
+  const [procesoAccionObjetivo, setProcesoAccionObjetivo] = useState<'escuadrar' | 'devastar' | 'resinar' | 'pulir'>('escuadrar')
   const [procesoProductoId, setProcesoProductoId] = useState('')
   const [procesoCantidadLosas, setProcesoCantidadLosas] = useState(0)
   const [procesoCantidadTouched, setProcesoCantidadTouched] = useState(false)
@@ -493,7 +496,7 @@ export default function InventarioPage() {
   const openProcesoDialog = () => {
     if (!canSolicitarSalidaProceso) return
     setProcesoDialogError(null)
-    setProcesoAccionObjetivo('pulir')
+    setProcesoAccionObjetivo('escuadrar')
     setProcesoProductoId('')
     setProcesoCantidadLosas(0)
     setProcesoCantidadTouched(false)
@@ -1121,7 +1124,7 @@ export default function InventarioPage() {
                 <Select
                   value={procesoAccionObjetivo}
                   onValueChange={(value) => {
-                    if (value === 'pulir' || value === 'escuadrar' || value === 'resinar') {
+                    if (value === 'escuadrar' || value === 'devastar' || value === 'resinar' || value === 'pulir') {
                       setProcesoAccionObjetivo(value)
                       setProcesoProductoId('')
                     }
@@ -1132,9 +1135,10 @@ export default function InventarioPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pulir">Pulir (requiere estado Pulido)</SelectItem>
                     <SelectItem value="escuadrar">Escuadrar (requiere estado Picado)</SelectItem>
-                    <SelectItem value="resinar">Resinar (requiere estado Pulido)</SelectItem>
+                    <SelectItem value="devastar">Devastar (requiere estado Escuadrado)</SelectItem>
+                    <SelectItem value="resinar">Resinar (requiere estado Devastado)</SelectItem>
+                    <SelectItem value="pulir">Pulir (requiere estado Resinado)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

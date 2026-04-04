@@ -41,9 +41,10 @@ import {
 
 const actionSectionBackgrounds: Record<AccionLosa, string> = {
   picar: 'border-blue-200/80 bg-blue-50/60',
-  pulir: 'border-emerald-200/80 bg-emerald-50/60',
   escuadrar: 'border-amber-200/80 bg-amber-50/60',
+  devastar: 'border-violet-200/80 bg-violet-50/60',
   resinar: 'border-cyan-200/80 bg-cyan-50/60',
+  pulir: 'border-emerald-200/80 bg-emerald-50/60',
 }
 
 const dimensionOptions: Dimension[] = ['40x40', '60x40', '80x40']
@@ -392,7 +393,10 @@ export function ProduccionActionSection({
                                   })
                                 }
                               />
-                              {(accion === 'pulir' || accion === 'escuadrar' || accion === 'resinar') && (
+                              {(accion === 'escuadrar' ||
+                                accion === 'devastar' ||
+                                accion === 'resinar' ||
+                                accion === 'pulir') && (
                                 <p
                                   className={cn(
                                     'text-[10px]',
@@ -411,7 +415,14 @@ export function ProduccionActionSection({
                                   )}
                                 >
                                   {(() => {
-                                    const estadoRequerido = accion === 'escuadrar' ? 'Picado' : 'Pulido'
+                                    const estadoRequerido =
+                                      accion === 'escuadrar'
+                                        ? 'Picado'
+                                        : accion === 'devastar'
+                                          ? 'Escuadrado'
+                                          : accion === 'resinar'
+                                            ? 'Devastado'
+                                            : 'Resinado'
                                     const disponibles = getLosasDisponiblesParaAccion(
                                       accion,
                                       uso.origenId,

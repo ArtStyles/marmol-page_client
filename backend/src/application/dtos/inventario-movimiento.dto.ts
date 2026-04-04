@@ -13,7 +13,13 @@ export interface RechazarInventarioMovimientoDto {
 }
 
 export interface CreateSalidaProcesoInventarioDto {
-  accionObjetivo: 'pulir' | 'escuadrar' | 'resinar'
+  accionObjetivo: 'escuadrar' | 'devastar' | 'resinar' | 'pulir'
+  productoId: string
+  cantidadLosas: number
+  motivo: string
+}
+
+export interface CreateRetornoProcesoInventarioDto {
   productoId: string
   cantidadLosas: number
   motivo: string

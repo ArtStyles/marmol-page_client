@@ -389,13 +389,14 @@ export default function TrabajadoresPage() {
       acc[item.accion] += losasAMetros(item.cantidadLosas, item.dimension)
       return acc
     },
-    { picar: 0, pulir: 0, escuadrar: 0, resinar: 0 },
+    { picar: 0, escuadrar: 0, devastar: 0, resinar: 0, pulir: 0 },
   )
   const totalM2 =
     accionesResumen.picar +
-    accionesResumen.pulir +
     accionesResumen.escuadrar +
-    accionesResumen.resinar
+    accionesResumen.devastar +
+    accionesResumen.resinar +
+    accionesResumen.pulir
 
   const produccionPorFecha = selectedProduccion.reduce<
     Record<
@@ -406,7 +407,7 @@ export default function TrabajadoresPage() {
     if (!acc[item.fecha]) {
       acc[item.fecha] = {
         fecha: item.fecha,
-        m2: { picar: 0, pulir: 0, escuadrar: 0, resinar: 0 },
+        m2: { picar: 0, escuadrar: 0, devastar: 0, resinar: 0, pulir: 0 },
         totalPago: 0,
       }
     }
@@ -911,6 +912,11 @@ export default function TrabajadoresPage() {
                                 {item.m2.escuadrar > 0 && (
                                   <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700">
                                     Escuadrar {item.m2.escuadrar.toFixed(2)} m2
+                                  </span>
+                                )}
+                                {item.m2.devastar > 0 && (
+                                  <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-violet-700">
+                                    Devastar {item.m2.devastar.toFixed(2)} m2
                                   </span>
                                 )}
                                 {item.m2.resinar > 0 && (

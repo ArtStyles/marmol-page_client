@@ -20,8 +20,10 @@ function round2(value: number): number {
 }
 
 function estadoPrioridad(estado: Producto['estado']): number {
-  if (estado === 'Escuadrado') return 3
-  if (estado === 'Pulido') return 2
+  if (estado === 'Pulido') return 5
+  if (estado === 'Resinado') return 4
+  if (estado === 'Devastado') return 3
+  if (estado === 'Escuadrado') return 2
   return 1
 }
 

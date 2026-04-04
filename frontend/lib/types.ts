@@ -3,7 +3,7 @@
 export type Dimension = '40x40' | '60x40' | '80x40'
 export type TipoProducto = 'Piso' | 'Plancha'
 export type EstadoLosa = 'Crudo' | 'Pulido'
-export type EstadoInventario = 'Picado' | 'Pulido' | 'Escuadrado'
+export type EstadoInventario = 'Picado' | 'Escuadrado' | 'Devastado' | 'Resinado' | 'Pulido'
 export type UbicacionInventario = 'almacen' | 'proceso'
 
 export type RolTrabajador =
@@ -18,22 +18,24 @@ export type RolTrabajador =
 
 export type RolConSalarioFijo = Exclude<RolTrabajador, 'Obrero'>
 
-export type AccionLosa = 'picar' | 'pulir' | 'escuadrar' | 'resinar'
+export type AccionLosa = 'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir'
 export type TipoEquipo = 'Pulidora' | 'Cortadora' | 'Escuadradora'
 export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado'
 
 export const TIPO_EQUIPO_POR_ACCION: Record<AccionLosa, TipoEquipo> = {
   picar: 'Cortadora',
-  pulir: 'Pulidora',
   escuadrar: 'Escuadradora',
+  devastar: 'Pulidora',
   resinar: 'Pulidora',
+  pulir: 'Pulidora',
 }
 
 export const TARIFAS_ACCION_DEFAULT: Record<AccionLosa, number> = {
   picar: 400,
-  pulir: 250,
   escuadrar: 100,
+  devastar: 250,
   resinar: 250,
+  pulir: 250,
 }
 
 export const TARIFAS_ACCION = TARIFAS_ACCION_DEFAULT
@@ -123,9 +125,10 @@ export function losasAMetros(losas: number, dimension: Dimension): number {
 
 export interface TarifasTrabajador {
   picar: number
-  pulir: number
   escuadrar: number
+  devastar: number
   resinar: number
+  pulir: number
 }
 
 export interface Equipo {
@@ -165,9 +168,10 @@ export interface ProduccionDiaria {
   tipo: TipoProducto
   dimension: Dimension
   cantidadPicar: number
-  cantidadPulir: number
   cantidadEscuadrar: number
+  cantidadDevastar: number
   cantidadResinar: number
+  cantidadPulir: number
   totalLosas: number
   totalM2: number
   detallesAcciones?: ProduccionDetalleAccion[]

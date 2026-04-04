@@ -1,27 +1,30 @@
 import { losasAMetros, type AccionLosa, type ProduccionDetalleAccion, type ProduccionDiaria, type Trabajador } from '@/lib/types'
 import type { AccionResumen, AsignacionItem } from '../model/types'
 
-export const actionOrder: AccionLosa[] = ['picar', 'pulir', 'escuadrar', 'resinar']
+export const actionOrder: AccionLosa[] = ['picar', 'escuadrar', 'devastar', 'resinar', 'pulir']
 
 export const actionLabels: Record<AccionLosa, string> = {
   picar: 'Picar',
-  pulir: 'Pulir',
   escuadrar: 'Escuadrar',
+  devastar: 'Devastar',
   resinar: 'Resinar',
+  pulir: 'Pulir',
 }
 
 export const actionColors: Record<AccionLosa, string> = {
   picar: 'bg-blue-100 text-blue-800',
-  pulir: 'bg-green-100 text-green-800',
   escuadrar: 'bg-amber-100 text-amber-800',
+  devastar: 'bg-violet-100 text-violet-800',
   resinar: 'bg-cyan-100 text-cyan-800',
+  pulir: 'bg-green-100 text-green-800',
 }
 
 export const createResumenAcciones = (): Record<AccionLosa, AccionResumen> => ({
   picar: { losas: 0, m2: 0, pago: 0 },
-  pulir: { losas: 0, m2: 0, pago: 0 },
   escuadrar: { losas: 0, m2: 0, pago: 0 },
+  devastar: { losas: 0, m2: 0, pago: 0 },
   resinar: { losas: 0, m2: 0, pago: 0 },
+  pulir: { losas: 0, m2: 0, pago: 0 },
 })
 
 export const actionSortIndex = (accion: AccionLosa): number => actionOrder.indexOf(accion)
@@ -140,9 +143,10 @@ export const buildAsignacionesFromProduccion = (
 
     const legacyActions: Array<{ accion: AccionLosa; cantidad: number }> = [
       { accion: 'picar', cantidad: registro.cantidadPicar },
-      { accion: 'pulir', cantidad: registro.cantidadPulir },
       { accion: 'escuadrar', cantidad: registro.cantidadEscuadrar },
+      { accion: 'devastar', cantidad: registro.cantidadDevastar },
       { accion: 'resinar', cantidad: registro.cantidadResinar },
+      { accion: 'pulir', cantidad: registro.cantidadPulir },
     ]
 
     legacyActions

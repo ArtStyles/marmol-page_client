@@ -2,9 +2,10 @@
 
 export const TARIFAS_ACCION_DEFAULT: Record<AccionLosa, number> = {
   picar: 400,
-  pulir: 250,
   escuadrar: 100,
+  devastar: 250,
   resinar: 250,
+  pulir: 250,
 }
 
 export const SALARIOS_FIJOS_POR_ROL_DEFAULT: Record<RolConSalarioFijo, number> = {

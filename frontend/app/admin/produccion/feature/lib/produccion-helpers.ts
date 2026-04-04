@@ -8,20 +8,22 @@ import type {
   UpdateUsageDimensionNumericInputParams,
 } from '../model/types'
 
-export const actionOrder: AccionLosa[] = ['picar', 'pulir', 'escuadrar', 'resinar']
+export const actionOrder: AccionLosa[] = ['picar', 'escuadrar', 'devastar', 'resinar', 'pulir']
 
 export const actionLabels: Record<AccionLosa, string> = {
   picar: 'Picar',
-  pulir: 'Pulir',
   escuadrar: 'Escuadrar',
+  devastar: 'Devastar',
   resinar: 'Resinar',
+  pulir: 'Pulir',
 }
 
 export const actionColors: Record<AccionLosa, string> = {
   picar: 'bg-blue-100 text-blue-800',
-  pulir: 'bg-green-100 text-green-800',
   escuadrar: 'bg-amber-100 text-amber-800',
+  devastar: 'bg-violet-100 text-violet-800',
   resinar: 'bg-cyan-100 text-cyan-800',
+  pulir: 'bg-green-100 text-green-800',
 }
 
 export const createUsageDimensionRow = (
@@ -59,9 +61,10 @@ export const createInitialFormData = (): FormData => ({
   accionActiva: '',
   acciones: {
     picar: createActionState(),
-    pulir: createActionState(),
     escuadrar: createActionState(),
+    devastar: createActionState(),
     resinar: createActionState(),
+    pulir: createActionState(),
   },
 })
 
@@ -135,9 +138,10 @@ export const buildNextProduccionId = (registros: ProduccionDiaria[]): string => 
 
 export const getLegacyAccionLosas = (registro: ProduccionDiaria, accion: AccionLosa): number => {
   if (accion === 'picar') return registro.cantidadPicar
-  if (accion === 'pulir') return registro.cantidadPulir
   if (accion === 'escuadrar') return registro.cantidadEscuadrar
-  return registro.cantidadResinar
+  if (accion === 'devastar') return registro.cantidadDevastar
+  if (accion === 'resinar') return registro.cantidadResinar
+  return registro.cantidadPulir
 }
 
 export const getAccionLosas = (registro: ProduccionDiaria, accion: AccionLosa): number => {
