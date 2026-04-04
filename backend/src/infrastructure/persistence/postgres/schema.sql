@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS configuracion (
   id TEXT PRIMARY KEY DEFAULT 'default',
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
-  tarifas_globales JSONB NOT NULL DEFAULT '{"picar":400,"pulir":250,"escuadrar":100}',
+  tarifas_globales JSONB NOT NULL DEFAULT '{"picar":400,"pulir":250,"escuadrar":100,"resinar":250}',
   salarios_fijos_por_rol JSONB NOT NULL DEFAULT '{}',
   precios_m2 JSONB NOT NULL DEFAULT '{}',
   nombre_empresa TEXT NOT NULL DEFAULT '',
@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS productos (
   nombre TEXT NOT NULL,
   tipo TEXT NOT NULL CHECK (tipo IN ('Piso', 'Plancha')),
   estado TEXT NOT NULL CHECK (estado IN ('Picado', 'Pulido', 'Escuadrado')),
+  ubicacion TEXT NOT NULL DEFAULT 'almacen' CHECK (ubicacion IN ('almacen', 'proceso')),
   dimension TEXT NOT NULL CHECK (dimension IN ('40x40', '60x40', '80x40')),
   origen_id TEXT NOT NULL,
   origen_nombre TEXT NOT NULL,
@@ -116,6 +117,7 @@ CREATE TABLE IF NOT EXISTS produccion (
   cantidad_picar INTEGER NOT NULL DEFAULT 0,
   cantidad_pulir INTEGER NOT NULL DEFAULT 0,
   cantidad_escuadrar INTEGER NOT NULL DEFAULT 0,
+  cantidad_resinar INTEGER NOT NULL DEFAULT 0,
   total_losas INTEGER NOT NULL,
   total_m2 NUMERIC(10,2) NOT NULL,
   detalles_acciones JSONB,
@@ -143,7 +145,7 @@ CREATE TABLE IF NOT EXISTS produccion_trabajadores (
   fecha DATE NOT NULL,
   trabajador_id TEXT NOT NULL,
   trabajador_nombre TEXT NOT NULL,
-  accion TEXT NOT NULL CHECK (accion IN ('picar', 'pulir', 'escuadrar')),
+  accion TEXT NOT NULL CHECK (accion IN ('picar', 'pulir', 'escuadrar', 'resinar')),
   origen_id TEXT NOT NULL,
   origen_nombre TEXT NOT NULL,
   tipo TEXT NOT NULL CHECK (tipo IN ('Piso', 'Plancha')),
@@ -343,6 +345,11 @@ CREATE TABLE IF NOT EXISTS admin_user_permissions (
 ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE bloques ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS ubicacion TEXT NOT NULL DEFAULT 'almacen';
+ALTER TABLE productos DROP CONSTRAINT IF EXISTS productos_ubicacion_check;
+ALTER TABLE productos
+  ADD CONSTRAINT productos_ubicacion_check
+  CHECK (ubicacion IN ('almacen', 'proceso'));
 ALTER TABLE catalogo_items ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE trabajadores ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE equipos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
@@ -366,6 +373,14 @@ ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_almacen_fecha TIMESTA
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_almacen_motivo TEXT;
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS inventario_aplicado BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS movimiento_inventario_ids JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS cantidad_resinar INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE produccion_trabajadores DROP CONSTRAINT IF EXISTS produccion_trabajadores_accion_check;
+ALTER TABLE produccion_trabajadores
+  ADD CONSTRAINT produccion_trabajadores_accion_check
+  CHECK (accion IN ('picar', 'pulir', 'escuadrar', 'resinar'));
+UPDATE configuracion
+SET tarifas_globales = jsonb_set(COALESCE(tarifas_globales, '{}'::jsonb), '{resinar}', to_jsonb(250), true)
+WHERE NOT (COALESCE(tarifas_globales, '{}'::jsonb) ? 'resinar');
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS motivo_movimiento_almacen TEXT;
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS movimiento_inventario_id TEXT;
 ALTER TABLE mermas ADD COLUMN IF NOT EXISTS estado_inventario TEXT NOT NULL DEFAULT 'pendiente';
@@ -374,11 +389,13 @@ ALTER TABLE mermas ADD COLUMN IF NOT EXISTS movimiento_inventario_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_configuracion_workshop_id ON configuracion(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_bloques_workshop_id ON bloques(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_productos_workshop_id ON productos(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_productos_workshop_ubicacion ON productos(workshop_id, ubicacion);
 CREATE INDEX IF NOT EXISTS idx_catalogo_items_workshop_id ON catalogo_items(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_trabajadores_workshop_id ON trabajadores(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_equipos_workshop_id ON equipos(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_produccion_workshop_id ON produccion(workshop_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_produccion_unique_daily_combo
+DROP INDEX IF EXISTS idx_produccion_unique_daily_combo;
+CREATE INDEX IF NOT EXISTS idx_produccion_daily_combo
   ON produccion(workshop_id, fecha, origen_id, tipo, dimension);
 CREATE INDEX IF NOT EXISTS idx_produccion_trabajadores_workshop_id ON produccion_trabajadores(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_mermas_workshop_id ON mermas(workshop_id);

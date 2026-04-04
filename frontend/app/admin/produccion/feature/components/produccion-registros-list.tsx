@@ -201,7 +201,7 @@ export function ProduccionRegistrosList({
                           : 'border-slate-200 bg-slate-50 text-slate-600',
                       )}
                     >
-                      {policy.canMutate ? 'Editable (24h/API)' : 'Solo visualizacion'}
+                      {policy.canMutate ? 'Editable' : 'Solo visualizacion'}
                     </Badge>
                   </div>
 
@@ -323,7 +323,7 @@ export function ProduccionRegistrosList({
 
                             <div className="overflow-x-auto">
                               <div className="min-w-[860px] overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/60">
-                                <div className="grid grid-cols-[118px_minmax(0,1fr)_92px_92px_110px_120px] border-b border-slate-200/70 px-2.5 py-1">
+                                <div className="grid grid-cols-[118px_minmax(0,1fr)_92px_92px_110px_120px_100px] border-b border-slate-200/70 px-2.5 py-1">
                                   <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
                                     Accion
                                   </span>
@@ -342,12 +342,15 @@ export function ProduccionRegistrosList({
                                   <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">
                                     Reutilizable (paga)
                                   </span>
+                                  <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">
+                                    Resina
+                                  </span>
                                 </div>
 
                                 <div className="divide-y divide-slate-200/70">
                                   {accionesActivas.map((accion) => (
                                     <div key={`${item.id}-${accion.accion}`}>
-                                      <div className="grid grid-cols-[118px_minmax(0,1fr)_92px_92px_110px_120px] items-center gap-2 border-b border-slate-200/70 bg-white/70 px-2.5 py-1.5">
+                                      <div className="grid grid-cols-[118px_minmax(0,1fr)_92px_92px_110px_120px_100px] items-center gap-2 border-b border-slate-200/70 bg-white/70 px-2.5 py-1.5">
                                         <Badge className={cn('w-fit', actionColors[accion.accion])}>
                                           {actionLabels[accion.accion]}
                                         </Badge>
@@ -358,13 +361,14 @@ export function ProduccionRegistrosList({
                                         <span />
                                         <span />
                                         <span />
+                                        <span />
                                       </div>
 
                                       <div className="divide-y divide-slate-200/70">
                                         {accion.detalles.map((detalle, detalleIndex) => (
                                           <div
                                             key={`${item.id}-${accion.accion}-${detalle.id ?? 'detalle'}-${detalleIndex}`}
-                                            className="grid grid-cols-[118px_minmax(0,1fr)_92px_92px_110px_120px] items-center gap-2 px-2.5 py-1.5"
+                                            className="grid grid-cols-[118px_minmax(0,1fr)_92px_92px_110px_120px_100px] items-center gap-2 px-2.5 py-1.5"
                                           >
                                             <span />
                                             <p className="text-sm text-slate-700">
@@ -392,6 +396,11 @@ export function ProduccionRegistrosList({
                                             </span>
                                             <span className="text-right text-sm font-semibold text-sky-700">
                                               {getDetalleReutilizableLosas(detalle)}
+                                            </span>
+                                            <span className="text-right text-sm font-semibold text-cyan-700">
+                                              {detalle.cantidadResina != null && detalle.cantidadResina > 0
+                                                ? detalle.cantidadResina.toFixed(2)
+                                                : '-'}
                                             </span>
                                           </div>
                                         ))}

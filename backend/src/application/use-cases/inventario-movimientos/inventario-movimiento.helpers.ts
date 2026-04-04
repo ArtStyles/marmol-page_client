@@ -1,4 +1,4 @@
-﻿import { DomainError } from '../../errors/domain.error.js'
+import { DomainError } from '../../errors/domain.error.js'
 import type { InventarioMovimientoDetalle, Producto } from '../../../domain/entities/index.js'
 import type { ProductoRepositoryPort } from '../../../domain/ports/index.js'
 
@@ -37,6 +37,14 @@ function normalizeDetalleMetros(detalle: InventarioMovimientoDetalle, area: numb
   return 0
 }
 
+function resolveDetalleUbicacionOrigen(detalle: InventarioMovimientoDetalle): Producto['ubicacion'] {
+  return detalle.ubicacionOrigen ?? 'almacen'
+}
+
+function resolveDetalleUbicacionDestino(detalle: InventarioMovimientoDetalle): Producto['ubicacion'] {
+  return detalle.ubicacionDestino ?? 'almacen'
+}
+
 function matchesDetalleBase(producto: Producto, detalle: InventarioMovimientoDetalle): boolean {
   return (
     producto.origenId === detalle.origenId &&
@@ -45,16 +53,33 @@ function matchesDetalleBase(producto: Producto, detalle: InventarioMovimientoDet
   )
 }
 
-function resolveExistingProducto(
+function resolveExistingProductoForSalida(
   productos: Producto[],
   detalle: InventarioMovimientoDetalle,
 ): Producto | null {
+  const ubicacionOrigen = resolveDetalleUbicacionOrigen(detalle)
+
   if (detalle.productoId) {
     const byId = productos.find((producto) => producto.id === detalle.productoId)
-    if (byId) return byId
+    if (byId && byId.ubicacion === ubicacionOrigen) return byId
   }
 
   const candidatos = productos
+    .filter((producto) => producto.ubicacion === ubicacionOrigen)
+    .filter((producto) => matchesDetalleBase(producto, detalle))
+    .filter((producto) => (detalle.estado ? producto.estado === detalle.estado : true))
+
+  if (candidatos.length === 0) return null
+  return candidatos.sort((a, b) => estadoPrioridad(b.estado) - estadoPrioridad(a.estado))[0]
+}
+
+function resolveExistingProductoForEntrada(
+  productos: Producto[],
+  detalle: InventarioMovimientoDetalle,
+  ubicacionDestino: Producto['ubicacion'],
+): Producto | null {
+  const candidatos = productos
+    .filter((producto) => producto.ubicacion === ubicacionDestino)
     .filter((producto) => matchesDetalleBase(producto, detalle))
     .filter((producto) => (detalle.estado ? producto.estado === detalle.estado : true))
 
@@ -72,12 +97,13 @@ export async function applyInventarioEntrada(
     const area = dimensionToArea(detalle.dimension)
     const cantidadLosas = normalizeDetalleCantidadLosas(detalle, area)
     const metrosCuadrados = normalizeDetalleMetros(detalle, area)
+    const ubicacionDestino = resolveDetalleUbicacionDestino(detalle)
 
     if (cantidadLosas <= 0 && metrosCuadrados <= 0) {
       continue
     }
 
-    const existente = resolveExistingProducto(productos, detalle)
+    const existente = resolveExistingProductoForEntrada(productos, detalle, ubicacionDestino)
     if (existente) {
       const updated = await productoRepository.update(existente.id, {
         cantidadLosas: existente.cantidadLosas + cantidadLosas,
@@ -108,6 +134,7 @@ export async function applyInventarioEntrada(
       nombre: detalle.productoNombre,
       tipo: detalle.tipo,
       estado: detalle.estado,
+      ubicacion: ubicacionDestino,
       dimension: detalle.dimension,
       origenId: detalle.origenId,
       origenNombre: detalle.origenNombre,
@@ -136,7 +163,7 @@ async function resolveSalidaDetalles(
         return null
       }
 
-      const producto = resolveExistingProducto(productos, detalle)
+      const producto = resolveExistingProductoForSalida(productos, detalle)
       if (!producto) {
         throw new DomainError(
           `Producto no encontrado para salida: ${detalle.productoNombre}`,

@@ -1,6 +1,7 @@
 ﻿import { DomainError } from '../../errors/domain.error.js'
 import type {
   AprobarInventarioMovimientoDto,
+  CreateSalidaProcesoInventarioDto,
   InventarioMovimientoResponseDto,
   RechazarInventarioMovimientoDto,
 } from '../../dtos/index.js'
@@ -12,7 +13,11 @@ import type {
   ProductoRepositoryPort,
   VentaRepositoryPort,
 } from '../../../domain/ports/index.js'
-import { applyInventarioEntrada, applyInventarioSalida } from './inventario-movimiento.helpers.js'
+import {
+  applyInventarioEntrada,
+  applyInventarioSalida,
+  validateInventarioSalida,
+} from './inventario-movimiento.helpers.js'
 
 export interface MovimientoActor {
   userId: string
@@ -32,6 +37,108 @@ export class GetInventarioMovimientoByIdUseCase {
 
   async execute(id: string): Promise<InventarioMovimientoResponseDto | null> {
     return this.repository.findById(id)
+  }
+}
+
+const estadoRequeridoPorAccionProceso: Record<
+  'pulir' | 'escuadrar' | 'resinar',
+  'Pulido' | 'Picado'
+> = {
+  pulir: 'Pulido',
+  escuadrar: 'Picado',
+  resinar: 'Pulido',
+}
+
+function dimensionToArea(dimension: '40x40' | '60x40' | '80x40'): number {
+  if (dimension === '40x40') return 0.16
+  if (dimension === '60x40') return 0.24
+  return 0.32
+}
+
+function round2(value: number): number {
+  return Number(value.toFixed(2))
+}
+
+export class CreateSalidaProcesoInventarioUseCase {
+  constructor(
+    private readonly repository: InventarioMovimientoRepositoryPort,
+    private readonly productoRepository: ProductoRepositoryPort,
+  ) {}
+
+  async execute(
+    dto: CreateSalidaProcesoInventarioDto,
+    actor: MovimientoActor,
+  ): Promise<InventarioMovimientoResponseDto> {
+    const producto = await this.productoRepository.findById(dto.productoId)
+    if (!producto) {
+      throw new DomainError(`Producto ${dto.productoId} no existe`, 404, 'PRODUCTO_NOT_FOUND')
+    }
+
+    if (producto.ubicacion !== 'almacen') {
+      throw new DomainError(
+        'Solo se puede solicitar salida a proceso desde stock en almacen.',
+        409,
+        'PROCESO_STOCK_ORIGEN_INVALIDO',
+      )
+    }
+
+    const estadoRequerido = estadoRequeridoPorAccionProceso[dto.accionObjetivo]
+    if (producto.estado !== estadoRequerido) {
+      throw new DomainError(
+        `Para ${dto.accionObjetivo} el producto debe estar en estado ${estadoRequerido}.`,
+        409,
+        'PROCESO_ESTADO_INVALIDO',
+      )
+    }
+
+    const cantidadLosas = Math.trunc(dto.cantidadLosas)
+    if (!Number.isInteger(cantidadLosas) || cantidadLosas <= 0) {
+      throw new DomainError(
+        'La salida a proceso requiere cantidad de losas entera y mayor a 0.',
+        400,
+        'PROCESO_CANTIDAD_INVALIDA',
+      )
+    }
+
+    const motivo = dto.motivo.trim()
+    if (motivo.length < 5) {
+      throw new DomainError(
+        'Debe indicar un motivo valido para la salida a proceso.',
+        400,
+        'PROCESO_MOTIVO_REQUERIDO',
+      )
+    }
+
+    const metrosCuadrados = round2(cantidadLosas * dimensionToArea(producto.dimension))
+    const detalle = {
+      id: `imd-pr-${producto.id}-${Date.now()}`,
+      productoId: producto.id,
+      productoNombre: producto.nombre,
+      tipo: producto.tipo,
+      estado: producto.estado,
+      ubicacionOrigen: 'almacen' as const,
+      ubicacionDestino: 'proceso' as const,
+      dimension: producto.dimension,
+      origenId: producto.origenId,
+      origenNombre: producto.origenNombre,
+      cantidadLosas,
+      metrosCuadrados,
+    }
+
+    await validateInventarioSalida([detalle], this.productoRepository)
+
+    const now = new Date().toISOString()
+    return this.repository.create({
+      fechaSolicitud: now,
+      tipo: 'salida',
+      origen: 'proceso',
+      estado: 'pendiente',
+      motivo,
+      observaciones: `Salida solicitada para ${dto.accionObjetivo}`,
+      solicitadoPorId: actor.userId,
+      solicitadoPorNombre: actor.userName,
+      detalles: [detalle],
+    })
   }
 }
 
@@ -67,6 +174,15 @@ export class ApproveInventarioMovimientoUseCase {
       await applyInventarioEntrada(movimiento.detalles, this.productoRepository)
     } else {
       await applyInventarioSalida(movimiento.detalles, this.productoRepository)
+      if (movimiento.origen === 'proceso') {
+        await applyInventarioEntrada(
+          movimiento.detalles.map((detalle) => ({
+            ...detalle,
+            ubicacionDestino: 'proceso',
+          })),
+          this.productoRepository,
+        )
+      }
     }
 
     const updated = await this.repository.update(id, {

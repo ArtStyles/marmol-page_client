@@ -10,6 +10,7 @@ function rowToProducto(r: Record<string, unknown>): Producto {
     nombre: r.nombre as string,
     tipo: r.tipo as Producto['tipo'],
     estado: r.estado as Producto['estado'],
+    ubicacion: (r.ubicacion as Producto['ubicacion']) ?? 'almacen',
     dimension: r.dimension as Producto['dimension'],
     origenId: r.origen_id as string,
     origenNombre: r.origen_nombre as string,
@@ -44,14 +45,15 @@ export class PostgresProductoRepository implements ProductoRepositoryPort {
     const workshopId = getCurrentWorkshopId()
     const id = await nextId(pool, 'P', 'productos')
     await pool.query(
-      `INSERT INTO productos (id, workshop_id, nombre, tipo, estado, dimension, origen_id, origen_nombre, cantidad_losas, metros_cuadrados, precio_m2, imagen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      `INSERT INTO productos (id, workshop_id, nombre, tipo, estado, ubicacion, dimension, origen_id, origen_nombre, cantidad_losas, metros_cuadrados, precio_m2, imagen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
         id,
         workshopId,
         data.nombre,
         data.tipo,
         data.estado,
+        data.ubicacion,
         data.dimension,
         data.origenId,
         data.origenNombre,
@@ -71,12 +73,13 @@ export class PostgresProductoRepository implements ProductoRepositoryPort {
     const pool = getPool()
     const workshopId = getCurrentWorkshopId()
     await pool.query(
-      `UPDATE productos SET nombre=$2, tipo=$3, estado=$4, dimension=$5, origen_id=$6, origen_nombre=$7, cantidad_losas=$8, metros_cuadrados=$9, precio_m2=$10, imagen=$11 WHERE id=$1 AND workshop_id=$12`,
+      `UPDATE productos SET nombre=$2, tipo=$3, estado=$4, ubicacion=$5, dimension=$6, origen_id=$7, origen_nombre=$8, cantidad_losas=$9, metros_cuadrados=$10, precio_m2=$11, imagen=$12 WHERE id=$1 AND workshop_id=$13`,
       [
         id,
         merged.nombre,
         merged.tipo,
         merged.estado,
+        merged.ubicacion,
         merged.dimension,
         merged.origenId,
         merged.origenNombre,

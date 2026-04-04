@@ -26,12 +26,13 @@ export default function ProduccionPage() {
     fechasOrdenadas,
     formData,
     formError,
+    getLosasDisponiblesParaAccion,
     getDatePolicy,
     groupedByDate,
     handleSubmit,
     isDialogOpen,
     loadingDependencies,
-    origenesActivos,
+    origenesActivosByAccion,
     origenesActivosResumen,
     prepareNewForm,
     removeUsage,
@@ -89,7 +90,7 @@ export default function ProduccionPage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground font-sans">Produccion diaria</h1>
             <p className="mt-1 text-muted-foreground font-sans">
-              Registra toda la produccion del dia en un solo envio. Cada subfila permite bloque/lote, tipo y dimension independientes.
+              Registra produccion en uno o varios envios por fecha. Cada subfila permite bloque/lote, tipo y dimension independientes.
             </p>
             {dependenciesError ? <p className="mt-2 text-sm text-destructive">{dependenciesError}</p> : null}
             {loadingDependencies ? (
@@ -103,9 +104,10 @@ export default function ProduccionPage() {
             equiposActivos={equiposActivos}
             formData={formData}
             formError={formError}
+            getLosasDisponiblesParaAccion={getLosasDisponiblesParaAccion}
             handleSubmit={handleSubmit}
-            isDialogOpen={isDialogOpen}
-            origenesActivos={origenesActivos}
+          isDialogOpen={isDialogOpen}
+            origenesActivosByAccion={origenesActivosByAccion}
             prepareNewForm={prepareNewForm}
             removeUsage={removeUsage}
             resetFormAndClose={resetFormAndClose}

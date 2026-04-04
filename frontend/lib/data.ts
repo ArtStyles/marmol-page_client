@@ -112,6 +112,7 @@ export const productos: Producto[] = [
     nombre: 'Piso Carrara 60x40 Pulido',
     tipo: 'Piso',
     estado: 'Pulido',
+    ubicacion: 'almacen',
     dimension: '60x40',
     origenId: 'BL001',
     origenNombre: 'Bloque Carrara #1',
@@ -125,6 +126,7 @@ export const productos: Producto[] = [
     nombre: 'Plancha Carrara 80x40 Picado',
     tipo: 'Plancha',
     estado: 'Picado',
+    ubicacion: 'almacen',
     dimension: '80x40',
     origenId: 'BL001',
     origenNombre: 'Bloque Carrara #1',
@@ -138,6 +140,7 @@ export const productos: Producto[] = [
     nombre: 'Piso Emperador 40x40 Pulido',
     tipo: 'Piso',
     estado: 'Pulido',
+    ubicacion: 'almacen',
     dimension: '40x40',
     origenId: 'BL002',
     origenNombre: 'Bloque Emperador #3',
@@ -151,6 +154,7 @@ export const productos: Producto[] = [
     nombre: 'Piso Crema Marfil 60x40 Pulido',
     tipo: 'Piso',
     estado: 'Pulido',
+    ubicacion: 'almacen',
     dimension: '60x40',
     origenId: 'LT001',
     origenNombre: 'Lote Crema Marfil #15',
@@ -164,6 +168,7 @@ export const productos: Producto[] = [
     nombre: 'Plancha Calacatta 80x40 Pulido',
     tipo: 'Plancha',
     estado: 'Pulido',
+    ubicacion: 'almacen',
     dimension: '80x40',
     origenId: 'BL003',
     origenNombre: 'Bloque Calacatta Gold #2',
@@ -177,6 +182,7 @@ export const productos: Producto[] = [
     nombre: 'Piso Emperador 60x40 Escuadrado',
     tipo: 'Piso',
     estado: 'Escuadrado',
+    ubicacion: 'almacen',
     dimension: '60x40',
     origenId: 'BL002',
     origenNombre: 'Bloque Emperador #3',
@@ -210,7 +216,7 @@ export const trabajadores: Trabajador[] = [
     rol: 'Obrero',
     fechaIngreso: '2023-08-01',
     estado: 'activo',
-    tarifasPersonalizadas: { picar: 400, pulir: 280, escuadrar: 100 }, // Tarifa especial para pulir
+    tarifasPersonalizadas: { picar: 400, pulir: 280, escuadrar: 100, resinar: 280 }, // Tarifa especial para pulir
     losasProducidas: 620,
     pagosTotales: 155000,
     bonosTotales: 8000,
@@ -226,7 +232,7 @@ export const trabajadores: Trabajador[] = [
     estado: 'activo',
     usuario: 'produccion@marmol.local',
     contrasena: 'prod123',
-    tarifasPersonalizadas: { picar: 420, pulir: 270, escuadrar: 120 }, // Senior, mejores tarifas
+    tarifasPersonalizadas: { picar: 420, pulir: 270, escuadrar: 120, resinar: 270 }, // Senior, mejores tarifas
     losasProducidas: 890,
     pagosTotales: 310000,
     bonosTotales: 15000,
@@ -242,7 +248,7 @@ export const trabajadores: Trabajador[] = [
     estado: 'activo',
     usuario: 'admin@marmol.local',
     contrasena: 'admin123',
-    tarifasPersonalizadas: { picar: 450, pulir: 300, escuadrar: 130 }, // Supervisor, mejores tarifas
+    tarifasPersonalizadas: { picar: 450, pulir: 300, escuadrar: 130, resinar: 300 }, // Supervisor, mejores tarifas
     losasProducidas: 1200,
     pagosTotales: 420000,
     bonosTotales: 25000,
@@ -328,6 +334,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadPicar: 15,
     cantidadPulir: 20,
     cantidadEscuadrar: 0,
+    cantidadResinar: 0,
     totalLosas: 35,
     totalM2: 8.4,
     detallesAcciones: [
@@ -363,6 +370,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadPicar: 0,
     cantidadPulir: 0,
     cantidadEscuadrar: 25,
+    cantidadResinar: 0,
     totalLosas: 25,
     totalM2: 4,
     detallesAcciones: [
@@ -388,6 +396,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadPicar: 0,
     cantidadPulir: 35,
     cantidadEscuadrar: 30,
+    cantidadResinar: 0,
     totalLosas: 65,
     totalM2: 15.6,
     detallesAcciones: [
@@ -423,6 +432,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadPicar: 12,
     cantidadPulir: 0,
     cantidadEscuadrar: 0,
+    cantidadResinar: 0,
     totalLosas: 12,
     totalM2: 3.84
   }
@@ -768,7 +778,7 @@ export const estadosLosa = ['Crudo', 'Pulido']
 export const estadosInventario: EstadoInventario[] = ['Picado', 'Pulido', 'Escuadrado']
 
 // Acciones disponibles
-export const acciones = ['picar', 'pulir', 'escuadrar']
+export const acciones = ['picar', 'pulir', 'escuadrar', 'resinar']
 
 
 

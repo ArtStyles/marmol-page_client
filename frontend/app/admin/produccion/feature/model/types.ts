@@ -9,6 +9,8 @@ export type ActionUsageDimensionForm = {
   mermaTotalTouched: boolean
   reutilizableLosas: number
   reutilizableTouched: boolean
+  cantidadResina: number
+  resinaTouched: boolean
 }
 
 export type ActionUsageForm = {
@@ -28,6 +30,7 @@ export type ActionFormState = {
 
 export type FormData = {
   fecha: string
+  accionActiva: AccionLosa | ''
   acciones: Record<AccionLosa, ActionFormState>
 }
 
@@ -50,12 +53,17 @@ export type UpdateActionUsageDimensionFn = (
   patch: Partial<ActionUsageDimensionForm>,
 ) => void
 
-export type UsageDimensionNumericField = 'cantidadLosas' | 'mermaTotalLosas' | 'reutilizableLosas'
+export type UsageDimensionNumericField =
+  | 'cantidadLosas'
+  | 'mermaTotalLosas'
+  | 'reutilizableLosas'
+  | 'cantidadResina'
 
 export type UsageDimensionTouchedField =
   | 'cantidadTouched'
   | 'mermaTotalTouched'
   | 'reutilizableTouched'
+  | 'resinaTouched'
 
 export type UpdateUsageDimensionNumericInputParams = {
   action: AccionLosa

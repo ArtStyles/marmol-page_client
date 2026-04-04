@@ -20,6 +20,7 @@ const normalizeEstadoInventario = (estado: unknown): Producto['estado'] => {
 const normalizeProducto = (item: Producto): Producto => ({
   ...item,
   estado: normalizeEstadoInventario((item as { estado?: unknown }).estado),
+  ubicacion: item.ubicacion === 'proceso' ? 'proceso' : 'almacen',
 })
 
 export function useInventarioStore() {

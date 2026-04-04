@@ -8,6 +8,7 @@ const emptyConfiguracion: ConfiguracionSistema = {
     picar: 0,
     pulir: 0,
     escuadrar: 0,
+    resinar: 0,
   },
   salariosFijosPorRol: {
     Administrador: 0,

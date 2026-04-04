@@ -4,19 +4,21 @@ export type Dimension = '40x40' | '60x40' | '80x40'
 export type TipoProducto = 'Piso' | 'Plancha'
 export type EstadoLosa = 'Crudo' | 'Pulido'
 export type EstadoInventario = 'Picado' | 'Pulido' | 'Escuadrado'
+export type UbicacionInventario = 'almacen' | 'proceso'
 
 export type RolTrabajador =
   | 'Administrador'
   | 'Gestor de Ventas'
   | 'Jefe de Almacen'
   | 'Jefe de Turno de Produccion'
+  | 'Jefe de Turno de ProducciÃ³n'
   | 'Jefe de Turno de Producción'
   | 'Jefe de Turno de ProducciÃƒÂ³n'
   | 'Obrero'
 
 export type RolConSalarioFijo = Exclude<RolTrabajador, 'Obrero'>
 
-export type AccionLosa = 'picar' | 'pulir' | 'escuadrar'
+export type AccionLosa = 'picar' | 'pulir' | 'escuadrar' | 'resinar'
 export type TipoEquipo = 'Pulidora' | 'Cortadora' | 'Escuadradora'
 export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado'
 
@@ -24,12 +26,14 @@ export const TIPO_EQUIPO_POR_ACCION: Record<AccionLosa, TipoEquipo> = {
   picar: 'Cortadora',
   pulir: 'Pulidora',
   escuadrar: 'Escuadradora',
+  resinar: 'Pulidora',
 }
 
 export const TARIFAS_ACCION_DEFAULT: Record<AccionLosa, number> = {
   picar: 400,
   pulir: 250,
   escuadrar: 100,
+  resinar: 250,
 }
 
 export const TARIFAS_ACCION = TARIFAS_ACCION_DEFAULT
@@ -39,6 +43,7 @@ export const SALARIOS_FIJOS_POR_ROL_DEFAULT: Record<RolConSalarioFijo, number> =
   'Gestor de Ventas': 18000,
   'Jefe de Almacen': 20000,
   'Jefe de Turno de Produccion': 22000,
+  'Jefe de Turno de ProducciÃ³n': 22000,
   'Jefe de Turno de Producción': 22000,
   'Jefe de Turno de ProducciÃƒÂ³n': 22000,
 }
@@ -84,6 +89,7 @@ export interface Producto {
   nombre: string
   tipo: TipoProducto
   estado: EstadoInventario
+  ubicacion: UbicacionInventario
   dimension: Dimension
   origenId: string
   origenNombre: string
@@ -119,6 +125,7 @@ export interface TarifasTrabajador {
   picar: number
   pulir: number
   escuadrar: number
+  resinar: number
 }
 
 export interface Equipo {
@@ -147,6 +154,7 @@ export interface ProduccionDetalleAccion {
   metrosMermaTotal?: number
   losasReutilizables?: number
   metrosReutilizables?: number
+  cantidadResina?: number
 }
 
 export interface ProduccionDiaria {
@@ -159,6 +167,7 @@ export interface ProduccionDiaria {
   cantidadPicar: number
   cantidadPulir: number
   cantidadEscuadrar: number
+  cantidadResinar: number
   totalLosas: number
   totalM2: number
   detallesAcciones?: ProduccionDetalleAccion[]
@@ -253,6 +262,8 @@ export interface InventarioMovimientoDetalle {
   productoNombre: string
   tipo: TipoProducto
   estado?: EstadoInventario
+  ubicacionOrigen?: UbicacionInventario
+  ubicacionDestino?: UbicacionInventario
   dimension: Dimension
   origenId: string
   origenNombre: string

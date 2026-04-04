@@ -21,7 +21,10 @@ export class CreateProductoUseCase {
   constructor(private readonly repository: ProductoRepositoryPort) {}
 
   async execute(dto: CreateProductoDto): Promise<ProductoResponseDto> {
-    return this.repository.create(dto)
+    return this.repository.create({
+      ...dto,
+      ubicacion: dto.ubicacion ?? 'almacen',
+    })
   }
 }
 

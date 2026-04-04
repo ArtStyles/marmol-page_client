@@ -46,9 +46,15 @@ export class GetProduccionByIdUseCase {
 }
 
 export class CreateProduccionUseCase {
-  constructor(private readonly repository: ProduccionRepositoryPort) {}
+  constructor(
+    private readonly repository: ProduccionRepositoryPort,
+    private readonly productoRepository: ProductoRepositoryPort,
+  ) {}
 
   async execute(dto: CreateProduccionDto): Promise<ProduccionResponseDto> {
+    validateResinaConsumo(dto)
+    await consumeProcesoStockParaProduccion(dto, this.productoRepository)
+
     return this.repository.create({
       ...dto,
       aprobacionTallerEstado: 'pendiente',
@@ -252,6 +258,14 @@ export class UpdateProduccionUseCase {
       )
     }
 
+    if (current.cantidadPulir > 0 || current.cantidadEscuadrar > 0 || current.cantidadResinar > 0) {
+      throw new DomainError(
+        'No se puede editar una produccion de pulido/escuadrado/resinado porque consume stock fuera de almacen.',
+        409,
+        'PRODUCCION_EDIT_PROCESO_LOCKED',
+      )
+    }
+
     return this.repository.update(id, dto)
   }
 }
@@ -270,6 +284,14 @@ export class DeleteProduccionUseCase {
         'No se puede eliminar una produccion que ya movio inventario.',
         409,
         'PRODUCCION_DELETE_LOCKED',
+      )
+    }
+
+    if (current.cantidadPulir > 0 || current.cantidadEscuadrar > 0 || current.cantidadResinar > 0) {
+      throw new DomainError(
+        'No se puede eliminar una produccion de pulido/escuadrado/resinado porque consume stock fuera de almacen.',
+        409,
+        'PRODUCCION_DELETE_PROCESO_LOCKED',
       )
     }
 
@@ -325,16 +347,18 @@ function buildDetallesEntradaDesdeProduccion(
   registro: ProduccionDiaria,
 ): InventarioMovimientoDetalle[] {
   const totalPerdidasPorAccion = buildPerdidasPorAccion(registro.detallesAcciones)
-  const mapaEstado: Record<'picar' | 'pulir' | 'escuadrar', EstadoInventario> = {
+  const mapaEstado: Record<'picar' | 'pulir' | 'escuadrar' | 'resinar', EstadoInventario> = {
     picar: 'Picado',
     pulir: 'Pulido',
     escuadrar: 'Escuadrado',
+    resinar: 'Pulido',
   }
 
   const acciones = [
     { accion: 'picar', cantidad: registro.cantidadPicar },
     { accion: 'pulir', cantidad: registro.cantidadPulir },
     { accion: 'escuadrar', cantidad: registro.cantidadEscuadrar },
+    { accion: 'resinar', cantidad: registro.cantidadResinar },
   ] as const
 
   const detalles: InventarioMovimientoDetalle[] = []
@@ -395,12 +419,13 @@ async function actualizarBloquePorProduccion(
 
 function buildPerdidasPorAccion(
   detalles: ProduccionDetalleAccion[] | undefined,
-): Record<'picar' | 'pulir' | 'escuadrar', number> {
+): Record<'picar' | 'pulir' | 'escuadrar' | 'resinar', number> {
   const acc = {
     picar: 0,
     pulir: 0,
     escuadrar: 0,
-  } as Record<'picar' | 'pulir' | 'escuadrar', number>
+    resinar: 0,
+  } as Record<'picar' | 'pulir' | 'escuadrar' | 'resinar', number>
 
   for (const detalle of detalles ?? []) {
     const totalPartidas = (detalle.losasMermaTotal ?? 0) + (detalle.losasReutilizables ?? 0)
@@ -418,4 +443,103 @@ function dimensionToArea(dimension: ProduccionDiaria['dimension']): number {
 
 function round2(value: number): number {
   return Number(value.toFixed(2))
+}
+
+function validateResinaConsumo(dto: CreateProduccionDto): void {
+  if (dto.cantidadResinar <= 0) return
+
+  const detallesResinar = (dto.detallesAcciones ?? []).filter((detalle) => detalle.accion === 'resinar')
+  if (detallesResinar.length === 0) {
+    throw new DomainError(
+      'La produccion de resinado requiere detalle de consumo de resina.',
+      400,
+      'PRODUCCION_RESINA_DETALLE_REQUERIDO',
+    )
+  }
+
+  const consumoInvalido = detallesResinar.some(
+    (detalle) => !Number.isFinite(detalle.cantidadResina) || (detalle.cantidadResina ?? 0) <= 0,
+  )
+  if (consumoInvalido) {
+    throw new DomainError(
+      'Cada detalle de resinado debe incluir cantidad de resina mayor a 0.',
+      400,
+      'PRODUCCION_RESINA_CANTIDAD_INVALIDA',
+    )
+  }
+}
+
+const estadoRequeridoProcesoPorAccion: Record<
+  'pulir' | 'escuadrar' | 'resinar',
+  EstadoInventario
+> = {
+  pulir: 'Pulido',
+  escuadrar: 'Picado',
+  resinar: 'Pulido',
+}
+
+async function consumeProcesoStockParaProduccion(
+  dto: CreateProduccionDto,
+  productoRepository: ProductoRepositoryPort,
+): Promise<void> {
+  const consumos: Array<{ accion: 'pulir' | 'escuadrar' | 'resinar'; cantidad: number }> = [
+    { accion: 'pulir', cantidad: dto.cantidadPulir },
+    { accion: 'escuadrar', cantidad: dto.cantidadEscuadrar },
+    { accion: 'resinar', cantidad: dto.cantidadResinar },
+  ]
+
+  for (const consumo of consumos) {
+    if (consumo.cantidad <= 0) continue
+
+    const estadoRequerido = estadoRequeridoProcesoPorAccion[consumo.accion]
+    const inventario = await productoRepository.findAll()
+    const candidatos = inventario
+      .filter((producto) => producto.ubicacion === 'proceso')
+      .filter((producto) => producto.origenId === dto.origenId)
+      .filter((producto) => producto.tipo === dto.tipo)
+      .filter((producto) => producto.dimension === dto.dimension)
+      .filter((producto) => producto.estado === estadoRequerido)
+      .filter((producto) => producto.cantidadLosas > 0)
+      .sort((a, b) => b.cantidadLosas - a.cantidadLosas)
+
+    const disponible = candidatos.reduce((sum, producto) => sum + producto.cantidadLosas, 0)
+    if (disponible < consumo.cantidad) {
+      throw new DomainError(
+        `Stock insuficiente fuera de almacen para ${consumo.accion}. Requiere estado ${estadoRequerido}.`,
+        409,
+        'PRODUCCION_PROCESO_STOCK_INSUFICIENTE',
+        {
+          accion: consumo.accion,
+          estadoRequerido,
+          origenId: dto.origenId,
+          tipo: dto.tipo,
+          dimension: dto.dimension,
+          disponibleLosas: disponible,
+          solicitadoLosas: consumo.cantidad,
+        },
+      )
+    }
+
+    let restante = consumo.cantidad
+    for (const producto of candidatos) {
+      if (restante <= 0) break
+      const retirar = Math.min(restante, producto.cantidadLosas)
+      const metrosRetiro = round2(retirar * dimensionToArea(dto.dimension))
+
+      const updated = await productoRepository.update(producto.id, {
+        cantidadLosas: Math.max(0, producto.cantidadLosas - retirar),
+        metrosCuadrados: round2(Math.max(0, producto.metrosCuadrados - metrosRetiro)),
+      })
+
+      if (!updated) {
+        throw new DomainError(
+          `No se pudo actualizar producto ${producto.id} para salida a proceso`,
+          500,
+          'PRODUCCION_PROCESO_STOCK_UPDATE_FAILED',
+        )
+      }
+
+      restante -= retirar
+    }
+  }
 }

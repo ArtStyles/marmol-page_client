@@ -90,6 +90,7 @@ import { GetLogsUseCase, CreateLogUseCase } from '../application/use-cases/logs/
 import {
   GetInventarioMovimientosUseCase,
   GetInventarioMovimientoByIdUseCase,
+  CreateSalidaProcesoInventarioUseCase,
   ApproveInventarioMovimientoUseCase,
   RejectInventarioMovimientoUseCase,
 } from '../application/use-cases/inventario-movimientos/inventario-movimiento.use-cases.js'
@@ -200,7 +201,7 @@ export const deleteEquipoUseCase = new DeleteEquipoUseCase(equipoRepo)
 
 export const getProduccionUseCase = new GetProduccionUseCase(produccionRepo)
 export const getProduccionByIdUseCase = new GetProduccionByIdUseCase(produccionRepo)
-export const createProduccionUseCase = new CreateProduccionUseCase(produccionRepo)
+export const createProduccionUseCase = new CreateProduccionUseCase(produccionRepo, productoRepo)
 export const approveProduccionTallerUseCase = new ApproveProduccionTallerUseCase(produccionRepo)
 export const approveEntradaProduccionAlmacenUseCase = new ApproveEntradaProduccionAlmacenUseCase(
   produccionRepo,
@@ -260,6 +261,10 @@ export const getInventarioMovimientosUseCase = new GetInventarioMovimientosUseCa
 )
 export const getInventarioMovimientoByIdUseCase = new GetInventarioMovimientoByIdUseCase(
   inventarioMovimientoRepo,
+)
+export const createSalidaProcesoInventarioUseCase = new CreateSalidaProcesoInventarioUseCase(
+  inventarioMovimientoRepo,
+  productoRepo,
 )
 export const approveInventarioMovimientoUseCase = new ApproveInventarioMovimientoUseCase(
   inventarioMovimientoRepo,

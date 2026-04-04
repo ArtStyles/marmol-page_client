@@ -7,7 +7,8 @@ export type Dimension = '40x40' | '60x40' | '80x40'
 export type TipoProducto = 'Piso' | 'Plancha'
 export type EstadoLosa = 'Crudo' | 'Pulido'
 export type EstadoInventario = 'Picado' | 'Pulido' | 'Escuadrado'
-export type AccionLosa = 'picar' | 'pulir' | 'escuadrar'
+export type UbicacionInventario = 'almacen' | 'proceso'
+export type AccionLosa = 'picar' | 'pulir' | 'escuadrar' | 'resinar'
 export type TipoEquipo = 'Pulidora' | 'Cortadora' | 'Escuadradora'
 export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado'
 
@@ -55,6 +56,7 @@ export interface Producto {
   nombre: string
   tipo: TipoProducto
   estado: EstadoInventario
+  ubicacion: UbicacionInventario
   dimension: Dimension
   origenId: string
   origenNombre: string
@@ -82,6 +84,7 @@ export interface TarifasTrabajador {
   picar: number
   pulir: number
   escuadrar: number
+  resinar: number
 }
 
 export interface Equipo {
@@ -107,6 +110,7 @@ export interface ProduccionDetalleAccion {
   metrosMermaTotal?: number
   losasReutilizables?: number
   metrosReutilizables?: number
+  cantidadResina?: number
 }
 
 export interface ProduccionDiaria {
@@ -119,6 +123,7 @@ export interface ProduccionDiaria {
   cantidadPicar: number
   cantidadPulir: number
   cantidadEscuadrar: number
+  cantidadResinar: number
   totalLosas: number
   totalM2: number
   detallesAcciones?: ProduccionDetalleAccion[]
@@ -356,6 +361,8 @@ export interface InventarioMovimientoDetalle {
   productoNombre: string
   tipo: TipoProducto
   estado?: EstadoInventario
+  ubicacionOrigen?: UbicacionInventario
+  ubicacionDestino?: UbicacionInventario
   dimension: Dimension
   origenId: string
   origenNombre: string

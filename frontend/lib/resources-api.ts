@@ -215,6 +215,17 @@ export const getInventarioMovimientos = (): Promise<InventarioMovimiento[]> =>
 export const getInventarioMovimientoById = (id: string): Promise<InventarioMovimiento> =>
   apiRequest<InventarioMovimiento>(`/inventario-movimientos/${id}`)
 
+export const createSalidaProcesoInventario = (input: {
+  accionObjetivo: 'pulir' | 'escuadrar' | 'resinar'
+  productoId: string
+  cantidadLosas: number
+  motivo: string
+}): Promise<InventarioMovimiento> =>
+  apiRequest<InventarioMovimiento>('/inventario-movimientos/proceso-salida', {
+    method: 'POST',
+    body: input,
+  })
+
 export const approveInventarioMovimiento = (
   id: string,
   input: { observaciones?: string },

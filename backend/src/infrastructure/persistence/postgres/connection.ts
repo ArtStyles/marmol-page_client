@@ -22,6 +22,11 @@ const REQUIRED_TABLES = [
   'admin_users',
 ] as const
 
+const REQUIRED_COLUMNS = [
+  { table: 'productos', column: 'ubicacion' },
+  { table: 'produccion', column: 'cantidad_resinar' },
+] as const
+
 export interface DatabaseSummary {
   host: string
   port: number
@@ -101,6 +106,7 @@ export async function verifyPostgresConnection(): Promise<{
 export async function verifyPostgresSchema(): Promise<{
   ok: boolean
   missingTables: string[]
+  missingColumns: string[]
 }> {
   const pool = getPool()
   const required = [...REQUIRED_TABLES]
@@ -115,9 +121,30 @@ export async function verifyPostgresSchema(): Promise<{
 
   const existing = new Set(r.rows.map((row) => row.table_name))
   const missingTables = required.filter((tableName) => !existing.has(tableName))
+
+  const requiredColumns = REQUIRED_COLUMNS.map((item) => [item.table, item.column] as const)
+  const columnResult = await pool.query<{ table_name: string; column_name: string }>(
+    `SELECT table_name, column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND (table_name, column_name) IN (
+         SELECT pair.table_name, pair.column_name
+         FROM UNNEST($1::text[], $2::text[]) AS pair(table_name, column_name)
+       )`,
+    [
+      requiredColumns.map(([table]) => table),
+      requiredColumns.map(([, column]) => column),
+    ],
+  )
+  const existingColumns = new Set(columnResult.rows.map((row) => `${row.table_name}.${row.column_name}`))
+  const missingColumns = requiredColumns
+    .map(([table, column]) => `${table}.${column}`)
+    .filter((key) => !existingColumns.has(key))
+
   return {
-    ok: missingTables.length === 0,
+    ok: missingTables.length === 0 && missingColumns.length === 0,
     missingTables,
+    missingColumns,
   }
 }
 

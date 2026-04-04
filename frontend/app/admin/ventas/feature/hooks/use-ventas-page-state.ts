@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useInventarioStore } from '@/hooks/use-inventario'
 import { createVenta, getVentas } from '@/lib/resources-api'
@@ -20,7 +20,11 @@ import type { FormDetalleProducto } from '../model/types'
 type ClienteField = 'clienteNombre' | 'clienteEmail' | 'clienteTelefono' | 'motivoMovimientoAlmacen'
 
 export const useVentasPageState = () => {
-  const { productos } = useInventarioStore()
+  const { productos: inventarioProductos } = useInventarioStore()
+  const productos = useMemo(
+    () => inventarioProductos.filter((producto) => producto.ubicacion === 'almacen'),
+    [inventarioProductos],
+  )
   const { config } = useConfiguracion()
 
   const [ventas, setVentas] = useState<Venta[]>([])

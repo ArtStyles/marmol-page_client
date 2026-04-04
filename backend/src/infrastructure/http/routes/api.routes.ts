@@ -27,6 +27,7 @@ import {
   updateProduccionTrabajadorSchema,
   approveInventarioMovimientoSchema,
   rejectInventarioMovimientoSchema,
+  createSalidaProcesoInventarioSchema,
   createHistorialPagoSchema,
   updateHistorialPagoSchema,
   createLogSchema,
@@ -116,6 +117,12 @@ api.get(
   '/inventario-movimientos/:id',
   requirePermission('inventario:read'),
   asyncHandler(inventarioMovimientoCtrl.getInventarioMovimientoById),
+)
+api.post(
+  '/inventario-movimientos/proceso-salida',
+  requirePermission('inventario:write'),
+  validateBody(createSalidaProcesoInventarioSchema),
+  asyncHandler(inventarioMovimientoCtrl.createSalidaProcesoInventario),
 )
 api.patch(
   '/inventario-movimientos/:id/aprobar',

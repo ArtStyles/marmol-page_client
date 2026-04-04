@@ -29,6 +29,7 @@ import {
 import { useInventarioStore } from '@/hooks/use-inventario'
 import {
   approveInventarioMovimiento,
+  createSalidaProcesoInventario,
   getInventarioMovimientos,
   rejectInventarioMovimiento,
 } from '@/lib/resources-api'
@@ -40,6 +41,7 @@ import {
   type Dimension,
   type InventarioMovimiento,
   type Producto,
+  type UbicacionInventario,
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
@@ -52,6 +54,7 @@ type EstadoRow = {
 }
 
 type MetricView = 'both' | 'losas' | 'm2'
+type UbicacionFilter = 'all' | UbicacionInventario
 
 type OrigenChartGroup = {
   origenId: string
@@ -139,6 +142,15 @@ const movimientoTipoBadgeClass: Record<InventarioMovimiento['tipo'], string> = {
   salida: 'border-indigo-200 bg-indigo-50 text-indigo-700',
 }
 
+const estadoRequeridoProcesoPorAccion: Record<
+  'pulir' | 'escuadrar' | 'resinar',
+  Producto['estado']
+> = {
+  pulir: 'Pulido',
+  escuadrar: 'Picado',
+  resinar: 'Pulido',
+}
+
 
 function buildEstadoRows(items: Producto[]): EstadoRow[] {
   return estadoOrden.map((estado) => {
@@ -190,6 +202,7 @@ export default function InventarioPage() {
   const [tipoFilter, setTipoFilter] = useState<string>('all')
   const [estadoFilter, setEstadoFilter] = useState<string>('all')
   const [dimensionFilter, setDimensionFilter] = useState<string>('all')
+  const [ubicacionFilter, setUbicacionFilter] = useState<UbicacionFilter>('almacen')
   const [metricView, setMetricView] = useState<MetricView>('both')
   const [movimientos, setMovimientos] = useState<InventarioMovimiento[]>([])
   const [movimientosLoading, setMovimientosLoading] = useState(true)
@@ -204,6 +217,14 @@ export default function InventarioPage() {
   const [rejectDialogTargetId, setRejectDialogTargetId] = useState<string | null>(null)
   const [rejectDialogMotivo, setRejectDialogMotivo] = useState('')
   const [rejectDialogError, setRejectDialogError] = useState<string | null>(null)
+  const [procesoDialogOpen, setProcesoDialogOpen] = useState(false)
+  const [procesoAccionObjetivo, setProcesoAccionObjetivo] = useState<'pulir' | 'escuadrar' | 'resinar'>('pulir')
+  const [procesoProductoId, setProcesoProductoId] = useState('')
+  const [procesoCantidadLosas, setProcesoCantidadLosas] = useState(0)
+  const [procesoCantidadTouched, setProcesoCantidadTouched] = useState(false)
+  const [procesoMotivo, setProcesoMotivo] = useState('')
+  const [procesoDialogError, setProcesoDialogError] = useState<string | null>(null)
+  const [procesoDialogSubmitting, setProcesoDialogSubmitting] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -246,6 +267,9 @@ export default function InventarioPage() {
   }, [])
 
   const canApproveMovimientos = currentUser ? hasPermission(currentUser, 'inventario:approve') : false
+  const canSolicitarSalidaProceso = currentUser
+    ? hasPermission(currentUser, 'inventario:write')
+    : false
 
   const showLosas = metricView !== 'm2'
   const showM2 = metricView !== 'losas'
@@ -267,9 +291,25 @@ export default function InventarioPage() {
       const matchesTipo = tipoFilter === 'all' || producto.tipo === tipoFilter
       const matchesEstado = estadoFilter === 'all' || producto.estado === estadoFilter
       const matchesDimension = dimensionFilter === 'all' || producto.dimension === dimensionFilter
-      return matchesSearch && matchesTipo && matchesEstado && matchesDimension
+      const matchesUbicacion = ubicacionFilter === 'all' || producto.ubicacion === ubicacionFilter
+      return matchesSearch && matchesTipo && matchesEstado && matchesDimension && matchesUbicacion
     })
-  }, [productos, searchTerm, tipoFilter, estadoFilter, dimensionFilter])
+  }, [productos, searchTerm, tipoFilter, estadoFilter, dimensionFilter, ubicacionFilter])
+
+  const productosAlmacenParaProceso = useMemo(() => {
+    const estadoRequerido = estadoRequeridoProcesoPorAccion[procesoAccionObjetivo]
+    return productos
+      .filter((producto) => producto.ubicacion === 'almacen')
+      .filter((producto) => producto.estado === estadoRequerido)
+      .filter((producto) => producto.cantidadLosas > 0)
+      .sort((a, b) => b.cantidadLosas - a.cantidadLosas)
+  }, [productos, procesoAccionObjetivo])
+
+  useEffect(() => {
+    if (!procesoDialogOpen) return
+    if (procesoProductoId && productosAlmacenParaProceso.some((item) => item.id === procesoProductoId)) return
+    setProcesoProductoId(productosAlmacenParaProceso[0]?.id ?? '')
+  }, [procesoDialogOpen, procesoProductoId, productosAlmacenParaProceso])
 
   const generalChartData = useMemo(() => buildEstadoRows(filteredProductos), [filteredProductos])
 
@@ -429,6 +469,10 @@ export default function InventarioPage() {
   const isRejectDialogLoading = rejectDialogTargetId
     ? !!movimientoActionLoadingById[rejectDialogTargetId]
     : false
+  const procesoProductoSeleccionado = useMemo(
+    () => productosAlmacenParaProceso.find((producto) => producto.id === procesoProductoId) ?? null,
+    [productosAlmacenParaProceso, procesoProductoId],
+  )
 
   const closeApproveDialog = () => {
     if (isApproveDialogLoading) return
@@ -444,6 +488,23 @@ export default function InventarioPage() {
     setRejectDialogTargetId(null)
     setRejectDialogMotivo('')
     setRejectDialogError(null)
+  }
+
+  const openProcesoDialog = () => {
+    if (!canSolicitarSalidaProceso) return
+    setProcesoDialogError(null)
+    setProcesoAccionObjetivo('pulir')
+    setProcesoProductoId('')
+    setProcesoCantidadLosas(0)
+    setProcesoCantidadTouched(false)
+    setProcesoMotivo('')
+    setProcesoDialogOpen(true)
+  }
+
+  const closeProcesoDialog = () => {
+    if (procesoDialogSubmitting) return
+    setProcesoDialogOpen(false)
+    setProcesoDialogError(null)
   }
 
   const handleApproveMovimiento = (movimientoId: string) => {
@@ -517,6 +578,55 @@ export default function InventarioPage() {
       setRejectDialogError(message)
     } finally {
       setMovimientoActionLoadingById((prev) => ({ ...prev, [rejectDialogTargetId]: false }))
+    }
+  }
+
+  const confirmSalidaProceso = async () => {
+    if (!procesoProductoSeleccionado) {
+      setProcesoDialogError('Selecciona un producto de almacen para la salida a proceso.')
+      return
+    }
+
+    const cantidadLosas = Math.trunc(procesoCantidadLosas)
+    if (!Number.isInteger(cantidadLosas) || cantidadLosas <= 0) {
+      setProcesoDialogError('La cantidad de losas debe ser entera y mayor a 0.')
+      return
+    }
+
+    if (cantidadLosas > procesoProductoSeleccionado.cantidadLosas) {
+      setProcesoDialogError(
+        `La cantidad solicitada excede el stock disponible (${procesoProductoSeleccionado.cantidadLosas} losas).`,
+      )
+      return
+    }
+
+    const motivo = procesoMotivo.trim()
+    if (motivo.length < 5) {
+      setProcesoDialogError('El motivo debe tener al menos 5 caracteres.')
+      return
+    }
+
+    setProcesoDialogError(null)
+    setMovimientosError(null)
+    setProcesoDialogSubmitting(true)
+    try {
+      const movimiento = await createSalidaProcesoInventario({
+        accionObjetivo: procesoAccionObjetivo,
+        productoId: procesoProductoSeleccionado.id,
+        cantidadLosas,
+        motivo,
+      })
+      setMovimientos((prev) => [movimiento, ...prev])
+      closeProcesoDialog()
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'No se pudo registrar la solicitud de salida a proceso.'
+      setProcesoDialogError(message)
+      setMovimientosError(message)
+    } finally {
+      setProcesoDialogSubmitting(false)
     }
   }
 
@@ -656,13 +766,20 @@ export default function InventarioPage() {
               Stock operativo separado de estadisticas de partidas (merma/reutilizable).
             </p>
           </div>
-          <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
-            {canApproveMovimientos ? 'Control de aprobacion' : 'Solo lectura'}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            {canSolicitarSalidaProceso && (
+              <Button type="button" onClick={openProcesoDialog}>
+                Solicitar salida a proceso
+              </Button>
+            )}
+            <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
+              {canApproveMovimientos ? 'Control de aprobacion' : 'Solo lectura'}
+            </Badge>
+          </div>
         </div>
 
         <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-end">
             <div className="space-y-1">
               <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</Label>
               <div className="relative w-full">
@@ -704,6 +821,22 @@ export default function InventarioPage() {
                       {estado}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Ubicacion</Label>
+              <Select
+                value={ubicacionFilter}
+                onValueChange={(value) => setUbicacionFilter(value as UbicacionFilter)}
+              >
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Ubicacion" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="almacen">Almacen</SelectItem>
+                  <SelectItem value="proceso">Fuera de almacen</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -768,7 +901,14 @@ export default function InventarioPage() {
                 const isActionLoading = !!movimientoActionLoadingById[movimiento.id]
                 const detalleResumen = movimiento.detalles
                   .slice(0, 2)
-                  .map((detalle) => `${detalle.origenNombre} ${detalle.dimension}`)
+                  .map((detalle) => {
+                    const ubicacionResumen = detalle.ubicacionDestino
+                      ? ` (${detalle.ubicacionOrigen ?? 'almacen'} -> ${detalle.ubicacionDestino})`
+                      : detalle.ubicacionOrigen
+                        ? ` (${detalle.ubicacionOrigen})`
+                        : ''
+                    return `${detalle.origenNombre} ${detalle.dimension}${ubicacionResumen}`
+                  })
                   .join(' | ')
 
                 return (
@@ -956,6 +1096,139 @@ export default function InventarioPage() {
                 disabled={isRejectDialogLoading}
               >
                 {isRejectDialogLoading ? 'Procesando...' : 'Confirmar rechazo'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={procesoDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) closeProcesoDialog()
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Solicitar salida a proceso</DialogTitle>
+              <DialogDescription>
+                Esta salida queda pendiente hasta aprobación de jefatura de almacén.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>Acción objetivo</Label>
+                <Select
+                  value={procesoAccionObjetivo}
+                  onValueChange={(value) => {
+                    if (value === 'pulir' || value === 'escuadrar' || value === 'resinar') {
+                      setProcesoAccionObjetivo(value)
+                      setProcesoProductoId('')
+                    }
+                  }}
+                  disabled={procesoDialogSubmitting}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pulir">Pulir (requiere estado Pulido)</SelectItem>
+                    <SelectItem value="escuadrar">Escuadrar (requiere estado Picado)</SelectItem>
+                    <SelectItem value="resinar">Resinar (requiere estado Pulido)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Producto en almacén</Label>
+                <Select
+                  value={procesoProductoId}
+                  onValueChange={setProcesoProductoId}
+                  disabled={procesoDialogSubmitting}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar producto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {productosAlmacenParaProceso.length === 0 ? (
+                      <SelectItem value="__empty__" disabled>
+                        Sin stock disponible para esta acción
+                      </SelectItem>
+                    ) : (
+                      productosAlmacenParaProceso.map((producto) => (
+                        <SelectItem key={producto.id} value={producto.id}>
+                          {producto.nombre} · {producto.estado} · {producto.cantidadLosas} losas
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {procesoProductoSeleccionado && (
+                <p className="text-xs text-slate-600">
+                  Disponible: {procesoProductoSeleccionado.cantidadLosas} losas (
+                  {procesoProductoSeleccionado.metrosCuadrados.toFixed(2)} m2)
+                </p>
+              )}
+
+              <div className="space-y-1">
+                <Label>Cantidad de losas</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={procesoCantidadTouched || procesoCantidadLosas > 0 ? procesoCantidadLosas : ''}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    setProcesoCantidadTouched(value !== '')
+                    setProcesoCantidadLosas(value === '' ? 0 : Math.trunc(Number(value)))
+                    if (procesoDialogError) setProcesoDialogError(null)
+                  }}
+                  disabled={procesoDialogSubmitting}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Motivo</Label>
+                <Textarea
+                  value={procesoMotivo}
+                  onChange={(event) => {
+                    setProcesoMotivo(event.target.value)
+                    if (procesoDialogError) setProcesoDialogError(null)
+                  }}
+                  placeholder="Motivo de salida a proceso (mínimo 5 caracteres)."
+                  rows={3}
+                  disabled={procesoDialogSubmitting}
+                />
+              </div>
+
+              {procesoDialogError ? (
+                <p className="text-xs text-destructive">{procesoDialogError}</p>
+              ) : null}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeProcesoDialog}
+                disabled={procesoDialogSubmitting}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  void confirmSalidaProceso()
+                }}
+                disabled={
+                  procesoDialogSubmitting ||
+                  !procesoProductoSeleccionado ||
+                  procesoCantidadLosas <= 0
+                }
+              >
+                {procesoDialogSubmitting ? 'Guardando...' : 'Solicitar salida'}
               </Button>
             </DialogFooter>
           </DialogContent>

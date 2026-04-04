@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { Card, CardContent } from '@/components/ui/card'
-import type { BloqueOLote, Dimension } from '@/lib/types'
+import type { BloqueOLote } from '@/lib/types'
 import { createBloque, deleteBloque, getBloques, updateBloque } from '@/lib/resources-api'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { Plus, Search, Boxes, Eye, Edit, Trash2 } from 'lucide-react'
@@ -26,8 +26,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-const dimensionOptions: Dimension[] = ['40x40', '60x40', '80x40']
-
 export default function BloquesPage() {
   const [bloques, setBloques] = useState<BloqueOLote[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -39,13 +37,14 @@ export default function BloquesPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [numericTouched, setNumericTouched] = useState({
+    metrosComprados: false,
     costo: false,
     costoTransporte: false,
   })
   const [formData, setFormData] = useState({
     nombre: '',
     tipo: 'Bloque' as 'Bloque' | 'Lote',
-    dimensionBase: '60x40' as Dimension,
+    metrosComprados: 0,
     costo: 0,
     costoTransporte: 0,
     proveedor: '',
@@ -115,15 +114,8 @@ export default function BloquesPage() {
   const totalInversion = totalCostoMaterial + totalCostoTransporte
   const proveedores = useMemo(() => new Set(bloques.map((bloque) => bloque.proveedor)).size, [bloques])
 
-  const dimensionCount = useMemo(
-    () =>
-      bloques.reduce<Record<Dimension, number>>(
-        (acc, bloque) => {
-          acc[bloque.dimensionBase] += 1
-          return acc
-        },
-        { '40x40': 0, '60x40': 0, '80x40': 0 },
-      ),
+  const totalMetrosComprados = useMemo(
+    () => bloques.reduce((sum, bloque) => sum + bloque.metrosComprados, 0),
     [bloques],
   )
 
@@ -160,14 +152,12 @@ export default function BloquesPage() {
         </div>
       </AdminPanelCard>
 
-      <AdminPanelCard title="Dimensiones base" meta="Configuradas por bloque">
+      <AdminPanelCard title="Volumen comprado" meta="m3 totales registrados">
         <div className="space-y-2 text-sm text-slate-700">
-          {dimensionOptions.map((dimension) => (
-            <div key={dimension} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
-              <span>{dimension}</span>
-              <span className="font-semibold">{dimensionCount[dimension]}</span>
-            </div>
-          ))}
+          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+            <span>Total m3</span>
+            <span className="font-semibold">{totalMetrosComprados.toLocaleString()}</span>
+          </div>
         </div>
       </AdminPanelCard>
 
@@ -183,7 +173,7 @@ export default function BloquesPage() {
                   <p className="text-[11px] text-slate-500">{bloque.fechaIngreso}</p>
                 </div>
                 <Badge variant="outline" className="text-[11px]">
-                  {bloque.dimensionBase}
+                  {bloque.metrosComprados.toLocaleString()} m3
                 </Badge>
               </div>
             ))
@@ -207,7 +197,7 @@ export default function BloquesPage() {
         const updated = await updateBloque(editingBloque.id, {
           nombre: formData.nombre,
           tipo: formData.tipo,
-          dimensionBase: formData.dimensionBase,
+          metrosComprados: formData.metrosComprados,
           costo: formData.costo,
           costoTransporte: formData.costoTransporte,
           proveedor: formData.proveedor,
@@ -232,10 +222,10 @@ export default function BloquesPage() {
       const newBloque = await createBloque({
         nombre: formData.nombre,
         tipo: formData.tipo,
-        dimensionBase: formData.dimensionBase,
+        dimensionBase: '60x40',
         costo: formData.costo,
         costoTransporte: formData.costoTransporte,
-        metrosComprados: 0,
+        metrosComprados: formData.metrosComprados,
         fechaIngreso: today,
         proveedor: formData.proveedor,
         losasProducidas: 0,
@@ -259,12 +249,13 @@ export default function BloquesPage() {
     setFormData({
       nombre: bloque.nombre,
       tipo: bloque.tipo,
-      dimensionBase: bloque.dimensionBase,
+      metrosComprados: bloque.metrosComprados,
       costo: bloque.costo,
       costoTransporte: bloque.costoTransporte,
       proveedor: bloque.proveedor,
     })
     setNumericTouched({
+      metrosComprados: true,
       costo: true,
       costoTransporte: true,
     })
@@ -300,12 +291,13 @@ export default function BloquesPage() {
     setFormData({
       nombre: '',
       tipo: 'Bloque',
-      dimensionBase: '60x40',
+      metrosComprados: 0,
       costo: 0,
       costoTransporte: 0,
       proveedor: '',
     })
     setNumericTouched({
+      metrosComprados: false,
       costo: false,
       costoTransporte: false,
     })
@@ -365,7 +357,7 @@ export default function BloquesPage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground font-sans">Materia prima</h1>
             <p className="mt-1 text-muted-foreground font-sans">
-              Registra costo de material, costo de transporte y dimension base por bloque/lote.
+              Registra volumen en m3, costo de material y costo de transporte por bloque/lote.
             </p>
             {actionError ? <p className="mt-2 text-sm text-destructive">{actionError}</p> : null}
           </div>
@@ -416,24 +408,24 @@ export default function BloquesPage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Dimension base</Label>
-                    <Select
-                      value={formData.dimensionBase}
-                      onValueChange={(value: Dimension) =>
-                        setFormData({ ...formData, dimensionBase: value })
+                    <Label>Dimension (m3)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                      value={
+                        editingBloque || numericTouched.metrosComprados || formData.metrosComprados > 0
+                          ? formData.metrosComprados
+                          : ''
                       }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {dimensionOptions.map((dimension) => (
-                          <SelectItem key={dimension} value={dimension}>
-                            {dimension}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(event) => {
+                        const value = event.target.value
+                        setNumericTouched((prev) => ({ ...prev, metrosComprados: value !== '' }))
+                        setFormData({ ...formData, metrosComprados: value === '' ? 0 : Number(value) })
+                      }}
+                      required
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -504,8 +496,8 @@ export default function BloquesPage() {
             <div>
               <h4 className="font-medium text-blue-800">Principio del Sistema</h4>
               <p className="text-sm text-blue-700">
-                Cada bloque/lote define dimension base, costo de material y costo de transporte.
-                La captura en m2 se eliminó en esta vista para evitar duplicidad operativa.
+                Cada bloque/lote define volumen en m3, costo de material y costo de transporte.
+                La captura en m2 se elimino en esta vista para evitar duplicidad operativa.
               </p>
             </div>
           </div>
@@ -544,7 +536,7 @@ export default function BloquesPage() {
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">ID</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Bloque/Lote</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Tipo</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Dim</span>
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">m3</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Proveedor</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Transporte</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Costo mat.</span>
@@ -569,7 +561,9 @@ export default function BloquesPage() {
                               </Badge>
                             </div>
 
-                            <div className="text-sm font-semibold text-slate-800">{bloque.dimensionBase}</div>
+                            <div className="text-sm font-semibold text-slate-800">
+                              {bloque.metrosComprados.toLocaleString()} m3
+                            </div>
 
                             <div className="text-sm text-slate-700">{bloque.proveedor}</div>
 
@@ -621,8 +615,8 @@ export default function BloquesPage() {
                       <p className="font-medium">{selectedBloque.fechaIngreso}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Dimension base</p>
-                      <p className="font-medium">{selectedBloque.dimensionBase}</p>
+                      <p className="text-muted-foreground">Dimension (m3)</p>
+                      <p className="font-medium">{selectedBloque.metrosComprados.toLocaleString()} m3</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Proveedor</p>

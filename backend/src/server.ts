@@ -34,10 +34,16 @@ async function logDatabaseStartupStatus(): Promise<void> {
 
   const schemaCheck = await verifyPostgresSchema()
   if (!schemaCheck.ok) {
+    const missingTablesMessage =
+      schemaCheck.missingTables.length > 0
+        ? `Faltan tablas: ${schemaCheck.missingTables.join(', ')}.`
+        : ''
+    const missingColumnsMessage =
+      schemaCheck.missingColumns.length > 0
+        ? ` Faltan columnas: ${schemaCheck.missingColumns.join(', ')}.`
+        : ''
     throw new Error(
-      `[db] Esquema PostgreSQL incompleto. Faltan tablas: ${schemaCheck.missingTables.join(
-        ', ',
-      )}. Ejecuta: pnpm run db:setup`,
+      `[db] Esquema PostgreSQL incompleto. ${missingTablesMessage}${missingColumnsMessage} Ejecuta: pnpm run db:setup`,
     )
   }
   console.log('[db] Esquema PostgreSQL verificado.')

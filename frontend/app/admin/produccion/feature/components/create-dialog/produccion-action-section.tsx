@@ -43,6 +43,7 @@ const actionSectionBackgrounds: Record<AccionLosa, string> = {
   picar: 'border-blue-200/80 bg-blue-50/60',
   pulir: 'border-emerald-200/80 bg-emerald-50/60',
   escuadrar: 'border-amber-200/80 bg-amber-50/60',
+  resinar: 'border-cyan-200/80 bg-cyan-50/60',
 }
 
 const dimensionOptions: Dimension[] = ['40x40', '60x40', '80x40']
@@ -53,6 +54,12 @@ type ProduccionActionSectionProps = {
   accionState: ActionFormState
   addUsage: (accion: AccionLosa) => void
   equiposActivos: Equipo[]
+  getLosasDisponiblesParaAccion: (
+    accion: AccionLosa,
+    origenId: string,
+    tipo: TipoProducto | '',
+    dimension: Dimension,
+  ) => number | null
   origenesActivos: BloqueOLote[]
   removeUsage: (accion: AccionLosa, usageId: string) => void
   toggleUsageDimension: (
@@ -71,6 +78,7 @@ export function ProduccionActionSection({
   accionState,
   addUsage,
   equiposActivos,
+  getLosasDisponiblesParaAccion,
   origenesActivos,
   removeUsage,
   toggleUsageDimension,
@@ -353,7 +361,12 @@ export function ProduccionActionSection({
                             </Button>
                           </div>
 
-                          <div className="grid gap-2 sm:grid-cols-3">
+                          <div
+                            className={cn(
+                              'grid gap-2',
+                              accion === 'resinar' ? 'sm:grid-cols-4' : 'sm:grid-cols-3',
+                            )}
+                          >
                             <div className="space-y-1">
                               <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Losas</p>
                               <Input
@@ -379,6 +392,41 @@ export function ProduccionActionSection({
                                   })
                                 }
                               />
+                              {(accion === 'pulir' || accion === 'escuadrar' || accion === 'resinar') && (
+                                <p
+                                  className={cn(
+                                    'text-[10px]',
+                                    (() => {
+                                      const disponibles = getLosasDisponiblesParaAccion(
+                                        accion,
+                                        uso.origenId,
+                                        uso.tipo,
+                                        dimensionUso.dimension,
+                                      )
+                                      if (disponibles === null) return 'text-slate-500'
+                                      return dimensionUso.cantidadLosas > disponibles
+                                        ? 'text-rose-600'
+                                        : 'text-slate-600'
+                                    })(),
+                                  )}
+                                >
+                                  {(() => {
+                                    const estadoRequerido = accion === 'escuadrar' ? 'Picado' : 'Pulido'
+                                    const disponibles = getLosasDisponiblesParaAccion(
+                                      accion,
+                                      uso.origenId,
+                                      uso.tipo,
+                                      dimensionUso.dimension,
+                                    )
+
+                                    if (disponibles === null) {
+                                      return `Disponibles: selecciona bloque/lote y tipo (estado ${estadoRequerido})`
+                                    }
+
+                                    return `Disponibles: ${disponibles} losas (estado ${estadoRequerido})`
+                                  })()}
+                                </p>
+                              )}
                             </div>
 
                             <div className="space-y-1">
@@ -434,6 +482,35 @@ export function ProduccionActionSection({
                                 }
                               />
                             </div>
+
+                            {accion === 'resinar' && (
+                              <div className="space-y-1">
+                                <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Resina consumida</p>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0"
+                                  className="h-9 text-right"
+                                  value={
+                                    dimensionUso.resinaTouched || dimensionUso.cantidadResina > 0
+                                      ? dimensionUso.cantidadResina
+                                      : ''
+                                  }
+                                  onChange={(event) =>
+                                    updateUsageDimensionNumericInput({
+                                      action: accion,
+                                      usageId: uso.id,
+                                      dimensionUsageId: dimensionUso.id,
+                                      rawValue: event.target.value,
+                                      numericField: 'cantidadResina',
+                                      touchedField: 'resinaTouched',
+                                      updateUsageDimension,
+                                    })
+                                  }
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}

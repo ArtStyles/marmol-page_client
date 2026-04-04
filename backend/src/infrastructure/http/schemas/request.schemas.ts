@@ -4,8 +4,9 @@ const dimensionSchema = z.enum(['40x40', '60x40', '80x40'])
 const tipoProductoSchema = z.enum(['Piso', 'Plancha'])
 const estadoCatalogoSchema = z.enum(['Crudo', 'Pulido'])
 const estadoInventarioSchema = z.enum(['Picado', 'Pulido', 'Escuadrado'])
+const ubicacionInventarioSchema = z.enum(['almacen', 'proceso'])
 const tipoEquipoSchema = z.enum(['Pulidora', 'Cortadora', 'Escuadradora'])
-const accionLosaSchema = z.enum(['picar', 'pulir', 'escuadrar'])
+const accionLosaSchema = z.enum(['picar', 'pulir', 'escuadrar', 'resinar'])
 const rolTrabajadorSchema = z.enum([
   'Administrador',
   'Gestor de Ventas',
@@ -35,6 +36,7 @@ const tarifasTrabajadorSchema = z.object({
   picar: z.number(),
   pulir: z.number(),
   escuadrar: z.number(),
+  resinar: z.number().default(0),
 })
 
 export const createBloqueSchema = z.object({
@@ -59,6 +61,7 @@ export const createProductoSchema = z.object({
   nombre: z.string().min(1),
   tipo: tipoProductoSchema,
   estado: estadoInventarioSchema,
+  ubicacion: ubicacionInventarioSchema.optional(),
   dimension: dimensionSchema,
   origenId: z.string(),
   origenNombre: z.string(),
@@ -281,6 +284,7 @@ const produccionDetalleAccionSchema = z.object({
   metrosMermaTotal: z.number().optional(),
   losasReutilizables: z.number().optional(),
   metrosReutilizables: z.number().optional(),
+  cantidadResina: z.number().optional(),
 })
 
 export const createProduccionSchema = z.object({
@@ -292,6 +296,7 @@ export const createProduccionSchema = z.object({
   cantidadPicar: z.number(),
   cantidadPulir: z.number(),
   cantidadEscuadrar: z.number(),
+  cantidadResinar: z.number(),
   totalLosas: z.number(),
   totalM2: z.number(),
   detallesAcciones: z.array(produccionDetalleAccionSchema).optional(),
@@ -349,6 +354,13 @@ export const approveInventarioMovimientoSchema = z.object({
 
 export const rejectInventarioMovimientoSchema = z.object({
   motivoRechazo: z.string().min(5),
+})
+
+export const createSalidaProcesoInventarioSchema = z.object({
+  accionObjetivo: z.enum(['pulir', 'escuadrar', 'resinar']),
+  productoId: z.string().min(1),
+  cantidadLosas: z.number().int().positive(),
+  motivo: z.string().min(5),
 })
 
 // ----- Historial de pagos -----

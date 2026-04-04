@@ -18,6 +18,7 @@ import {
   getTrabajadores,
   updateTrabajador,
 } from '@/lib/resources-api'
+import { getPermissionGroups, type PermissionGroup } from '@/lib/admin-api'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { Plus, Search, Edit, Trash2, UserCheck, UserX, Eye } from 'lucide-react'
 import {
@@ -39,10 +40,38 @@ import { useConfiguracion } from '@/hooks/use-configuracion'
 
 const roles: Trabajador['rol'][] = [
   'Administrador',
+  'Jefe de Almacen',
   'Gestor de Ventas',
   'Jefe de Turno de Producción',
   'Obrero',
 ]
+
+const produccionRoleOption =
+  roles.find((role) => role.startsWith('Jefe de Turno de Producci')) ?? 'Obrero'
+
+function normalizeTrabajadorRoleFromPermissionGroupName(name: string): Trabajador['rol'] | null {
+  const normalized = name.trim()
+  if (normalized === 'Administrador') return 'Administrador'
+  if (normalized === 'Jefe de Almacen') return 'Jefe de Almacen'
+  if (normalized === 'Gestor de Ventas') return 'Gestor de Ventas'
+  if (normalized === 'Obrero') return 'Obrero'
+  if (
+    normalized === 'Jefe de Turno de Produccion' ||
+    normalized.startsWith('Jefe de Turno de Producci')
+  ) {
+    return produccionRoleOption
+  }
+  return null
+}
+
+function buildRoleOptionsFromPermissionGroups(groups: PermissionGroup[]): Trabajador['rol'][] {
+  const mapped = groups
+    .map((group) => normalizeTrabajadorRoleFromPermissionGroupName(group.name))
+    .filter((role): role is Trabajador['rol'] => Boolean(role))
+  const unique = [...new Set(mapped)]
+  if (unique.length === 0) return roles
+  return unique
+}
 
 export default function TrabajadoresPage() {
   const { config } = useConfiguracion()
@@ -58,6 +87,7 @@ export default function TrabajadoresPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [formError, setFormError] = useState('')
+  const [roleOptions, setRoleOptions] = useState<Trabajador['rol'][]>(roles)
   const [formData, setFormData] = useState<Partial<Trabajador>>({
     nombre: '',
     email: '',
@@ -86,15 +116,17 @@ export default function TrabajadoresPage() {
       setLoading(true)
       setSyncError(null)
       try {
-        const [trabajadoresData, produccionData, historialData] = await Promise.all([
+        const [trabajadoresData, produccionData, historialData, permissionGroupsData] = await Promise.all([
           getTrabajadores(),
           getProduccionTrabajadores(),
           getHistorialPagos(),
+          getPermissionGroups().catch(() => [] as PermissionGroup[]),
         ])
         if (!alive) return
         setTrabajadores(trabajadoresData)
         setProduccion(produccionData)
         setHistorialPagos(historialData)
+        setRoleOptions(buildRoleOptionsFromPermissionGroups(permissionGroupsData))
       } catch (error) {
         if (!alive) return
         setSyncError(error instanceof Error ? error.message : 'No se pudo cargar trabajadores.')
@@ -113,6 +145,24 @@ export default function TrabajadoresPage() {
   const canManageWorkers = currentUser ? hasPermission(currentUser, 'trabajadores:write') : false
   const selectedRole = (formData.rol ?? 'Obrero') as Trabajador['rol']
   const requiresAccount = selectedRole !== 'Obrero'
+
+  useEffect(() => {
+    setFormData((prev) => {
+      const currentRole = (prev.rol ?? 'Obrero') as Trabajador['rol']
+      if (roleOptions.includes(currentRole)) return prev
+
+      const nextRole = roleOptions.includes('Obrero') ? 'Obrero' : roleOptions[0]
+      if (!nextRole) return prev
+
+      const nextForm = { ...prev, rol: nextRole }
+      if (nextRole === 'Obrero') {
+        nextForm.usuario = ''
+        nextForm.contrasena = ''
+      }
+
+      return nextForm
+    })
+  }, [roleOptions])
 
   const getSalarioFijoPorRol = (rol: Trabajador['rol']) =>
     rol === 'Obrero' ? 0 : (config.salariosFijosPorRol[rol as RolConSalarioFijo] ?? 0)
@@ -339,9 +389,13 @@ export default function TrabajadoresPage() {
       acc[item.accion] += losasAMetros(item.cantidadLosas, item.dimension)
       return acc
     },
-    { picar: 0, pulir: 0, escuadrar: 0 },
+    { picar: 0, pulir: 0, escuadrar: 0, resinar: 0 },
   )
-  const totalM2 = accionesResumen.picar + accionesResumen.pulir + accionesResumen.escuadrar
+  const totalM2 =
+    accionesResumen.picar +
+    accionesResumen.pulir +
+    accionesResumen.escuadrar +
+    accionesResumen.resinar
 
   const produccionPorFecha = selectedProduccion.reduce<
     Record<
@@ -352,7 +406,7 @@ export default function TrabajadoresPage() {
     if (!acc[item.fecha]) {
       acc[item.fecha] = {
         fecha: item.fecha,
-        m2: { picar: 0, pulir: 0, escuadrar: 0 },
+        m2: { picar: 0, pulir: 0, escuadrar: 0, resinar: 0 },
         totalPago: 0,
       }
     }
@@ -474,7 +528,7 @@ export default function TrabajadoresPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {roles.map((rol) => (
+                      {roleOptions.map((rol) => (
                         <SelectItem key={rol} value={rol}>{rol}</SelectItem>
                       ))}
                     </SelectContent>
@@ -857,6 +911,11 @@ export default function TrabajadoresPage() {
                                 {item.m2.escuadrar > 0 && (
                                   <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700">
                                     Escuadrar {item.m2.escuadrar.toFixed(2)} m2
+                                  </span>
+                                )}
+                                {item.m2.resinar > 0 && (
+                                  <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-cyan-700">
+                                    Resinar {item.m2.resinar.toFixed(2)} m2
                                   </span>
                                 )}
                               </div>

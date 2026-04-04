@@ -27,22 +27,6 @@ export class InMemoryProduccionRepository implements ProduccionRepositoryPort {
   }
 
   async create(data: Omit<ProduccionDiaria, 'id'>): Promise<ProduccionDiaria> {
-    const existing = getProduccion().find(
-      (item) =>
-        item.fecha === data.fecha &&
-        item.origenId === data.origenId &&
-        item.tipo === data.tipo &&
-        item.dimension === data.dimension,
-    )
-
-    if (existing) {
-      const updated = updateProduccion(existing.id, data)
-      if (!updated) {
-        throw new Error(`No se pudo actualizar produccion existente ${existing.id}`)
-      }
-      return updated
-    }
-
     return createProduccion(data)
   }
 

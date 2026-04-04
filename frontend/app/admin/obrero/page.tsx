@@ -16,12 +16,13 @@ import {
 import { cn } from '@/lib/utils'
 import { CircleDollarSign, Hammer, Hourglass, Wallet } from 'lucide-react'
 
-const actionOrder: AccionLosa[] = ['picar', 'pulir', 'escuadrar']
+const actionOrder: AccionLosa[] = ['picar', 'pulir', 'escuadrar', 'resinar']
 
 const actionColors: Record<AccionLosa, string> = {
   picar: 'bg-blue-100 text-blue-800',
   pulir: 'bg-green-100 text-green-800',
   escuadrar: 'bg-amber-100 text-amber-800',
+  resinar: 'bg-cyan-100 text-cyan-800',
 }
 
 function sortByDateDesc<T extends { fecha: string }>(items: T[]) {
@@ -134,6 +135,7 @@ export default function ObreroPage() {
       picar: { losas: 0, total: 0 },
       pulir: { losas: 0, total: 0 },
       escuadrar: { losas: 0, total: 0 },
+      resinar: { losas: 0, total: 0 },
     },
   )
 

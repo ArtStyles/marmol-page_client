@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   approveProduccionAlmacen,
   approveProduccionTaller,
+  createProduccion,
   getBloques,
   getEquipos,
+  getProductos,
   getTrabajadores,
 } from '@/lib/resources-api'
 import { useProduccionStore } from '@/hooks/use-produccion'
@@ -16,6 +18,7 @@ import {
   type BloqueOLote,
   type Dimension,
   type Equipo,
+  type Producto,
   type ProduccionDetalleAccion,
   type ProduccionDiaria,
   type Trabajador,
@@ -23,7 +26,6 @@ import {
 import type { ActionUsageDimensionForm, ActionUsageForm, FormData } from '../model/types'
 import {
   actionLabels,
-  actionOrder,
   createInitialFormData,
   createUsageDimensionRow,
   createUsageRow,
@@ -33,14 +35,48 @@ import {
   resolveDateEditPolicy,
 } from '../lib/produccion-helpers'
 
+const estadoProcesoRequeridoPorAccion: Record<
+  'pulir' | 'escuadrar' | 'resinar',
+  Producto['estado']
+> = {
+  pulir: 'Pulido',
+  escuadrar: 'Picado',
+  resinar: 'Pulido',
+}
+
+const buildPseudoOrigen = (
+  origenId: string,
+  origenNombre: string,
+  existing?: BloqueOLote,
+): BloqueOLote => {
+  if (existing) return existing
+  return {
+    id: origenId,
+    nombre: origenNombre,
+    tipo: 'Bloque',
+    dimensionBase: '60x40',
+    costo: 0,
+    costoTransporte: 0,
+    metrosComprados: 0,
+    fechaIngreso: '',
+    proveedor: '',
+    losasProducidas: 0,
+    losasPerdidas: 0,
+    metrosVendibles: 0,
+    gananciaReal: 0,
+    estado: 'activo',
+  }
+}
+
 export const useProduccionPageState = () => {
-  const { produccion, setProduccion, replaceProduccion } = useProduccionStore()
+  const { produccion, replaceProduccion } = useProduccionStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [loadingDependencies, setLoadingDependencies] = useState(true)
   const [dependenciesError, setDependenciesError] = useState<string | null>(null)
   const [bloquesYLotes, setBloquesYLotes] = useState<BloqueOLote[]>([])
+  const [productos, setProductos] = useState<Producto[]>([])
   const [equipos, setEquipos] = useState<Equipo[]>([])
   const [trabajadores, setTrabajadores] = useState<Trabajador[]>([])
   const [formError, setFormError] = useState('')
@@ -56,14 +92,16 @@ export const useProduccionPageState = () => {
       setLoadingDependencies(true)
       setDependenciesError(null)
       try {
-        const [bloquesData, equiposData, trabajadoresData] = await Promise.all([
+        const [bloquesData, productosData, equiposData, trabajadoresData] = await Promise.all([
           getBloques(),
+          getProductos(),
           getEquipos(),
           getTrabajadores(),
         ])
 
         if (!alive) return
         setBloquesYLotes(bloquesData)
+        setProductos(productosData)
         setEquipos(equiposData)
         setTrabajadores(trabajadoresData)
       } catch (error) {
@@ -92,6 +130,79 @@ export const useProduccionPageState = () => {
     () => bloquesYLotes.filter((bloque) => bloque.estado === 'activo'),
     [bloquesYLotes],
   )
+  const stockProcesoDisponible = useMemo(
+    () =>
+      productos.filter((producto) => producto.ubicacion === 'proceso' && producto.cantidadLosas > 0),
+    [productos],
+  )
+
+  const origenesActivosByAccion = useMemo<Record<AccionLosa, BloqueOLote[]>>(() => {
+    const bloquesPorId = new Map(bloquesYLotes.map((bloque) => [bloque.id, bloque]))
+
+    const procesoPulir = stockProcesoDisponible
+      .filter((producto) => producto.estado === estadoProcesoRequeridoPorAccion.pulir)
+      .map((producto) =>
+        buildPseudoOrigen(
+          producto.origenId,
+          producto.origenNombre,
+          bloquesPorId.get(producto.origenId),
+        ),
+      )
+    const procesoEscuadrar = stockProcesoDisponible
+      .filter((producto) => producto.estado === estadoProcesoRequeridoPorAccion.escuadrar)
+      .map((producto) =>
+        buildPseudoOrigen(
+          producto.origenId,
+          producto.origenNombre,
+          bloquesPorId.get(producto.origenId),
+        ),
+      )
+    const procesoResinar = stockProcesoDisponible
+      .filter((producto) => producto.estado === estadoProcesoRequeridoPorAccion.resinar)
+      .map((producto) =>
+        buildPseudoOrigen(
+          producto.origenId,
+          producto.origenNombre,
+          bloquesPorId.get(producto.origenId),
+        ),
+      )
+
+    const dedupe = (items: BloqueOLote[]) =>
+      Array.from(new Map(items.map((item) => [item.id, item])).values())
+
+    return {
+      picar: origenesActivos,
+      pulir: dedupe(procesoPulir),
+      escuadrar: dedupe(procesoEscuadrar),
+      resinar: dedupe(procesoResinar),
+    }
+  }, [bloquesYLotes, origenesActivos, stockProcesoDisponible])
+
+  const stockProcesoPorClave = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const producto of stockProcesoDisponible) {
+      const key = `${producto.origenId}::${producto.tipo}::${producto.dimension}::${producto.estado}`
+      map.set(key, (map.get(key) ?? 0) + producto.cantidadLosas)
+    }
+    return map
+  }, [stockProcesoDisponible])
+
+  const getLosasDisponiblesParaAccion = useCallback(
+    (
+      accion: AccionLosa,
+      origenId: string,
+      tipo: ProduccionDiaria['tipo'] | '',
+      dimension: ProduccionDiaria['dimension'],
+    ): number | null => {
+      if (accion !== 'pulir' && accion !== 'escuadrar' && accion !== 'resinar') return null
+      if (!origenId || !tipo) return null
+
+      const estadoRequerido = estadoProcesoRequeridoPorAccion[accion]
+      const stockKey = `${origenId}::${tipo}::${dimension}::${estadoRequerido}`
+      return stockProcesoPorClave.get(stockKey) ?? 0
+    },
+    [stockProcesoPorClave],
+  )
 
   const filteredProduccion = produccion.filter((registro) => {
     const query = searchTerm.toLowerCase().trim()
@@ -119,9 +230,10 @@ export const useProduccionPageState = () => {
       acc.picar += losasAMetros(getAccionLosas(item, 'picar'), item.dimension)
       acc.pulir += losasAMetros(getAccionLosas(item, 'pulir'), item.dimension)
       acc.escuadrar += losasAMetros(getAccionLosas(item, 'escuadrar'), item.dimension)
+      acc.resinar += losasAMetros(getAccionLosas(item, 'resinar'), item.dimension)
       return acc
     },
-    { picar: 0, pulir: 0, escuadrar: 0 },
+    { picar: 0, pulir: 0, escuadrar: 0, resinar: 0 },
   )
 
   const topOrigenesResumen = [...produccionResumen]
@@ -321,8 +433,9 @@ export const useProduccionPageState = () => {
     })
   }
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
+    setFormError('')
 
     if (!formData.fecha) {
       setFormError('Selecciona la fecha de produccion.')
@@ -339,9 +452,21 @@ export const useProduccionPageState = () => {
       return
     }
 
+    if (!formData.accionActiva) {
+      setFormError('Selecciona primero la accion a registrar.')
+      return
+    }
+
     const workersById = new Map(trabajadoresActivos.map((worker) => [worker.id, worker]))
     const equiposById = new Map(equiposActivos.map((equipo) => [equipo.id, equipo]))
-    const origenesById = new Map(bloquesYLotes.map((origen) => [origen.id, origen]))
+    const origenesById = new Map(
+      [
+        ...bloquesYLotes,
+        ...origenesActivosByAccion.pulir,
+        ...origenesActivosByAccion.escuadrar,
+        ...origenesActivosByAccion.resinar,
+      ].map((origen) => [origen.id, origen]),
+    )
     const registrosPorCombo = new Map<
       string,
       {
@@ -353,8 +478,9 @@ export const useProduccionPageState = () => {
         detallesAcciones: ProduccionDetalleAccion[]
       }
     >()
+    const consumoProcesoReservado = new Map<string, number>()
 
-    for (const accion of actionOrder) {
+    for (const accion of [formData.accionActiva] as AccionLosa[]) {
       const accionState = formData.acciones[accion]
 
       const usosCapturados = accionState.usos.filter(
@@ -454,6 +580,35 @@ export const useProduccionPageState = () => {
             return
           }
 
+          if (accion === 'pulir' || accion === 'escuadrar' || accion === 'resinar') {
+            const estadoRequerido = estadoProcesoRequeridoPorAccion[accion]
+            const stockKey = `${uso.origenId}::${uso.tipo}::${dimensionUso.dimension}::${estadoRequerido}`
+            const disponible = stockProcesoPorClave.get(stockKey) ?? 0
+            const reservado = consumoProcesoReservado.get(stockKey) ?? 0
+            const restante = disponible - reservado
+
+            if (restante < dimensionUso.cantidadLosas) {
+              setFormError(
+                `Stock fuera de almacen insuficiente para ${actionLabels[accion]} (${dimensionUso.dimension}, estado ${estadoRequerido}). Disponible: ${Math.max(0, restante)} losas.`,
+              )
+              return
+            }
+
+            consumoProcesoReservado.set(
+              stockKey,
+              reservado + dimensionUso.cantidadLosas,
+            )
+          }
+
+          if (accion === 'resinar') {
+            if (!Number.isFinite(dimensionUso.cantidadResina) || dimensionUso.cantidadResina <= 0) {
+              setFormError(
+                `Debes indicar la cantidad de resina consumida en ${actionLabels[accion]} (${dimensionUso.dimension}).`,
+              )
+              return
+            }
+          }
+
           const comboKey = `${uso.origenId}::${uso.tipo}::${dimensionUso.dimension}`
           const comboActual =
             registrosPorCombo.get(comboKey) ??
@@ -466,6 +621,7 @@ export const useProduccionPageState = () => {
                 picar: 0,
                 pulir: 0,
                 escuadrar: 0,
+                resinar: 0,
               },
               detallesAcciones: [],
             }
@@ -489,6 +645,7 @@ export const useProduccionPageState = () => {
             metrosMermaTotal: losasAMetros(dimensionUso.mermaTotalLosas, dimensionUso.dimension),
             losasReutilizables: dimensionUso.reutilizableLosas,
             metrosReutilizables: losasAMetros(dimensionUso.reutilizableLosas, dimensionUso.dimension),
+            cantidadResina: accion === 'resinar' ? dimensionUso.cantidadResina : undefined,
           })
 
           registrosPorCombo.set(comboKey, comboActual)
@@ -502,69 +659,53 @@ export const useProduccionPageState = () => {
     }
 
     const fecha = formData.fecha
+    const payloads: Array<Omit<ProduccionDiaria, 'id'>> = []
+    for (const combo of registrosPorCombo.values()) {
+      const cantidadPicar = combo.actionTotals.picar
+      const cantidadPulir = combo.actionTotals.pulir
+      const cantidadEscuadrar = combo.actionTotals.escuadrar
+      const cantidadResinar = combo.actionTotals.resinar
+      const totalLosas = cantidadPicar + cantidadPulir + cantidadEscuadrar + cantidadResinar
 
-    setProduccion((prev) => {
-      const registrosActualizados = [...prev]
-      const registrosNuevos: ProduccionDiaria[] = []
-      let maxIdNumber = prev.reduce((maxValue, registro) => {
-        const numericId = Number(registro.id.replace(/\D/g, ''))
-        if (!Number.isFinite(numericId)) return maxValue
-        return Math.max(maxValue, numericId)
-      }, 0)
+      if (totalLosas <= 0) continue
 
-      for (const combo of registrosPorCombo.values()) {
-        const cantidadPicar = combo.actionTotals.picar
-        const cantidadPulir = combo.actionTotals.pulir
-        const cantidadEscuadrar = combo.actionTotals.escuadrar
-        const totalLosas = cantidadPicar + cantidadPulir + cantidadEscuadrar
+      payloads.push({
+        fecha,
+        origenId: combo.origenId,
+        origenNombre: combo.origenNombre,
+        tipo: combo.tipo,
+        dimension: combo.dimension,
+        cantidadPicar,
+        cantidadPulir,
+        cantidadEscuadrar,
+        cantidadResinar,
+        totalLosas,
+        totalM2: losasAMetros(totalLosas, combo.dimension),
+        detallesAcciones: combo.detallesAcciones,
+      })
+    }
 
-        if (totalLosas <= 0) {
-          continue
-        }
+    if (payloads.length === 0) {
+      setFormError('Ingresa al menos una cantidad de losas.')
+      return
+    }
 
-        const baseRecord: Omit<ProduccionDiaria, 'id'> = {
-          fecha,
-          origenId: combo.origenId,
-          origenNombre: combo.origenNombre,
-          tipo: combo.tipo,
-          dimension: combo.dimension,
-          cantidadPicar,
-          cantidadPulir,
-          cantidadEscuadrar,
-          totalLosas,
-          totalM2: losasAMetros(totalLosas, combo.dimension),
-          detallesAcciones: combo.detallesAcciones,
-        }
-
-        const existingIndex = registrosActualizados.findIndex(
-          (registro) =>
-            registro.fecha === fecha &&
-            registro.origenId === combo.origenId &&
-            registro.tipo === combo.tipo &&
-            registro.dimension === combo.dimension,
-        )
-
-        if (existingIndex === -1) {
-          maxIdNumber += 1
-          registrosNuevos.push({
-            id: `PG${String(maxIdNumber).padStart(3, '0')}`,
-            ...baseRecord,
-          })
-          continue
-        }
-
-        const existing = registrosActualizados[existingIndex]
-        registrosActualizados[existingIndex] = {
-          ...baseRecord,
-          id: existing.id,
-          canEdit: existing.canEdit,
-          editableUntil: existing.editableUntil,
-        }
+    try {
+      const createdRecords: ProduccionDiaria[] = []
+      for (const payload of payloads) {
+        const created = await createProduccion(payload)
+        createdRecords.push(created)
       }
 
-      return [...registrosNuevos, ...registrosActualizados]
-    })
-    resetFormAndClose()
+      replaceProduccion((prev) => [...createdRecords, ...prev])
+      resetFormAndClose()
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo registrar la produccion en el backend.',
+      )
+    }
   }
 
   const approveProduccionTallerRegistro = async (
@@ -653,12 +794,13 @@ export const useProduccionPageState = () => {
     fechasOrdenadas,
     formData,
     formError,
+    getLosasDisponiblesParaAccion,
     getDatePolicy,
     groupedByDate,
     handleSubmit,
     isDialogOpen,
     loadingDependencies,
-    origenesActivos,
+    origenesActivosByAccion,
     origenesActivosResumen,
     prepareNewForm,
     produccion,

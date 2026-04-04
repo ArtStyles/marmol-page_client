@@ -32,6 +32,12 @@ export const buildDefaultNav = (
       icon: LayoutDashboard,
     },
     {
+      href: routeWithWorkshop('/admin/bloques', workshopId),
+      label: 'Materia prima',
+      helper: 'Bloques y lotes',
+      icon: Boxes,
+    },
+    {
       href: routeWithWorkshop('/admin/inventario', workshopId),
       label: 'Inventario',
       helper: 'Stock',
@@ -42,6 +48,12 @@ export const buildDefaultNav = (
       label: 'Producción diaria',
       helper: 'Diaria',
       icon: Factory,
+    },
+    {
+      href: routeWithWorkshop('/admin/mermas', workshopId),
+      label: 'Mermas',
+      helper: 'Control',
+      icon: AlertTriangle,
     },
     {
       href: routeWithWorkshop('/admin/equipos', workshopId),
@@ -78,18 +90,6 @@ export const buildDefaultNav = (
       label: 'Contabilidad',
       helper: 'Reportes',
       icon: FileText,
-    },
-    {
-      href: routeWithWorkshop('/admin/bloques', workshopId),
-      label: 'Materia prima',
-      helper: 'Bloques y lotes',
-      icon: Boxes,
-    },
-    {
-      href: routeWithWorkshop('/admin/mermas', workshopId),
-      label: 'Mermas',
-      helper: 'Control',
-      icon: AlertTriangle,
     },
     {
       href: routeWithWorkshop('/admin/trabajadores', workshopId),

@@ -8,18 +8,20 @@ import type {
   UpdateUsageDimensionNumericInputParams,
 } from '../model/types'
 
-export const actionOrder: AccionLosa[] = ['picar', 'pulir', 'escuadrar']
+export const actionOrder: AccionLosa[] = ['picar', 'pulir', 'escuadrar', 'resinar']
 
 export const actionLabels: Record<AccionLosa, string> = {
   picar: 'Picar',
   pulir: 'Pulir',
   escuadrar: 'Escuadrar',
+  resinar: 'Resinar',
 }
 
 export const actionColors: Record<AccionLosa, string> = {
   picar: 'bg-blue-100 text-blue-800',
   pulir: 'bg-green-100 text-green-800',
   escuadrar: 'bg-amber-100 text-amber-800',
+  resinar: 'bg-cyan-100 text-cyan-800',
 }
 
 export const createUsageDimensionRow = (
@@ -33,6 +35,8 @@ export const createUsageDimensionRow = (
   mermaTotalTouched: false,
   reutilizableLosas: 0,
   reutilizableTouched: false,
+  cantidadResina: 0,
+  resinaTouched: false,
 })
 
 export const createUsageRow = (): ActionUsageForm => ({
@@ -52,10 +56,12 @@ export const createActionState = (): ActionFormState => ({
 
 export const createInitialFormData = (): FormData => ({
   fecha: new Date().toISOString().split('T')[0],
+  accionActiva: '',
   acciones: {
     picar: createActionState(),
     pulir: createActionState(),
     escuadrar: createActionState(),
+    resinar: createActionState(),
   },
 })
 
@@ -82,9 +88,9 @@ export const resolveDateEditPolicy = (
   if (!hasApiEditMetadata) {
     return {
       hasRecords: true,
-      canMutate: false,
+      canMutate: true,
       message:
-        'Fecha ya registrada. Sin metadata de API de ventana de 24h, queda en solo visualizacion.',
+        'Fecha ya registrada. Puedes registrar produccion adicional para esta misma fecha.',
     }
   }
 
@@ -130,7 +136,8 @@ export const buildNextProduccionId = (registros: ProduccionDiaria[]): string => 
 export const getLegacyAccionLosas = (registro: ProduccionDiaria, accion: AccionLosa): number => {
   if (accion === 'picar') return registro.cantidadPicar
   if (accion === 'pulir') return registro.cantidadPulir
-  return registro.cantidadEscuadrar
+  if (accion === 'escuadrar') return registro.cantidadEscuadrar
+  return registro.cantidadResinar
 }
 
 export const getAccionLosas = (registro: ProduccionDiaria, accion: AccionLosa): number => {

@@ -12,3 +12,9 @@ export interface RechazarInventarioMovimientoDto {
   motivoRechazo: string
 }
 
+export interface CreateSalidaProcesoInventarioDto {
+  accionObjetivo: 'pulir' | 'escuadrar' | 'resinar'
+  productoId: string
+  cantidadLosas: number
+  motivo: string
+}
