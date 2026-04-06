@@ -5,10 +5,13 @@ import { nextId, toDateOnly } from './helpers.js'
 import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToBloque(r: Record<string, unknown>): BloqueOLote {
+  const id = r.id as string
+  const tipo = r.tipo as 'Bloque' | 'Lote'
+
   return {
-    id: r.id as string,
-    nombre: r.nombre as string,
-    tipo: r.tipo as 'Bloque' | 'Lote',
+    id,
+    nombre: normalizeBloqueCodigo(id, tipo, r.nombre as string),
+    tipo,
     dimensionBase: r.dimension_base as BloqueOLote['dimensionBase'],
     costo: Number(r.costo),
     costoTransporte: Number(r.costo_transporte),
@@ -21,6 +24,27 @@ function rowToBloque(r: Record<string, unknown>): BloqueOLote {
     gananciaReal: Number(r.ganancia_real),
     estado: r.estado as 'activo' | 'agotado',
   }
+}
+
+function normalizeBloqueCodigo(
+  id: string,
+  tipo: BloqueOLote['tipo'],
+  nombreActual: string,
+): string {
+  const prefijo = tipo === 'Bloque' ? 'A' : 'L'
+  const codigoRegex = new RegExp(`^${prefijo}-\\d{3}$`)
+
+  if (codigoRegex.test(nombreActual.trim())) {
+    return nombreActual.trim()
+  }
+
+  const match = id.match(/(\d+)$/)
+  if (!match) return nombreActual
+
+  const numero = Number.parseInt(match[1], 10)
+  if (!Number.isFinite(numero) || numero <= 0) return nombreActual
+
+  return `${prefijo}-${String(numero).padStart(3, '0')}`
 }
 
 export class PostgresBloqueRepository implements BloqueRepositoryPort {

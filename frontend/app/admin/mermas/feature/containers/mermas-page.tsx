@@ -26,7 +26,16 @@ import {
 } from '@/components/ui/chart'
 import { useProduccionStore } from '@/hooks/use-produccion'
 import { createMerma, getBloques, getMermas } from '@/lib/resources-api'
-import { losasAMetros, type AccionLosa, type BloqueOLote, type Dimension, type Merma, type TipoProducto } from '@/lib/types'
+import {
+  losasAMetros,
+  PLANCHA_DIMENSION,
+  type AccionLosa,
+  type BloqueOLote,
+  type Dimension,
+  type Merma,
+  type TipoProducto,
+} from '@/lib/types'
+import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts'
 import { BarChart3, Plus, Search } from 'lucide-react'
 
@@ -159,6 +168,10 @@ function shortLabel(value: string, maxLength = 24): string {
 
 function getTodayDateIso(): string {
   return new Date().toISOString().split('T')[0]
+}
+
+function resolveDimensionByTipo(tipo: TipoProducto, dimension: Dimension): Dimension {
+  return tipo === 'Plancha' ? PLANCHA_DIMENSION : dimension
 }
 
 function buildProduccionItems(produccion: ReturnType<typeof useProduccionStore>['produccion']): MermaVisualItem[] {
@@ -297,17 +310,18 @@ export default function MermasPage() {
 
     const cantidadEntera = Math.trunc(formData.cantidadLosas)
     if (!Number.isInteger(cantidadEntera) || cantidadEntera <= 0) return
+    const dimensionSeleccionada = resolveDimensionByTipo(formData.tipo, formData.dimension)
 
     setIsSaving(true)
     try {
       const created = await createMerma({
         fecha: formData.fecha || getTodayDateIso(),
         origenId: formData.origenId,
-        origenNombre: origen.nombre,
+        origenNombre: getBloqueCodigo(origen),
         tipo: formData.tipo,
-        dimension: formData.dimension,
+        dimension: dimensionSeleccionada,
         cantidadLosas: cantidadEntera,
-        metrosCuadrados: Number(losasAMetros(cantidadEntera, formData.dimension).toFixed(2)),
+        metrosCuadrados: Number(losasAMetros(cantidadEntera, dimensionSeleccionada).toFixed(2)),
         motivo: formData.motivo,
         observaciones: formData.observaciones.trim(),
       })
@@ -328,8 +342,14 @@ export default function MermasPage() {
   }
 
   const metrosCuadradosForm = useMemo(
-    () => Number(losasAMetros(formData.cantidadLosas || 0, formData.dimension).toFixed(2)),
-    [formData.cantidadLosas, formData.dimension],
+    () =>
+      Number(
+        losasAMetros(
+          formData.cantidadLosas || 0,
+          resolveDimensionByTipo(formData.tipo, formData.dimension),
+        ).toFixed(2),
+      ),
+    [formData.cantidadLosas, formData.dimension, formData.tipo],
   )
 
   const mermasFueraProduccion = useMemo<MermaVisualItem[]>(() => {
@@ -616,7 +636,7 @@ export default function MermasPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Bloque / Lote</Label>
+                      <Label>Codigo</Label>
                       <Select
                         value={formData.origenId}
                         onValueChange={(value) => setFormData({ ...formData, origenId: value })}
@@ -627,7 +647,7 @@ export default function MermasPage() {
                         <SelectContent>
                           {bloquesYLotes.map((bloque) => (
                             <SelectItem key={bloque.id} value={bloque.id}>
-                              {bloque.nombre}
+                              {getBloqueCodigo(bloque)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -640,7 +660,14 @@ export default function MermasPage() {
                       <Label>Tipo</Label>
                       <Select
                         value={formData.tipo}
-                        onValueChange={(value) => setFormData({ ...formData, tipo: value as TipoProducto })}
+                        onValueChange={(value) => {
+                          const tipo = value as TipoProducto
+                          setFormData({
+                            ...formData,
+                            tipo,
+                            dimension: resolveDimensionByTipo(tipo, formData.dimension),
+                          })
+                        }}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -656,21 +683,25 @@ export default function MermasPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>Dimension</Label>
-                      <Select
-                        value={formData.dimension}
-                        onValueChange={(value) => setFormData({ ...formData, dimension: value as Dimension })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {dimensionOptions.map((dimension) => (
-                            <SelectItem key={dimension} value={dimension}>
-                              {dimension}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {formData.tipo === 'Plancha' ? (
+                        <Input value={`${PLANCHA_DIMENSION} (fija)`} disabled />
+                      ) : (
+                        <Select
+                          value={formData.dimension}
+                          onValueChange={(value) => setFormData({ ...formData, dimension: value as Dimension })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {dimensionOptions.map((dimension) => (
+                              <SelectItem key={dimension} value={dimension}>
+                                {dimension}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                   </div>
 

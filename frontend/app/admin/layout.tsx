@@ -36,6 +36,7 @@ import {
 } from '@/lib/admin-api'
 import {
   ADMIN_AUTH_EXPIRED_EVENT,
+  ADMIN_LOGOUT_EVENT,
   clearStoredAdminSession,
   isAccessTokenExpired,
   setStoredAccessToken,
@@ -100,10 +101,15 @@ export default function AdminLayout({
     const onAuthExpired = () => {
       performLogout('Tu sesion expiro. Inicia sesion de nuevo.')
     }
+    const onManualLogout = () => {
+      performLogout('')
+    }
 
     window.addEventListener(ADMIN_AUTH_EXPIRED_EVENT, onAuthExpired as EventListener)
+    window.addEventListener(ADMIN_LOGOUT_EVENT, onManualLogout as EventListener)
     return () => {
       window.removeEventListener(ADMIN_AUTH_EXPIRED_EVENT, onAuthExpired as EventListener)
+      window.removeEventListener(ADMIN_LOGOUT_EVENT, onManualLogout as EventListener)
     }
   }, [performLogout])
 

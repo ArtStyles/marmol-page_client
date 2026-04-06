@@ -2,6 +2,7 @@
 
 export type Dimension = '40x40' | '60x40' | '80x40'
 export type TipoProducto = 'Piso' | 'Plancha'
+export const PLANCHA_DIMENSION: Dimension = '80x40'
 export type EstadoLosa = 'Crudo' | 'Pulido'
 export type EstadoInventario = 'Picado' | 'Escuadrado' | 'Devastado' | 'Resinado' | 'Pulido'
 export type UbicacionInventario = 'almacen' | 'proceso'
@@ -71,6 +72,7 @@ export interface ConfiguracionSistema {
 
 export interface BloqueOLote {
   id: string
+  codigo?: string
   nombre: string
   tipo: 'Bloque' | 'Lote'
   dimensionBase: Dimension
@@ -231,6 +233,7 @@ export interface VentaDetalleProducto {
   origenNombre: string
   dimension: Dimension
   estado: EstadoInventario
+  cantidadUnidades?: number
   metrosCuadrados: number
   precioM2: number
   subtotal: number

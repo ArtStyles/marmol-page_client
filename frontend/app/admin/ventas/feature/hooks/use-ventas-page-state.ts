@@ -8,6 +8,7 @@ import type { Dimension, Producto, Venta, VentaDetalleProducto } from '@/lib/typ
 import {
   createDetalleFormulario,
   createEmptyMetros,
+  getDimensionAreaM2,
   getMetrosVenta as resolveMetrosVenta,
   metrosToLosasEquivalentes,
   getPrecioProducto as resolvePrecioProducto,
@@ -18,6 +19,10 @@ import {
 import type { FormDetalleProducto } from '../model/types'
 
 type ClienteField = 'clienteNombre' | 'clienteEmail' | 'clienteTelefono' | 'motivoMovimientoAlmacen'
+
+function round2(value: number): number {
+  return Number(value.toFixed(2))
+}
 
 export const useVentasPageState = () => {
   const { productos: inventarioProductos } = useInventarioStore()
@@ -90,6 +95,22 @@ export const useVentasPageState = () => {
     return resolveVentaBloquesResumen(venta, productos)
   }
 
+  const resolveDetalleCantidad = (detalle: FormDetalleProducto, producto: Producto) => {
+    if (producto.tipo === 'Plancha') {
+      const cantidadUnidades = Math.max(0, Math.trunc(detalle.cantidadUnidades || 0))
+      const metrosCuadrados = round2(cantidadUnidades * getDimensionAreaM2(producto.dimension))
+      return {
+        cantidadUnidades,
+        metrosCuadrados,
+      }
+    }
+
+    return {
+      cantidadUnidades: 0,
+      metrosCuadrados: Math.max(0, detalle.metrosCuadrados || 0),
+    }
+  }
+
   const filteredVentas = ventas.filter((venta) => {
     const query = searchTerm.toLowerCase()
     const detalles = getVentaDetalles(venta)
@@ -153,7 +174,10 @@ export const useVentasPageState = () => {
   const detallesCalculados = formData.detallesProductos
     .map((detalle) => {
       const producto = productos.find((item) => item.id === detalle.productoId)
-      if (!producto || detalle.metrosCuadrados <= 0) return null
+      if (!producto) return null
+
+      const { cantidadUnidades, metrosCuadrados } = resolveDetalleCantidad(detalle, producto)
+      if (metrosCuadrados <= 0) return null
 
       const precioM2 = getPrecioProducto(producto)
       return {
@@ -163,9 +187,10 @@ export const useVentasPageState = () => {
         origenNombre: producto.origenNombre,
         dimension: producto.dimension,
         estado: producto.estado,
-        metrosCuadrados: detalle.metrosCuadrados,
+        cantidadUnidades: producto.tipo === 'Plancha' ? cantidadUnidades : undefined,
+        metrosCuadrados,
         precioM2,
-        subtotal: detalle.metrosCuadrados * precioM2,
+        subtotal: metrosCuadrados * precioM2,
       } satisfies VentaDetalleProducto
     })
     .filter((detalle): detalle is VentaDetalleProducto => Boolean(detalle))
@@ -191,9 +216,21 @@ export const useVentasPageState = () => {
     setFormError(null)
     setFormData((prev) => ({
       ...prev,
-      detallesProductos: prev.detallesProductos.map((detalle) =>
-        detalle.id === detalleId ? { ...detalle, ...patch } : detalle,
-      ),
+      detallesProductos: prev.detallesProductos.map((detalle) => {
+        if (detalle.id !== detalleId) return detalle
+
+        const nextDetalle = { ...detalle, ...patch }
+        if (patch.productoId !== undefined) {
+          const producto = productos.find((item) => item.id === patch.productoId)
+          if (producto?.tipo === 'Plancha') {
+            nextDetalle.metrosCuadrados = 0
+          } else {
+            nextDetalle.cantidadUnidades = 0
+          }
+        }
+
+        return nextDetalle
+      }),
     }))
   }
 
@@ -224,6 +261,13 @@ export const useVentasPageState = () => {
     })
   }
 
+  const handleDetalleUnidadesChange = (detalleId: string, rawValue: string) => {
+    const parsedValue = rawValue === '' ? 0 : Number(rawValue)
+    updateDetalleFormulario(detalleId, {
+      cantidadUnidades: Number.isFinite(parsedValue) ? Math.max(0, Math.trunc(parsedValue)) : 0,
+    })
+  }
+
   const handleDescuentoChange = (rawValue: string) => {
     const parsedValue = rawValue === '' ? 0 : Number(rawValue)
     setNumericTouched((prev) => ({ ...prev, descuento: rawValue !== '' }))
@@ -250,27 +294,34 @@ export const useVentasPageState = () => {
     event.preventDefault()
     setFormError(null)
 
-    const tieneProductoSinM2 = formData.detallesProductos.some(
-      (detalle) => detalle.productoId && detalle.metrosCuadrados <= 0,
-    )
-    if (tieneProductoSinM2) {
-      setFormError('Cada producto seleccionado debe tener m2 mayores a 0.')
+    const tieneProductoSinCantidad = formData.detallesProductos.some((detalle) => {
+      if (!detalle.productoId) return false
+      const producto = productos.find((item) => item.id === detalle.productoId)
+      if (!producto) return false
+      if (producto.tipo === 'Plancha') return Math.trunc(detalle.cantidadUnidades || 0) <= 0
+      return detalle.metrosCuadrados <= 0
+    })
+    if (tieneProductoSinCantidad) {
+      setFormError('Cada producto seleccionado debe tener cantidad valida.')
       return
     }
 
-    const tieneM2SinProducto = formData.detallesProductos.some(
-      (detalle) => !detalle.productoId && detalle.metrosCuadrados > 0,
+    const tieneCantidadSinProducto = formData.detallesProductos.some(
+      (detalle) => !detalle.productoId && (detalle.metrosCuadrados > 0 || detalle.cantidadUnidades > 0),
     )
-    if (tieneM2SinProducto) {
-      setFormError('Selecciona el producto para cada fila con m2 ingresados.')
+    if (tieneCantidadSinProducto) {
+      setFormError('Selecciona el producto para cada fila con cantidad ingresada.')
       return
     }
 
     const detallesVenta = formData.detallesProductos
-      .filter((detalle) => detalle.productoId && detalle.metrosCuadrados > 0)
+      .filter((detalle) => detalle.productoId)
       .map((detalle) => {
         const producto = productos.find((item) => item.id === detalle.productoId)
         if (!producto) return null
+
+        const { cantidadUnidades, metrosCuadrados } = resolveDetalleCantidad(detalle, producto)
+        if (metrosCuadrados <= 0) return null
 
         const precioM2 = getPrecioProducto(producto)
         return {
@@ -280,9 +331,10 @@ export const useVentasPageState = () => {
           origenNombre: producto.origenNombre,
           dimension: producto.dimension,
           estado: producto.estado,
-          metrosCuadrados: detalle.metrosCuadrados,
+          cantidadUnidades: producto.tipo === 'Plancha' ? cantidadUnidades : undefined,
+          metrosCuadrados,
           precioM2,
-          subtotal: detalle.metrosCuadrados * precioM2,
+          subtotal: metrosCuadrados * precioM2,
         } satisfies VentaDetalleProducto
       })
       .filter((detalle): detalle is VentaDetalleProducto => Boolean(detalle))
@@ -304,7 +356,7 @@ export const useVentasPageState = () => {
       return acc
     }, createEmptyMetros())
 
-        const motivoMovimientoAlmacen = formData.motivoMovimientoAlmacen.trim()
+    const motivoMovimientoAlmacen = formData.motivoMovimientoAlmacen.trim()
     if (motivoMovimientoAlmacen.length < 5) {
       setFormError('Debes indicar un motivo de salida de almacen (minimo 5 caracteres).')
       return
@@ -355,8 +407,8 @@ export const useVentasPageState = () => {
       clienteNombre: '',
       clienteEmail: '',
       clienteTelefono: '',
-    motivoMovimientoAlmacen: '',
-    detallesProductos: [createDetalleFormulario(1)],
+      motivoMovimientoAlmacen: '',
+      detallesProductos: [createDetalleFormulario(1)],
     })
     setDetalleCounter(2)
     setFormError(null)
@@ -409,6 +461,7 @@ export const useVentasPageState = () => {
     handleAgregarDetalleProducto,
     handleEliminarDetalleProducto,
     handleDetalleMetrosChange,
+    handleDetalleUnidadesChange,
     handleDescuentoChange,
     handleClienteFieldChange,
     handleSubmit,

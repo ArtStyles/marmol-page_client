@@ -88,7 +88,7 @@ export function ProduccionCreateDialog({
       </DialogTrigger>
       <DialogContent className="max-h-[88vh] w-[96vw] max-w-[96vw] overflow-y-auto lg:max-w-[1200px]">
         <DialogHeader>
-          <DialogTitle>Registrar produccion diaria (directo por equipo)</DialogTitle>
+          <DialogTitle>Registrar produccion diaria</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -106,32 +106,16 @@ export function ProduccionCreateDialog({
             </div>
           </div>
 
-          {dateEditPolicy.hasRecords ? (
+          {dateEditPolicy.hasRecords && !dateEditPolicy.canMutate ? (
             <div
               className={cn(
                 'rounded-lg border px-3 py-2 text-xs',
-                dateEditPolicy.canMutate
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : 'border-amber-200 bg-amber-50 text-amber-700',
+                'border-amber-200 bg-amber-50 text-amber-700',
               )}
             >
               {dateEditPolicy.message}
             </div>
-          ) : (
-            <p className="text-xs text-slate-500">{dateEditPolicy.message}</p>
-          )}
-
-          <div className="rounded-lg border border-slate-200/80 bg-slate-50/80 p-3 text-sm text-slate-700">
-            <p className="text-[10px] uppercase tracking-[0.25em] text-slate-500">
-              Captura por accion
-            </p>
-            <p className="mt-1 font-semibold text-slate-900">
-              Primero elige la accion a registrar.
-            </p>
-            <p className="mt-1 text-[11px] text-slate-500">
-              Luego completa bloque/lote, equipo, personal, tipo y dimensiones.
-            </p>
-          </div>
+          ) : null}
 
           {!accionActiva ? (
             <div className="space-y-3">

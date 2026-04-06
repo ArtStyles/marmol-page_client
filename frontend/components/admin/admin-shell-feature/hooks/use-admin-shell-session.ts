@@ -10,7 +10,7 @@ import {
   isPathAllowed,
   type AdminUser,
 } from '@/lib/admin-auth'
-import { clearStoredAdminSession, isAccessTokenExpired } from '@/lib/api-client'
+import { clearStoredAdminSession, isAccessTokenExpired, notifyAdminLogout } from '@/lib/api-client'
 import { extractWorkshopIdFromAdminPath } from '@/lib/admin-routes'
 import { WORKSHOP_STORAGE_KEY } from '@/lib/workshops'
 import { buildDefaultNav } from '../lib/navigation'
@@ -80,6 +80,8 @@ export const useAdminShellSession = (
 
   const handleLogout = () => {
     clearStoredAdminSession()
+    setSessionUser(null)
+    notifyAdminLogout()
     router.replace('/admin')
   }
 

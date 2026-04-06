@@ -29,6 +29,8 @@ interface ProduccionActor {
   userName: string
 }
 
+const PLANCHA_DIMENSION = '80x40' as const
+
 export class GetProduccionUseCase {
   constructor(private readonly repository: ProduccionRepositoryPort) {}
 
@@ -52,11 +54,12 @@ export class CreateProduccionUseCase {
   ) {}
 
   async execute(dto: CreateProduccionDto): Promise<ProduccionResponseDto> {
-    validateResinaConsumo(dto)
-    await consumeProcesoStockParaProduccion(dto, this.productoRepository)
+    const normalizedDto = normalizeProduccionDto(dto)
+    validateResinaConsumo(normalizedDto)
+    await consumeProcesoStockParaProduccion(normalizedDto, this.productoRepository)
 
     return this.repository.create({
-      ...dto,
+      ...normalizedDto,
       aprobacionTallerEstado: 'pendiente',
       aprobacionAlmacenEstado: 'pendiente',
       inventarioAplicado: false,
@@ -411,9 +414,15 @@ async function actualizarBloquePorProduccion(
   }
 
   const totalLosasPerdidas =
-    dto.detallesAcciones?.reduce((sum, item) => sum + (item.losasMermaTotal ?? 0), 0) ?? 0
+    dto.detallesAcciones?.reduce(
+      (sum, item) => sum + (item.accion === 'picar' ? 0 : (item.losasMermaTotal ?? 0)),
+      0,
+    ) ?? 0
   const totalM2Perdidos =
     dto.detallesAcciones?.reduce((sum, item) => {
+      if (item.accion === 'picar') {
+        return sum
+      }
       if (item.metrosMermaTotal != null) {
         return sum + item.metrosMermaTotal
       }
@@ -441,11 +450,35 @@ function buildPerdidasPorAccion(
   } as Record<'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir', number>
 
   for (const detalle of detalles ?? []) {
-    const totalPartidas = (detalle.losasMermaTotal ?? 0) + (detalle.losasReutilizables ?? 0)
+    const mermaLosas = detalle.accion === 'picar' ? 0 : (detalle.losasMermaTotal ?? 0)
+    const totalPartidas = mermaLosas + (detalle.losasReutilizables ?? 0)
     acc[detalle.accion] += totalPartidas
   }
 
   return acc
+}
+
+function normalizeProduccionDto(dto: CreateProduccionDto): CreateProduccionDto {
+  if (dto.tipo !== 'Plancha') return dto
+
+  const detallesAcciones = dto.detallesAcciones?.map((detalle) => {
+    const losasMermaTotal = detalle.losasMermaTotal ?? 0
+    const losasReutilizables = detalle.losasReutilizables ?? 0
+
+    return {
+      ...detalle,
+      metrosCuadrados: round2(detalle.cantidadLosas * dimensionToArea(PLANCHA_DIMENSION)),
+      metrosMermaTotal: round2(losasMermaTotal * dimensionToArea(PLANCHA_DIMENSION)),
+      metrosReutilizables: round2(losasReutilizables * dimensionToArea(PLANCHA_DIMENSION)),
+    }
+  })
+
+  return {
+    ...dto,
+    dimension: PLANCHA_DIMENSION,
+    totalM2: round2(dto.totalLosas * dimensionToArea(PLANCHA_DIMENSION)),
+    detallesAcciones,
+  }
 }
 
 function dimensionToArea(dimension: ProduccionDiaria['dimension']): number {

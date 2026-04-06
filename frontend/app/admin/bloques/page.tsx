@@ -10,7 +10,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import type { BloqueOLote } from '@/lib/types'
 import { createBloque, deleteBloque, getBloques, updateBloque } from '@/lib/resources-api'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
-import { Plus, Search, Boxes, Eye, Edit, Trash2 } from 'lucide-react'
+import { getBloqueCodigo } from '@/lib/bloque-codigo'
+import { Plus, Search, Eye, Edit, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -42,7 +43,6 @@ export default function BloquesPage() {
     costoTransporte: false,
   })
   const [formData, setFormData] = useState({
-    nombre: '',
     tipo: 'Bloque' as 'Bloque' | 'Lote',
     metrosComprados: 0,
     costo: 0,
@@ -93,7 +93,7 @@ export default function BloquesPage() {
     () =>
       bloques.filter(
         (bloque) =>
-          bloque.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          getBloqueCodigo(bloque).toLowerCase().includes(searchTerm.toLowerCase()) ||
           bloque.proveedor.toLowerCase().includes(searchTerm.toLowerCase()),
       ),
     [bloques, searchTerm],
@@ -169,7 +169,7 @@ export default function BloquesPage() {
             recentBloques.map((bloque) => (
               <div key={bloque.id} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
                 <div>
-                  <p className="text-xs font-semibold text-slate-900">{bloque.nombre}</p>
+                  <p className="text-xs font-semibold text-slate-900">{getBloqueCodigo(bloque)}</p>
                   <p className="text-[11px] text-slate-500">{bloque.fechaIngreso}</p>
                 </div>
                 <Badge variant="outline" className="text-[11px]">
@@ -195,7 +195,6 @@ export default function BloquesPage() {
       }
       try {
         const updated = await updateBloque(editingBloque.id, {
-          nombre: formData.nombre,
           tipo: formData.tipo,
           metrosComprados: formData.metrosComprados,
           costo: formData.costo,
@@ -220,7 +219,6 @@ export default function BloquesPage() {
 
     try {
       const newBloque = await createBloque({
-        nombre: formData.nombre,
         tipo: formData.tipo,
         dimensionBase: '60x40',
         costo: formData.costo,
@@ -247,7 +245,6 @@ export default function BloquesPage() {
     if (!canModify(bloque.fechaIngreso)) return
     setEditingBloque(bloque)
     setFormData({
-      nombre: bloque.nombre,
       tipo: bloque.tipo,
       metrosComprados: bloque.metrosComprados,
       costo: bloque.costo,
@@ -289,7 +286,6 @@ export default function BloquesPage() {
   const resetForm = () => {
     setEditingBloque(null)
     setFormData({
-      nombre: '',
       tipo: 'Bloque',
       metrosComprados: 0,
       costo: 0,
@@ -356,9 +352,6 @@ export default function BloquesPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground font-sans">Materia prima</h1>
-            <p className="mt-1 text-muted-foreground font-sans">
-              Registra volumen en m3, costo de material y costo de transporte por bloque/lote.
-            </p>
             {actionError ? <p className="mt-2 text-sm text-destructive">{actionError}</p> : null}
           </div>
 
@@ -379,31 +372,20 @@ export default function BloquesPage() {
               </DialogHeader>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Nombre</Label>
-                    <Input
-                      value={formData.nombre}
-                      onChange={(event) => setFormData({ ...formData, nombre: event.target.value })}
-                      placeholder="Bloque Carrara #4"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Tipo</Label>
-                    <Select
-                      value={formData.tipo}
-                      onValueChange={(value: 'Bloque' | 'Lote') => setFormData({ ...formData, tipo: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Bloque">Bloque</SelectItem>
-                        <SelectItem value="Lote">Lote</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Select
+                    value={formData.tipo}
+                    onValueChange={(value: 'Bloque' | 'Lote') => setFormData({ ...formData, tipo: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Bloque">Bloque</SelectItem>
+                      <SelectItem value="Lote">Lote</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -490,26 +472,13 @@ export default function BloquesPage() {
           </Dialog>
         </div>
 
-        <div className="rounded-[24px] border border-sky-200/70 bg-sky-50/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-sm">
-          <div className="flex items-start gap-3">
-            <Boxes className="mt-0.5 h-5 w-5 text-blue-600" />
-            <div>
-              <h4 className="font-medium text-blue-800">Principio del Sistema</h4>
-              <p className="text-sm text-blue-700">
-                Cada bloque/lote define volumen en m3, costo de material y costo de transporte.
-                La captura en m2 se elimino en esta vista para evitar duplicidad operativa.
-              </p>
-            </div>
-          </div>
-        </div>
-
         <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="space-y-1">
             <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</p>
             <div className="relative w-full sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nombre o proveedor..."
+                placeholder="Buscar por codigo o proveedor..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 className="pl-9"
@@ -531,10 +500,9 @@ export default function BloquesPage() {
             ) : (
               <div className="space-y-3">
                 <div className="overflow-x-auto">
-                  <div className="space-y-3 lg:min-w-[1260px]">
-                    <div className="hidden rounded-[16px] border border-slate-200/70 bg-slate-50/70 px-4 py-2 lg:grid lg:grid-cols-[80px_minmax(0,1.2fr)_90px_90px_minmax(0,1fr)_120px_120px_110px_minmax(0,1.4fr)]">
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">ID</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Bloque/Lote</span>
+                  <div className="space-y-3 lg:min-w-[1180px]">
+                    <div className="hidden rounded-[16px] border border-slate-200/70 bg-slate-50/70 px-4 py-2 lg:grid lg:grid-cols-[minmax(0,1.2fr)_90px_90px_minmax(0,1fr)_120px_120px_110px_minmax(0,1.4fr)]">
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Codigo</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Tipo</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">m3</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Proveedor</span>
@@ -547,11 +515,9 @@ export default function BloquesPage() {
                     <div className="divide-y divide-slate-200/60 overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
                       {filteredBloques.map((bloque) => (
                         <div key={bloque.id} className="px-4 py-3">
-                          <div className="grid gap-2 lg:grid-cols-[80px_minmax(0,1.2fr)_90px_90px_minmax(0,1fr)_120px_120px_110px_minmax(0,1.4fr)] lg:items-center">
-                            <div className="text-sm font-semibold text-slate-900">{bloque.id}</div>
-
+                          <div className="grid gap-2 lg:grid-cols-[minmax(0,1.2fr)_90px_90px_minmax(0,1fr)_120px_120px_110px_minmax(0,1.4fr)] lg:items-center">
                             <div>
-                              <p className="text-sm font-semibold text-slate-900">{bloque.nombre}</p>
+                              <p className="text-sm font-semibold text-slate-900">{getBloqueCodigo(bloque)}</p>
                               <p className="text-[11px] text-slate-500">Ingreso {bloque.fechaIngreso}</p>
                             </div>
 
@@ -596,10 +562,14 @@ export default function BloquesPage() {
             {selectedBloque && (
               <>
                 <DialogHeader>
-                  <DialogTitle>{selectedBloque.nombre}</DialogTitle>
+                  <DialogTitle>Codigo {getBloqueCodigo(selectedBloque)}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Codigo</p>
+                      <p className="font-medium">{getBloqueCodigo(selectedBloque)}</p>
+                    </div>
                     <div>
                       <p className="text-muted-foreground">Tipo</p>
                       <p className="font-medium">{selectedBloque.tipo}</p>

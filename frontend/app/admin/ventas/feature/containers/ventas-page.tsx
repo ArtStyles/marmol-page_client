@@ -5,7 +5,7 @@ import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { Eye, Plus, Search, ShoppingCart, Trash2 } from 'lucide-react'
+import { Eye, Plus, Search, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import {
   dimensionOptions,
   formatMoney,
+  getDimensionAreaM2,
   metrosToLosasEquivalentes,
 } from '../lib/ventas-helpers'
 import { useVentasPageState } from '../hooks/use-ventas-page-state'
@@ -70,6 +71,7 @@ export default function VentasPage() {
     handleAgregarDetalleProducto,
     handleEliminarDetalleProducto,
     handleDetalleMetrosChange,
+    handleDetalleUnidadesChange,
     handleDescuentoChange,
     handleClienteFieldChange,
     handleSubmit,
@@ -144,9 +146,6 @@ export default function VentasPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground font-sans">Ventas</h1>
-            <p className="mt-1 text-muted-foreground font-sans">
-              Registra ventas por metros cuadrados distribuidos por bloques y dimensiones en una misma compra.
-            </p>
             {loadError ? <p className="mt-2 text-sm text-destructive">{loadError}</p> : null}
             {loading ? <p className="mt-2 text-sm text-muted-foreground">Cargando ventas...</p> : null}
           </div>
@@ -175,7 +174,14 @@ export default function VentasPage() {
                     {formData.detallesProductos.map((detalle, index) => {
                       const productoSeleccionado = productos.find((item) => item.id === detalle.productoId)
                       const precioM2 = productoSeleccionado ? getPrecioProducto(productoSeleccionado) : 0
-                      const subtotalItem = detalle.metrosCuadrados * precioM2
+                      const isPlancha = productoSeleccionado?.tipo === 'Plancha'
+                      const areaM2 = productoSeleccionado ? getDimensionAreaM2(productoSeleccionado.dimension) : 0
+                      const cantidadUnidades = Math.max(0, Math.trunc(detalle.cantidadUnidades || 0))
+                      const metrosDetalle = isPlancha
+                        ? Number((cantidadUnidades * areaM2).toFixed(2))
+                        : detalle.metrosCuadrados
+                      const precioUnidad = isPlancha ? precioM2 * areaM2 : 0
+                      const subtotalItem = metrosDetalle * precioM2
 
                       return (
                         <div key={detalle.id} className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
@@ -205,7 +211,9 @@ export default function VentasPage() {
                               <SelectContent>
                                 {productos.map((producto) => (
                                   <SelectItem key={producto.id} value={producto.id}>
-                                    {producto.nombre} - {producto.origenNombre} ({producto.dimension})
+                                    {producto.tipo === 'Plancha'
+                                      ? `${producto.nombre} - ${producto.origenNombre}`
+                                      : `${producto.nombre} - ${producto.origenNombre} (${producto.dimension})`}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -214,31 +222,55 @@ export default function VentasPage() {
 
                           <div className="mt-3 grid gap-3 sm:grid-cols-2">
                             <div className="space-y-2">
-                              <Label>M2 vendidos</Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.1"
-                                placeholder="0"
-                                value={detalle.metrosCuadrados > 0 ? detalle.metrosCuadrados : ''}
-                                onChange={(event) => handleDetalleMetrosChange(detalle.id, event.target.value)}
-                              />
+                              <Label>{isPlancha ? 'Unidades' : 'M2 vendidos'}</Label>
+                              {isPlancha ? (
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  placeholder="0"
+                                  value={detalle.cantidadUnidades > 0 ? detalle.cantidadUnidades : ''}
+                                  onChange={(event) =>
+                                    handleDetalleUnidadesChange(detalle.id, event.target.value)
+                                  }
+                                />
+                              ) : (
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.1"
+                                  placeholder="0"
+                                  value={detalle.metrosCuadrados > 0 ? detalle.metrosCuadrados : ''}
+                                  onChange={(event) =>
+                                    handleDetalleMetrosChange(detalle.id, event.target.value)
+                                  }
+                                />
+                              )}
                             </div>
                             <div className="space-y-2">
-                              <Label>Precio m2</Label>
-                              <Input value={productoSeleccionado ? formatMoney(precioM2) : '-'} disabled />
+                              <Label>{isPlancha ? 'Precio unidad' : 'Precio m2'}</Label>
+                              <Input
+                                value={
+                                  productoSeleccionado
+                                    ? formatMoney(isPlancha ? precioUnidad : precioM2)
+                                    : '-'
+                                }
+                                disabled
+                              />
                             </div>
                           </div>
 
                           <div className="mt-3 rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-600">
                             <p>Bloque: {productoSeleccionado?.origenNombre ?? '-'}</p>
-                            <p>Dimension: {productoSeleccionado?.dimension ?? '-'}</p>
                             <p>
-                              Losas equivalentes:{' '}
+                              Dimension:{' '}
                               {productoSeleccionado
-                                ? metrosToLosasEquivalentes(detalle.metrosCuadrados, productoSeleccionado.dimension).toFixed(2)
+                                ? isPlancha
+                                  ? `${productoSeleccionado.dimension} (fija)`
+                                  : productoSeleccionado.dimension
                                 : '-'}
                             </p>
+                            {isPlancha ? <p>Total m2 eq: {metrosDetalle.toFixed(2)} m2</p> : null}
                             <p>Subtotal item: {productoSeleccionado ? formatMoney(subtotalItem) : '-'}</p>
                           </div>
                         </div>
@@ -305,9 +337,19 @@ export default function VentasPage() {
                       {detallesCalculados.map((detalle, index) => (
                         <div key={`${detalle.productoId}-${index}`} className="flex items-center justify-between text-slate-600">
                           <span>
-                            {detalle.origenNombre} - {detalle.dimension}: {detalle.metrosCuadrados.toFixed(2)} m2 x{' '}
-                            {formatMoney(detalle.precioM2)}
-                            {' '}({metrosToLosasEquivalentes(detalle.metrosCuadrados, detalle.dimension).toFixed(2)} losas eq)
+                            {detalle.cantidadUnidades && detalle.cantidadUnidades > 0 ? (
+                              <>
+                                {detalle.origenNombre}: {detalle.cantidadUnidades} und x{' '}
+                                {formatMoney(detalle.precioM2 * getDimensionAreaM2(detalle.dimension))}
+                                {' '}({detalle.metrosCuadrados.toFixed(2)} m2 eq)
+                              </>
+                            ) : (
+                              <>
+                                {detalle.origenNombre} - {detalle.dimension}: {detalle.metrosCuadrados.toFixed(2)} m2 x{' '}
+                                {formatMoney(detalle.precioM2)}
+                                {' '}({metrosToLosasEquivalentes(detalle.metrosCuadrados, detalle.dimension).toFixed(2)} losas eq)
+                              </>
+                            )}
                           </span>
                           <span>{formatMoney(detalle.subtotal)}</span>
                         </div>
@@ -358,19 +400,6 @@ export default function VentasPage() {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
-
-        <div className="rounded-[24px] border border-sky-200/70 bg-sky-50/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-sm">
-          <div className="flex items-start gap-3">
-            <ShoppingCart className="mt-0.5 h-5 w-5 text-blue-600" />
-            <div>
-              <h4 className="font-medium text-blue-800">Principio del sistema</h4>
-              <p className="text-sm text-blue-700">
-                Una venta puede mezclar productos de diferentes bloques. El registro comercial debe reflejar lo
-                realmente vendido por bloque y dimension para mantener trazabilidad de inventario.
-              </p>
-            </div>
-          </div>
         </div>
 
         <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
@@ -568,8 +597,18 @@ export default function VentasPage() {
                             </div>
                             <div className="text-right">
                               <p className="text-xs text-slate-600">
-                                {detalle.metrosCuadrados.toFixed(2)} m2 |{' '}
-                                {metrosToLosasEquivalentes(detalle.metrosCuadrados, detalle.dimension).toFixed(2)} losas eq
+                                {detalle.cantidadUnidades && detalle.cantidadUnidades > 0 ? (
+                                  <>
+                                    {detalle.cantidadUnidades} und x{' '}
+                                    {formatMoney(detalle.precioM2 * getDimensionAreaM2(detalle.dimension))}{' '}
+                                    ({detalle.metrosCuadrados.toFixed(2)} m2 eq)
+                                  </>
+                                ) : (
+                                  <>
+                                    {detalle.metrosCuadrados.toFixed(2)} m2 |{' '}
+                                    {metrosToLosasEquivalentes(detalle.metrosCuadrados, detalle.dimension).toFixed(2)} losas eq
+                                  </>
+                                )}
                               </p>
                               <p className="font-semibold text-slate-900">{formatMoney(detalle.subtotal)}</p>
                             </div>

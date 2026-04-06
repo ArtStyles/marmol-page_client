@@ -26,10 +26,6 @@ import { ProduccionRegistrosList } from '../components/produccion-registros-list
 export default function ProduccionPage() {
   const {
     addUsage,
-    almacenApprovalLoadingById,
-    approvalError,
-    approveProduccionAlmacenRegistro,
-    approveProduccionTallerRegistro,
     dependenciesError,
     dateEditPolicy,
     dateFilter,
@@ -57,13 +53,13 @@ export default function ProduccionPage() {
     setIsDialogOpen,
     setSearchTerm,
     stockProcesoDisponible,
-    tallerApprovalLoadingById,
     topOrigenesResumen,
     today,
     totalLosasResumen,
     totalM2Resumen,
     toggleUsageDimension,
     trabajadoresActivos,
+    resolveOrigenCodigo,
     updateUsage,
     updateUsageDimension,
   } = useProduccionPageState()
@@ -89,8 +85,6 @@ export default function ProduccionPage() {
     }
   }, [])
 
-  const canApproveTaller = currentUser ? hasPermission(currentUser, 'produccion:approve_taller') : false
-  const canApproveAlmacen = currentUser ? hasPermission(currentUser, 'inventario:approve') : false
   const canSolicitarRetornoProceso = currentUser
     ? hasPermission(currentUser, 'inventario:write')
     : false
@@ -181,21 +175,26 @@ export default function ProduccionPage() {
     />
   )
 
+  const openEditByFecha = (fecha: string) => {
+    prepareNewForm()
+    setFormData((prev) => ({
+      ...prev,
+      fecha,
+      accionActiva: '',
+    }))
+    setIsDialogOpen(true)
+  }
+
   return (
     <AdminShell rightPanel={rightPanel}>
       <div className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground font-sans">Produccion diaria</h1>
-            <p className="mt-1 text-muted-foreground font-sans">
-              Registra produccion en uno o varios envios por fecha. Cada subfila permite
-              bloque/lote, tipo y dimension independientes.
-            </p>
             {dependenciesError ? <p className="mt-2 text-sm text-destructive">{dependenciesError}</p> : null}
             {loadingDependencies ? (
               <p className="mt-2 text-sm text-slate-500">Cargando catalogos de produccion...</p>
             ) : null}
-            {approvalError ? <p className="mt-2 text-sm text-destructive">{approvalError}</p> : null}
             {retornoNotice ? <p className="mt-2 text-sm text-emerald-700">{retornoNotice}</p> : null}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -376,15 +375,11 @@ export default function ProduccionPage() {
         </Dialog>
 
         <ProduccionRegistrosList
-          canApproveAlmacen={canApproveAlmacen}
-          canApproveTaller={canApproveTaller}
           fechasOrdenadas={fechasOrdenadas}
           groupedByDate={groupedByDate}
           getDatePolicy={getDatePolicy}
-          onApproveAlmacen={approveProduccionAlmacenRegistro}
-          onApproveTaller={approveProduccionTallerRegistro}
-          almacenApprovalLoadingById={almacenApprovalLoadingById}
-          tallerApprovalLoadingById={tallerApprovalLoadingById}
+          resolveOrigenCodigo={resolveOrigenCodigo}
+          onEditFecha={openEditByFecha}
         />
       </div>
     </AdminShell>

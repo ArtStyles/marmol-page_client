@@ -8,6 +8,7 @@ import {
   getDefaultSystemGroupIdsByRole,
   normalizePermissionCodes,
 } from '../../../application/security/permissions.js'
+import { normalizeAdminRole } from '../../../application/security/role-normalization.js'
 import type {
   AdminUser,
   PermissionDefinition,
@@ -64,23 +65,6 @@ function normalizeGroupIds(input: string[]): string[] {
   return [...set]
 }
 
-function normalizeAdminRoleFromTrabajadorRole(role: string): AdminUser['role'] {
-  const normalized = role.trim()
-  if (
-    normalized === 'Jefe de Turno de Produccion' ||
-    normalized === 'Jefe de Turno de Producción' ||
-    normalized === 'Jefe de Turno de ProducciÃ³n'
-  ) {
-    return 'Jefe de Turno de Produccion'
-  }
-  if (normalized === 'Administrador') return 'Administrador'
-  if (normalized === 'Contadora') return 'Contadora'
-  if (normalized === 'Gestor de Ventas') return 'Gestor de Ventas'
-  if (normalized === 'Jefe de Almacen') return 'Jefe de Almacen'
-  if (normalized === 'Super Admin') return 'Super Admin'
-  return 'Obrero'
-}
-
 function getUsers(): AdminUser[] {
   const adminUsers = listAdminUsers().map((user) => ({ ...user }))
   const workshopId = getActiveWorkshopId()
@@ -92,7 +76,7 @@ function getUsers(): AdminUser[] {
       id: `TRA-${worker.id}`,
       name: worker.nombre,
       email: worker.email,
-      role: normalizeAdminRoleFromTrabajadorRole(worker.rol),
+      role: normalizeAdminRole(worker.rol),
       workshopId,
     } satisfies AdminUser))
 

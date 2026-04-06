@@ -86,7 +86,10 @@ export class CreateVentaUseCase {
         dimension: detalle.dimension,
         origenId: detalle.origenId,
         origenNombre: detalle.origenNombre,
-        cantidadLosas: Math.ceil(detalle.metrosCuadrados / dimensionToArea(detalle.dimension)),
+        cantidadLosas:
+          producto.tipo === 'Plancha'
+            ? detalle.cantidadUnidades ?? Math.ceil(detalle.metrosCuadrados / dimensionToArea(detalle.dimension))
+            : Math.ceil(detalle.metrosCuadrados / dimensionToArea(detalle.dimension)),
         metrosCuadrados: round2(detalle.metrosCuadrados),
       }
     })
@@ -161,23 +164,85 @@ async function resolveVentaDetalles(
   dto: CreateVentaDto,
   productoRepository: ProductoRepositoryPort,
 ): Promise<VentaDetalleProducto[]> {
+  const productos = await productoRepository.findAll()
+  const productosPorId = new Map(productos.map((producto) => [producto.id, producto]))
+
   if (dto.detallesProductos && dto.detallesProductos.length > 0) {
-    const details = dto.detallesProductos.map((item) => ({
-      ...item,
-      metrosCuadrados: round2(item.metrosCuadrados),
-      subtotal: round2(item.metrosCuadrados * item.precioM2),
-    }))
+    const details = dto.detallesProductos.map((item) => {
+      const producto = productosPorId.get(item.productoId)
+      if (!producto) {
+        throw new DomainError(`Producto ${item.productoId} no existe`, 404, 'PRODUCTO_NOT_FOUND')
+      }
+
+      if (producto.tipo === 'Plancha') {
+        const area = dimensionToArea(producto.dimension)
+        const cantidadUnidades = Math.trunc(
+          item.cantidadUnidades && item.cantidadUnidades > 0
+            ? item.cantidadUnidades
+            : item.metrosCuadrados > 0
+              ? Math.round(item.metrosCuadrados / area)
+              : 0,
+        )
+
+        if (cantidadUnidades <= 0) {
+          throw new DomainError(
+            'Cada detalle de plancha debe indicar unidades mayores a 0',
+            400,
+            'VENTA_DETALLE_UNIDADES_INVALIDAS',
+          )
+        }
+
+        const metrosCuadrados = round2(cantidadUnidades * area)
+        return {
+          ...item,
+          dimension: producto.dimension,
+          estado: producto.estado,
+          cantidadUnidades,
+          metrosCuadrados,
+          subtotal: round2(metrosCuadrados * item.precioM2),
+        }
+      }
+
+      return {
+        ...item,
+        dimension: producto.dimension,
+        estado: producto.estado,
+        metrosCuadrados: round2(item.metrosCuadrados),
+        subtotal: round2(item.metrosCuadrados * item.precioM2),
+      }
+    })
     validateDetalles(details)
     return details
   }
 
-  const producto = await productoRepository.findById(dto.productoId)
+  const producto = productosPorId.get(dto.productoId) ?? null
   if (!producto) {
     throw new DomainError(`Producto ${dto.productoId} no existe`, 404, 'PRODUCTO_NOT_FOUND')
   }
 
   if (dto.cantidadM2 <= 0) {
     throw new DomainError('La venta debe tener metros cuadrados mayores a 0', 400, 'VENTA_METROS_INVALIDOS')
+  }
+
+  if (producto.tipo === 'Plancha') {
+    const area = dimensionToArea(producto.dimension)
+    const cantidadUnidades = Math.max(1, Math.ceil(dto.cantidadM2 / area))
+    const metrosCuadrados = round2(cantidadUnidades * area)
+
+    return [
+      {
+        productoId: producto.id,
+        productoNombre: producto.nombre,
+        origenId: producto.origenId,
+        origenNombre: producto.origenNombre,
+        dimension: producto.dimension,
+        estado: producto.estado,
+        cantidadUnidades,
+        metrosCuadrados,
+        precioM2: dto.precioM2,
+        subtotal: round2(metrosCuadrados * dto.precioM2),
+      },
+    ]
   }
 
   return [

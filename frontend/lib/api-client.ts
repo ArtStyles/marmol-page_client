@@ -10,6 +10,7 @@ const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? defaultApiBaseUrl)
 const DEFAULT_GET_CACHE_TTL_MS = 15_000
 
 export const ADMIN_AUTH_EXPIRED_EVENT = 'marble-admin-auth-expired'
+export const ADMIN_LOGOUT_EVENT = 'marble-admin-logout'
 
 type AuthExpiredReason = 'expired' | 'invalid'
 
@@ -62,6 +63,11 @@ function notifyAuthExpired(reason: AuthExpiredReason, token: string | null): voi
 
 function resetAuthExpiredState(): void {
   lastExpiredToken = null
+}
+
+export function notifyAdminLogout(): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event(ADMIN_LOGOUT_EVENT))
 }
 
 export class ApiError extends Error {

@@ -51,7 +51,9 @@ export const getProductos = (): Promise<Producto[]> => apiRequest<Producto[]>('/
 
 export const getBloques = (): Promise<BloqueOLote[]> => apiRequest<BloqueOLote[]>('/bloques')
 
-export const createBloque = (input: Omit<BloqueOLote, 'id'>): Promise<BloqueOLote> =>
+export const createBloque = (
+  input: Omit<BloqueOLote, 'id' | 'nombre'> & { nombre?: string },
+): Promise<BloqueOLote> =>
   apiRequest<BloqueOLote>('/bloques', {
     method: 'POST',
     body: input,

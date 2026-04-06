@@ -1,4 +1,5 @@
-﻿import { z } from 'zod'
+import { z } from 'zod'
+import { parseTrabajadorRole } from '../../../application/security/role-normalization.js'
 
 const dimensionSchema = z.enum(['40x40', '60x40', '80x40'])
 const tipoProductoSchema = z.enum(['Piso', 'Plancha'])
@@ -7,13 +8,17 @@ const estadoInventarioSchema = z.enum(['Picado', 'Escuadrado', 'Devastado', 'Res
 const ubicacionInventarioSchema = z.enum(['almacen', 'proceso'])
 const tipoEquipoSchema = z.enum(['Pulidora', 'Cortadora', 'Escuadradora'])
 const accionLosaSchema = z.enum(['picar', 'escuadrar', 'devastar', 'resinar', 'pulir'])
-const rolTrabajadorSchema = z.enum([
-  'Administrador',
-  'Gestor de Ventas',
-  'Jefe de Almacen',
-  'Jefe de Turno de ProducciÃ³n',
-  'Obrero',
-])
+const rolTrabajadorSchema = z.string().transform((value, ctx) => {
+  const parsedRole = parseTrabajadorRole(value)
+  if (!parsedRole) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Rol de trabajador invalido',
+    })
+    return z.NEVER
+  }
+  return parsedRole
+})
 const motivoMermaSchema = z.enum([
   'Partida al picar',
   'Partida al pulir',
@@ -41,7 +46,6 @@ const tarifasTrabajadorSchema = z.object({
 })
 
 export const createBloqueSchema = z.object({
-  nombre: z.string().min(1),
   tipo: z.enum(['Bloque', 'Lote']),
   dimensionBase: dimensionSchema,
   costo: z.number(),
@@ -118,7 +122,7 @@ export const createEquipoSchema = z.object({
 export const updateEquipoSchema = createEquipoSchema.partial()
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().min(1),
   password: z.string().min(1),
   workshopId: z.string().min(1).optional(),
 })
@@ -204,6 +208,7 @@ export const createVentaSchema = z.object({
         origenNombre: z.string(),
         dimension: dimensionSchema,
         estado: estadoInventarioSchema,
+        cantidadUnidades: z.number().int().positive().optional(),
         metrosCuadrados: z.number().positive(),
         precioM2: z.number().nonnegative(),
         subtotal: z.number().nonnegative(),
@@ -390,4 +395,3 @@ export const updateHistorialPagoSchema = createHistorialPagoSchema.partial()
 export type CreateBloqueInput = z.infer<typeof createBloqueSchema>
 export type UpdateBloqueInput = z.infer<typeof updateBloqueSchema>
 export type LoginInput = z.infer<typeof loginSchema>
-

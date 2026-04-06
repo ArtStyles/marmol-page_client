@@ -16,6 +16,8 @@ interface MermaActor {
   userName: string
 }
 
+const PLANCHA_DIMENSION = '80x40' as const
+
 export class GetMermasUseCase {
   constructor(private readonly repository: MermaRepositoryPort) {}
 
@@ -40,21 +42,28 @@ export class CreateMermaUseCase {
   ) {}
 
   async execute(dto: CreateMermaDto, actor: MermaActor): Promise<MermaResponseDto> {
+    const dimension = dto.tipo === 'Plancha' ? PLANCHA_DIMENSION : dto.dimension
+    const normalizedDto: CreateMermaDto = {
+      ...dto,
+      dimension,
+      metrosCuadrados: round2(dto.cantidadLosas * dimensionToArea(dimension)),
+    }
+
     const detalleMovimiento = {
-      id: `imd-m-${dto.origenId}-${dto.fecha}`,
-      productoNombre: `${dto.tipo} ${dto.origenNombre} ${dto.dimension}`,
-      tipo: dto.tipo,
-      dimension: dto.dimension,
-      origenId: dto.origenId,
-      origenNombre: dto.origenNombre,
-      cantidadLosas: dto.cantidadLosas,
-      metrosCuadrados: dto.metrosCuadrados,
+      id: `imd-m-${normalizedDto.origenId}-${normalizedDto.fecha}`,
+      productoNombre: `${normalizedDto.tipo} ${normalizedDto.origenNombre} ${normalizedDto.dimension}`,
+      tipo: normalizedDto.tipo,
+      dimension: normalizedDto.dimension,
+      origenId: normalizedDto.origenId,
+      origenNombre: normalizedDto.origenNombre,
+      cantidadLosas: normalizedDto.cantidadLosas,
+      metrosCuadrados: normalizedDto.metrosCuadrados,
     }
 
     await validateInventarioSalida([detalleMovimiento], this.productoRepository)
 
     const mermaCreada = await this.repository.create({
-      ...dto,
+      ...normalizedDto,
       estadoInventario: 'pendiente',
       movimientoInventarioId: undefined,
     })
@@ -66,8 +75,8 @@ export class CreateMermaUseCase {
         origen: 'merma',
         estado: 'pendiente',
         referenciaId: mermaCreada.id,
-        motivo: dto.motivo,
-        observaciones: dto.observaciones,
+        motivo: normalizedDto.motivo,
+        observaciones: normalizedDto.observaciones,
         solicitadoPorId: actor.userId,
         solicitadoPorNombre: actor.userName,
         detalles: [detalleMovimiento],
@@ -112,4 +121,14 @@ export class DeleteMermaUseCase {
 
     return this.repository.delete(id)
   }
+}
+
+function dimensionToArea(dimension: CreateMermaDto['dimension']): number {
+  if (dimension === '40x40') return 0.16
+  if (dimension === '60x40') return 0.24
+  return 0.32
+}
+
+function round2(value: number): number {
+  return Number(value.toFixed(2))
 }

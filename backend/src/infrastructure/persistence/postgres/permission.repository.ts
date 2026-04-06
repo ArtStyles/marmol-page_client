@@ -7,6 +7,7 @@ import {
   getDefaultSystemGroupKeyForRole,
   normalizePermissionCodes,
 } from '../../../application/security/permissions.js'
+import { normalizeAdminRole } from '../../../application/security/role-normalization.js'
 import type {
   AdminRole,
   PermissionDefinition,
@@ -49,23 +50,6 @@ function isLockedSystemGroup(group: Pick<PermissionGroup, 'id' | 'systemKey'>): 
 function withSuperAdminFullAccess(role: AdminRole, permissionCodes: string[]): string[] {
   if (role !== 'Super Admin') return permissionCodes
   return [...ALL_PERMISSION_CODES]
-}
-
-function normalizeAdminRoleFromTrabajadorRole(role: string): AdminRole {
-  const normalized = role.trim()
-  if (
-    normalized === 'Jefe de Turno de Produccion' ||
-    normalized === 'Jefe de Turno de Producción' ||
-    normalized === 'Jefe de Turno de ProducciÃ³n'
-  ) {
-    return 'Jefe de Turno de Produccion'
-  }
-  if (normalized === 'Administrador') return 'Administrador'
-  if (normalized === 'Contadora') return 'Contadora'
-  if (normalized === 'Gestor de Ventas') return 'Gestor de Ventas'
-  if (normalized === 'Jefe de Almacen') return 'Jefe de Almacen'
-  if (normalized === 'Super Admin') return 'Super Admin'
-  return 'Obrero'
 }
 
 function mapPermissionGroup(row: Record<string, unknown>): PermissionGroup {
@@ -115,7 +99,7 @@ export class PostgresPermissionRepository implements PermissionRepositoryPort {
          t.workshop_id,
          COALESCE(NULLIF(t.contrasena, ''), md5(t.email || ':' || NOW()::text)),
          CASE
-           WHEN t.rol IN ('Jefe de Turno de Produccion', 'Jefe de Turno de Producción', 'Jefe de Turno de ProducciÃ³n') THEN 'Jefe de Turno de Produccion'
+           WHEN LOWER(t.rol) LIKE 'jefe de turno de producci%' THEN 'Jefe de Turno de Produccion'
            WHEN t.rol IN ('Administrador', 'Contadora', 'Gestor de Ventas', 'Jefe de Almacen', 'Super Admin', 'Obrero') THEN t.rol
            ELSE 'Obrero'
          END
@@ -349,7 +333,7 @@ export class PostgresPermissionRepository implements PermissionRepositoryPort {
       userId: row.user_id as string,
       name: row.name as string,
       email: row.email as string,
-      role: normalizeAdminRoleFromTrabajadorRole(row.role as string),
+      role: normalizeAdminRole(row.role as string),
       workshopId: row.workshop_id as string,
       assignedGroupIds: asStringArray(row.assigned_group_ids),
       directPermissionCodes: normalizePermissionCodes(asStringArray(row.direct_permission_codes)),
@@ -390,7 +374,7 @@ export class PostgresPermissionRepository implements PermissionRepositoryPort {
       [userId, workshopId],
     )
     if (userResult.rows.length === 0) return null
-    const role = normalizeAdminRoleFromTrabajadorRole(userResult.rows[0].role as string)
+    const role = normalizeAdminRole(userResult.rows[0].role as string)
     if (role === 'Super Admin') {
       throw new DomainError(
         'Super admin access is managed by system and cannot be edited.',

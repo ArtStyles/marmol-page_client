@@ -17,8 +17,14 @@ import {
   getCatalogo,
   updateCatalogoItem,
 } from '@/lib/resources-api'
-import type { CatalogoItem, Dimension, EstadoLosa, TipoProducto } from '@/lib/types'
-import { losasAMetros } from '@/lib/types'
+import {
+  losasAMetros,
+  PLANCHA_DIMENSION,
+  type CatalogoItem,
+  type Dimension,
+  type EstadoLosa,
+  type TipoProducto,
+} from '@/lib/types'
 import { Plus, Search, Star, Eye, EyeOff, Edit, Trash2 } from 'lucide-react'
 import {
   Dialog,
@@ -36,6 +42,10 @@ import {
 } from '@/components/ui/select'
 
 type CatalogoAdminItem = CatalogoItem & { visible: boolean }
+
+function normalizeDimensionByTipo(tipo: TipoProducto, dimension: Dimension): Dimension {
+  return tipo === 'Plancha' ? PLANCHA_DIMENSION : dimension
+}
 
 export default function CatalogoAdminPage() {
   const [items, setItems] = useState<CatalogoAdminItem[]>([])
@@ -177,14 +187,18 @@ export default function CatalogoAdminPage() {
     event.preventDefault()
     setError(null)
     setIsSaving(true)
+    const payload = {
+      ...formData,
+      dimension: normalizeDimensionByTipo(formData.tipo, formData.dimension),
+    }
 
     try {
       if (editingItem) {
-        const updated = await updateCatalogoItem(editingItem.id, formData)
+        const updated = await updateCatalogoItem(editingItem.id, payload)
         const normalized: CatalogoAdminItem = { ...updated, visible: updated.visible ?? true }
         setItems((prev) => prev.map((item) => (item.id === editingItem.id ? normalized : item)))
       } else {
-        const created = await createCatalogoItem(formData)
+        const created = await createCatalogoItem(payload)
         const normalized: CatalogoAdminItem = { ...created, visible: created.visible ?? true }
         setItems((prev) => [normalized, ...prev])
       }
@@ -198,7 +212,10 @@ export default function CatalogoAdminPage() {
 
   const handleEdit = (item: CatalogoAdminItem) => {
     setEditingItem(item)
-    setFormData({ ...item })
+    setFormData({
+      ...item,
+      dimension: normalizeDimensionByTipo(item.tipo, item.dimension),
+    })
     setNumericTouched({
       precioM2: true,
       stockLosas: true,
@@ -371,9 +388,13 @@ export default function CatalogoAdminPage() {
                   <Label>Tipo</Label>
                   <Select
                     value={formData.tipo}
-                    onValueChange={(value: TipoProducto) =>
-                      setFormData({ ...formData, tipo: value })
-                    }
+                    onValueChange={(value: TipoProducto) => {
+                      setFormData({
+                        ...formData,
+                        tipo: value,
+                        dimension: normalizeDimensionByTipo(value, formData.dimension),
+                      })
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -409,23 +430,27 @@ export default function CatalogoAdminPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Dimension</Label>
-                  <Select
-                    value={formData.dimension}
-                    onValueChange={(value: Dimension) =>
-                      setFormData({ ...formData, dimension: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {dimensiones.map((dimensionValue) => (
-                        <SelectItem key={dimensionValue} value={dimensionValue}>
-                          {dimensionValue}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {formData.tipo === 'Plancha' ? (
+                    <Input value={`${PLANCHA_DIMENSION} (fija)`} disabled />
+                  ) : (
+                    <Select
+                      value={formData.dimension}
+                      onValueChange={(value: Dimension) =>
+                        setFormData({ ...formData, dimension: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dimensiones.map((dimensionValue) => (
+                          <SelectItem key={dimensionValue} value={dimensionValue}>
+                            {dimensionValue}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               </div>
 

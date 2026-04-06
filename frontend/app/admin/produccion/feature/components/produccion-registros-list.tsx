@@ -1,176 +1,52 @@
 'use client'
 
-import { useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/admin/admin-button'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
-import type { EstadoAprobacion, ProduccionDiaria } from '@/lib/types'
+import { Button } from '@/components/admin/admin-button'
+import type { ProduccionDiaria } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { Pencil } from 'lucide-react'
 import type { DateEditPolicy } from '../model/types'
 import {
   actionColors,
   actionLabels,
   actionOrder,
   getAccionDetalles,
-  getDetalleLosasPorTrabajador,
   getDetalleMermaLosas,
   getDetalleReutilizableLosas,
   getDetalleTrabajadores,
-  getDetalleTrabajadoresCount,
 } from '../lib/produccion-helpers'
 
 type Props = {
-  canApproveAlmacen: boolean
-  canApproveTaller: boolean
   fechasOrdenadas: string[]
   getDatePolicy: (fecha: string) => DateEditPolicy
   groupedByDate: Record<string, ProduccionDiaria[]>
-  onApproveAlmacen: (produccionId: string, motivo: string) => Promise<boolean>
-  onApproveTaller: (
-    produccionId: string,
-    aprobado: boolean,
-    motivoRechazo?: string,
-  ) => Promise<boolean>
-  almacenApprovalLoadingById: Record<string, boolean>
-  tallerApprovalLoadingById: Record<string, boolean>
+  resolveOrigenCodigo: (origenId: string, origenNombre: string) => string
+  onEditFecha: (fecha: string) => void
 }
 
-const approvalBadgeClass: Record<EstadoAprobacion, string> = {
-  pendiente: 'border-amber-200 bg-amber-50 text-amber-700',
-  aprobado: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  rechazado: 'border-rose-200 bg-rose-50 text-rose-700',
-}
-
-const approvalLabel: Record<EstadoAprobacion, string> = {
-  pendiente: 'Pendiente',
-  aprobado: 'Aprobado',
-  rechazado: 'Rechazado',
-}
-
-const resolveAprobacion = (value: ProduccionDiaria['aprobacionTallerEstado']): EstadoAprobacion => {
-  if (value === 'aprobado' || value === 'rechazado') return value
-  return 'pendiente'
+type DimensionAggregate = {
+  key: string
+  tipo: ProduccionDiaria['tipo']
+  dimension: ProduccionDiaria['dimension']
+  totalLosas: number
+  totalM2: number
+  totalMerma: number
+  totalReutilizable: number
+  totalResina: number
+  equipos: Set<string>
+  personal: Set<string>
 }
 
 export function ProduccionRegistrosList({
-  canApproveAlmacen,
-  canApproveTaller,
   fechasOrdenadas,
   getDatePolicy,
   groupedByDate,
-  onApproveAlmacen,
-  onApproveTaller,
-  almacenApprovalLoadingById,
-  tallerApprovalLoadingById,
+  resolveOrigenCodigo,
+  onEditFecha,
 }: Props) {
-  const [almacenModalOpen, setAlmacenModalOpen] = useState(false)
-  const [almacenTarget, setAlmacenTarget] = useState<{
-    id: string
-    origenNombre: string
-    fecha: string
-  } | null>(null)
-  const [almacenMotivo, setAlmacenMotivo] = useState('')
-  const [almacenModalError, setAlmacenModalError] = useState<string | null>(null)
-  const [tallerRejectModalOpen, setTallerRejectModalOpen] = useState(false)
-  const [tallerRejectTarget, setTallerRejectTarget] = useState<{
-    id: string
-    origenNombre: string
-    fecha: string
-  } | null>(null)
-  const [tallerRejectMotivo, setTallerRejectMotivo] = useState('')
-  const [tallerRejectModalError, setTallerRejectModalError] = useState<string | null>(null)
-
-  const isAlmacenSubmitLoading = useMemo(() => {
-    if (!almacenTarget) return false
-    return !!almacenApprovalLoadingById[almacenTarget.id]
-  }, [almacenApprovalLoadingById, almacenTarget])
-  const isTallerRejectSubmitLoading = useMemo(() => {
-    if (!tallerRejectTarget) return false
-    return !!tallerApprovalLoadingById[tallerRejectTarget.id]
-  }, [tallerApprovalLoadingById, tallerRejectTarget])
-
-  const openAlmacenModal = (item: ProduccionDiaria) => {
-    setAlmacenTarget({
-      id: item.id,
-      origenNombre: item.origenNombre,
-      fecha: item.fecha,
-    })
-    setAlmacenMotivo('')
-    setAlmacenModalError(null)
-    setAlmacenModalOpen(true)
-  }
-
-  const closeAlmacenModal = () => {
-    if (isAlmacenSubmitLoading) return
-    setAlmacenModalOpen(false)
-    setAlmacenTarget(null)
-    setAlmacenMotivo('')
-    setAlmacenModalError(null)
-  }
-  const openTallerRejectModal = (item: ProduccionDiaria) => {
-    setTallerRejectTarget({
-      id: item.id,
-      origenNombre: item.origenNombre,
-      fecha: item.fecha,
-    })
-    setTallerRejectMotivo('')
-    setTallerRejectModalError(null)
-    setTallerRejectModalOpen(true)
-  }
-
-  const closeTallerRejectModal = () => {
-    if (isTallerRejectSubmitLoading) return
-    setTallerRejectModalOpen(false)
-    setTallerRejectTarget(null)
-    setTallerRejectMotivo('')
-    setTallerRejectModalError(null)
-  }
-
-  const confirmAlmacenEntry = async () => {
-    if (!almacenTarget) return
-    const motivo = almacenMotivo.trim()
-    if (motivo.length < 5) {
-      setAlmacenModalError('El motivo debe tener al menos 5 caracteres.')
-      return
-    }
-
-    const ok = await onApproveAlmacen(almacenTarget.id, motivo)
-    if (ok) {
-      closeAlmacenModal()
-      return
-    }
-
-    setAlmacenModalError('No se pudo registrar la entrada de almacen.')
-  }
-
-  const confirmTallerReject = async () => {
-    if (!tallerRejectTarget) return
-    const motivo = tallerRejectMotivo.trim()
-    if (motivo.length < 5) {
-      setTallerRejectModalError('El motivo debe tener al menos 5 caracteres.')
-      return
-    }
-
-    const ok = await onApproveTaller(tallerRejectTarget.id, false, motivo)
-    if (ok) {
-      closeTallerRejectModal()
-      return
-    }
-
-    setTallerRejectModalError('No se pudo rechazar la aprobacion de taller.')
-  }
-
   return (
-    <Card className=" bg-transparent border-none outline-none shadow-none p-0 ">
+    <Card className="bg-transparent border-none outline-none shadow-none p-0">
       <CardContent className="p-0">
         {fechasOrdenadas.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
@@ -182,6 +58,28 @@ export function ProduccionRegistrosList({
               const registros = groupedByDate[fecha]
               const policy = getDatePolicy(fecha)
 
+              const registrosPorOrigen = Array.from(
+                registros.reduce((map, registro) => {
+                  const key = registro.origenId || registro.origenNombre
+                  const current = map.get(key)
+                  if (current) {
+                    current.push(registro)
+                  } else {
+                    map.set(key, [registro])
+                  }
+                  return map
+                }, new Map<string, ProduccionDiaria[]>()),
+              )
+                .map(([groupKey, registrosGrupo]) => ({
+                  groupKey,
+                  registros: registrosGrupo,
+                  origenCodigo: resolveOrigenCodigo(
+                    registrosGrupo[0]?.origenId ?? '',
+                    registrosGrupo[0]?.origenNombre ?? '',
+                  ),
+                }))
+                .sort((a, b) => a.origenCodigo.localeCompare(b.origenCodigo))
+
               return (
                 <div
                   key={fecha}
@@ -192,224 +90,202 @@ export function ProduccionRegistrosList({
                       <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Fecha</p>
                       <p className="text-base font-semibold text-slate-900">{fecha}</p>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        'w-fit',
-                        policy.canMutate
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                          : 'border-slate-200 bg-slate-50 text-slate-600',
-                      )}
-                    >
-                      {policy.canMutate ? 'Editable' : 'Solo visualizacion'}
-                    </Badge>
+                    {policy.canMutate ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                        title={`Editar produccion ${fecha}`}
+                        onClick={() => onEditFecha(fecha)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className={cn('w-fit border-slate-200 bg-slate-50 text-slate-600')}
+                      >
+                        Solo visualizacion
+                      </Badge>
+                    )}
                   </div>
 
-                  <div className="hidden lg:grid lg:grid-cols-[1fr_3fr] border-b border-slate-200/70 bg-slate-50/70 px-4 py-2">
-                    <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Origen</span>
+                  <div className="hidden border-b border-slate-200/70 bg-slate-50/70 px-4 py-2 lg:block">
                     <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">
-                      Detalle por accion
+                      Produccion por bloque
                     </span>
                   </div>
 
                   <div className="divide-y divide-slate-200/60">
-                    {registros.map((item, itemIndex) => {
-                      const aprobacionTaller = resolveAprobacion(item.aprobacionTallerEstado)
-                      const aprobacionAlmacen = resolveAprobacion(item.aprobacionAlmacenEstado)
-                      const isTallerLoading = !!tallerApprovalLoadingById[item.id]
-                      const isAlmacenLoading = !!almacenApprovalLoadingById[item.id]
+                    {registrosPorOrigen.map((grupo, groupIndex) => {
+                      const totalLosasGrupo = grupo.registros.reduce(
+                        (sum, registro) => sum + registro.totalLosas,
+                        0,
+                      )
+                      const totalM2Grupo = grupo.registros.reduce((sum, registro) => sum + registro.totalM2, 0)
 
                       const accionesActivas = actionOrder
                         .map((accion) => {
-                          const detalles = getAccionDetalles(item, accion)
-                          const totalLosasAccion = detalles.reduce(
-                            (sum, detalle) => sum + detalle.cantidadLosas,
-                            0,
+                          const detallesConContexto = grupo.registros.flatMap((registro) =>
+                            getAccionDetalles(registro, accion).map((detalle) => ({
+                              detalle,
+                              tipo: registro.tipo,
+                              dimension: registro.dimension,
+                            })),
                           )
-                          const totalM2Accion = detalles.reduce(
-                            (sum, detalle) => sum + detalle.metrosCuadrados,
-                            0,
-                          )
-                          const totalMermaAccion = detalles.reduce(
-                            (sum, detalle) => sum + getDetalleMermaLosas(detalle),
-                            0,
-                          )
-                          const totalReutilizableAccion = detalles.reduce(
-                            (sum, detalle) => sum + getDetalleReutilizableLosas(detalle),
-                            0,
-                          )
+
+                          const dimensionesMap = detallesConContexto.reduce((map, item) => {
+                            const key = `${item.tipo}::${item.dimension}`
+                            const current: DimensionAggregate = map.get(key) ?? {
+                              key,
+                              tipo: item.tipo,
+                              dimension: item.dimension,
+                              totalLosas: 0,
+                              totalM2: 0,
+                              totalMerma: 0,
+                              totalReutilizable: 0,
+                              totalResina: 0,
+                              equipos: new Set<string>(),
+                              personal: new Set<string>(),
+                            }
+
+                            current.totalLosas += item.detalle.cantidadLosas
+                            current.totalM2 += item.detalle.metrosCuadrados
+                            current.totalMerma += getDetalleMermaLosas(item.detalle)
+                            current.totalReutilizable += getDetalleReutilizableLosas(item.detalle)
+                            current.totalResina += item.detalle.cantidadResina ?? 0
+
+                            if (item.detalle.equipoNombre?.trim()) {
+                              current.equipos.add(item.detalle.equipoNombre.trim())
+                            }
+
+                            const trabajadores = getDetalleTrabajadores(item.detalle)
+                            if (trabajadores.length === 0) {
+                              current.personal.add('Sin personal')
+                            } else {
+                              trabajadores.forEach((trabajador) => current.personal.add(trabajador.nombre))
+                            }
+
+                            map.set(key, current)
+                            return map
+                          }, new Map<string, DimensionAggregate>())
+
+                          const dimensiones = Array.from(dimensionesMap.values())
+                            .map((item) => ({
+                              ...item,
+                              equipos: Array.from(item.equipos).sort((a, b) => a.localeCompare(b)),
+                              personal: Array.from(item.personal).sort((a, b) => a.localeCompare(b)),
+                            }))
+                            .sort(
+                              (a, b) =>
+                                a.dimension.localeCompare(b.dimension) || a.tipo.localeCompare(b.tipo),
+                            )
+
+                          const totalLosasAccion = dimensiones.reduce((sum, item) => sum + item.totalLosas, 0)
+                          const totalEquipos = new Set(dimensiones.flatMap((item) => item.equipos)).size
 
                           return {
                             accion,
-                            detalles,
+                            dimensiones,
+                            totalEquipos,
                             totalLosasAccion,
-                            totalM2Accion,
-                            totalMermaAccion,
-                            totalReutilizableAccion,
                           }
                         })
                         .filter((accion) => accion.totalLosasAccion > 0)
 
                       return (
-                        <div key={`${fecha}-${item.id}-${itemIndex}`} className="px-4 py-3">
-                          <div className="grid gap-1 lg:grid-cols-[1fr_3fr] lg:items-start">
+                        <div key={`${fecha}-${grupo.groupKey}-${groupIndex}`} className="px-4 py-3">
+                          <div className="space-y-2">
                             <div>
-                              <p className="text-sm font-semibold text-slate-900">{item.origenNombre}</p>
-                              <p className="text-[11px] text-slate-500">
-                                {item.tipo} / {item.dimension}
-                              </p>
-                              <p className="mt-1 text-[11px] font-medium text-slate-600">
-                                Total: {item.totalLosas} losas / {item.totalM2.toFixed(2)} m2
-                              </p>
-
-                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                <Badge variant="outline" className={cn('text-[10px]', approvalBadgeClass[aprobacionTaller])}>
-                                  Taller: {approvalLabel[aprobacionTaller]}
-                                </Badge>
-                                <Badge variant="outline" className={cn('text-[10px]', approvalBadgeClass[aprobacionAlmacen])}>
-                                  Almacen: {approvalLabel[aprobacionAlmacen]}
-                                </Badge>
-                              </div>
-
-                              {(canApproveTaller || canApproveAlmacen) && (
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {canApproveTaller && aprobacionTaller !== 'aprobado' && (
-                                    <>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-7 px-2 text-[11px]"
-                                        disabled={isTallerLoading || isAlmacenLoading}
-                                        onClick={() => {
-                                          void onApproveTaller(item.id, true)
-                                        }}
-                                      >
-                                        {isTallerLoading ? 'Procesando...' : 'Aprobar taller'}
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-7 px-2 text-[11px] border-rose-200 text-rose-700"
-                                        disabled={isTallerLoading || isAlmacenLoading}
-                                        onClick={() => {
-                                          openTallerRejectModal(item)
-                                        }}
-                                      >
-                                        Rechazar taller
-                                      </Button>
-                                    </>
-                                  )}
-
-                                  {canApproveAlmacen &&
-                                    aprobacionTaller === 'aprobado' &&
-                                    aprobacionAlmacen !== 'aprobado' && (
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        className="h-7 px-2 text-[11px]"
-                                        disabled={isTallerLoading || isAlmacenLoading}
-                                        onClick={() => {
-                                          openAlmacenModal(item)
-                                        }}
-                                      >
-                                        {isAlmacenLoading ? 'Procesando...' : 'Dar entrada almacen'}
-                                      </Button>
-                                    )}
-                                </div>
-                              )}
+                              <p className="text-base font-semibold text-slate-900">{grupo.origenCodigo}</p>
                             </div>
 
-                            <div className="overflow-x-auto">
-                              <div className="min-w-[860px] overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/60">
-                                <div className="grid grid-cols-[118px_minmax(0,1fr)_92px_92px_110px_120px_100px] border-b border-slate-200/70 px-2.5 py-1">
-                                  <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
-                                    Accion
-                                  </span>
-                                  <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
-                                    Equipo / Personal
-                                  </span>
-                                  <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">
-                                    Losas
-                                  </span>
-                                  <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">
-                                    M2
-                                  </span>
-                                  <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">
-                                    Merma prod. (no pago)
-                                  </span>
-                                  <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">
-                                    Reutilizable (paga)
-                                  </span>
-                                  <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">
-                                    Resina
-                                  </span>
+                            <div className="space-y-2">
+                              {accionesActivas.length === 0 ? (
+                                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/60 px-3 py-2 text-sm text-slate-500">
+                                  Sin acciones con produccion en este bloque.
                                 </div>
-
-                                <div className="divide-y divide-slate-200/70">
-                                  {accionesActivas.map((accion) => (
-                                    <div key={`${item.id}-${accion.accion}`}>
-                                      <div className="grid grid-cols-[118px_minmax(0,1fr)_92px_92px_110px_120px_100px] items-center gap-2 border-b border-slate-200/70 bg-white/70 px-2.5 py-1.5">
+                              ) : (
+                                accionesActivas.map((accion) => (
+                                  <div
+                                    key={`${grupo.groupKey}-${accion.accion}`}
+                                    className="space-y-1"
+                                  >
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2">
                                         <Badge className={cn('w-fit', actionColors[accion.accion])}>
                                           {actionLabels[accion.accion]}
                                         </Badge>
-                                        <p className="text-[11px] text-slate-500">
-                                          {accion.detalles.length} subfila(s)
-                                        </p>
-                                        <span />
-                                        <span />
-                                        <span />
-                                        <span />
-                                        <span />
-                                      </div>
-
-                                      <div className="divide-y divide-slate-200/70">
-                                        {accion.detalles.map((detalle, detalleIndex) => (
-                                          <div
-                                            key={`${item.id}-${accion.accion}-${detalle.id ?? 'detalle'}-${detalleIndex}`}
-                                            className="grid grid-cols-[118px_minmax(0,1fr)_92px_92px_110px_120px_100px] items-center gap-2 px-2.5 py-1.5"
-                                          >
-                                            <span />
-                                            <p className="text-sm text-slate-700">
-                                              <span className="font-medium text-slate-800">
-                                                {detalle.equipoNombre}
-                                              </span>
-                                              <span className="block truncate text-[11px] text-slate-500">
-                                                {getDetalleTrabajadores(detalle)
-                                                  .map((trabajador) => trabajador.nombre)
-                                                  .join(', ') || 'Sin personal'}{' '}
-                                                ({getDetalleTrabajadoresCount(detalle)} integrante(s))
-                                              </span>
-                                              <span className="block truncate text-[11px] text-sky-700">
-                                                Reparto: {getDetalleLosasPorTrabajador(detalle).toFixed(2)} losas c/u
-                                              </span>
-                                            </p>
-                                            <span className="text-right text-sm font-semibold text-slate-800">
-                                              {detalle.cantidadLosas}
-                                            </span>
-                                            <span className="text-right text-sm font-semibold text-emerald-700">
-                                              {detalle.metrosCuadrados.toFixed(2)}
-                                            </span>
-                                            <span className="text-right text-sm font-semibold text-rose-700">
-                                              {getDetalleMermaLosas(detalle)}
-                                            </span>
-                                            <span className="text-right text-sm font-semibold text-sky-700">
-                                              {getDetalleReutilizableLosas(detalle)}
-                                            </span>
-                                            <span className="text-right text-sm font-semibold text-cyan-700">
-                                              {detalle.cantidadResina != null && detalle.cantidadResina > 0
-                                                ? detalle.cantidadResina.toFixed(2)
-                                                : '-'}
-                                            </span>
-                                          </div>
-                                        ))}
+                                        <span className="text-sm text-slate-500">
+                                          {accion.dimensiones.length} dimension(es) - {accion.totalEquipos} equipo(s)
+                                        </span>
                                       </div>
                                     </div>
-                                  ))}
-                                </div>
-                              </div>
+
+                                    <div className="mt-2 space-y-1.5">
+                                      {accion.dimensiones.map((dimensionItem, index) => (
+                                        <div
+                                          key={`${grupo.groupKey}-${accion.accion}-${dimensionItem.key}`}
+                                          className={cn(
+                                            'px-2 py-1.5',
+                                            index < accion.dimensiones.length - 1 && 'border-b border-slate-200/70',
+                                          )}
+                                        >
+                                          <div className="flex flex-wrap items-start justify-between gap-2">
+                                            <div className="min-w-0 flex-1">
+                                              <p className="text-sm font-semibold text-slate-800">
+                                                {dimensionItem.tipo} / {dimensionItem.dimension}
+                                              </p>
+                                              <p className="truncate text-sm text-slate-500">
+                                                Equipos:{' '}
+                                                {dimensionItem.equipos.length > 0
+                                                  ? dimensionItem.equipos.join(', ')
+                                                  : 'Sin equipo'}
+                                              </p>
+                                              <p className="truncate text-sm text-slate-500">
+                                                Personal: {dimensionItem.personal.join(', ')}
+                                              </p>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+                                              <span className="font-medium text-slate-700">
+                                                Losas:{' '}
+                                                <span className="font-semibold text-slate-900">
+                                                  {dimensionItem.totalLosas}
+                                                </span>
+                                              </span>
+                                              <span className="font-medium text-emerald-700">
+                                                M2: {dimensionItem.totalM2.toFixed(2)}
+                                              </span>
+                                              {accion.accion !== 'picar' ? (
+                                                <span className="font-medium text-rose-700">
+                                                  Merma: {dimensionItem.totalMerma}
+                                                </span>
+                                              ) : null}
+                                              {accion.accion !== 'picar' ? (
+                                                <span className="font-medium text-sky-700">
+                                                  Reutilizable: {dimensionItem.totalReutilizable}
+                                                </span>
+                                              ) : null}
+                                              {dimensionItem.totalResina > 0 ? (
+                                                <span className="font-medium text-cyan-700">
+                                                  Resina: {dimensionItem.totalResina.toFixed(2)}
+                                                </span>
+                                              ) : null}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))
+                              )}
                             </div>
+
+                            <p className="pt-1 text-right text-sm font-medium text-slate-600">
+                              Total: {totalLosasGrupo} losas / {totalM2Grupo.toFixed(2)} m2
+                            </p>
                           </div>
                         </div>
                       )
@@ -420,129 +296,6 @@ export function ProduccionRegistrosList({
             })}
           </div>
         )}
-
-        <Dialog
-          open={almacenModalOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              closeAlmacenModal()
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Entrada a almacen</DialogTitle>
-              <DialogDescription>
-                Registra el motivo para aprobar la entrada al almacen.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-2">
-              {almacenTarget ? (
-                <p className="text-xs text-slate-600">
-                  {almacenTarget.fecha} - {almacenTarget.origenNombre}
-                </p>
-              ) : null}
-
-              <Textarea
-                value={almacenMotivo}
-                onChange={(event) => {
-                  setAlmacenMotivo(event.target.value)
-                  if (almacenModalError) setAlmacenModalError(null)
-                }}
-                placeholder="Ejemplo: Entrada aprobada tras validacion de losas y metraje."
-                rows={4}
-                disabled={isAlmacenSubmitLoading}
-              />
-
-              {almacenModalError ? (
-                <p className="text-xs text-destructive">{almacenModalError}</p>
-              ) : null}
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={closeAlmacenModal}
-                disabled={isAlmacenSubmitLoading}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                onClick={() => {
-                  void confirmAlmacenEntry()
-                }}
-                disabled={isAlmacenSubmitLoading}
-              >
-                {isAlmacenSubmitLoading ? 'Procesando...' : 'Confirmar entrada'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog
-          open={tallerRejectModalOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              closeTallerRejectModal()
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Rechazar aprobacion de taller</DialogTitle>
-              <DialogDescription>
-                Escribe el motivo de rechazo para este registro.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-2">
-              {tallerRejectTarget ? (
-                <p className="text-xs text-slate-600">
-                  {tallerRejectTarget.fecha} - {tallerRejectTarget.origenNombre}
-                </p>
-              ) : null}
-
-              <Textarea
-                value={tallerRejectMotivo}
-                onChange={(event) => {
-                  setTallerRejectMotivo(event.target.value)
-                  if (tallerRejectModalError) setTallerRejectModalError(null)
-                }}
-                placeholder="Ejemplo: Se detecto inconsistencia en losas o metraje reportado."
-                rows={4}
-                disabled={isTallerRejectSubmitLoading}
-              />
-
-              {tallerRejectModalError ? (
-                <p className="text-xs text-destructive">{tallerRejectModalError}</p>
-              ) : null}
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={closeTallerRejectModal}
-                disabled={isTallerRejectSubmitLoading}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                tone="danger"
-                onClick={() => {
-                  void confirmTallerReject()
-                }}
-                disabled={isTallerRejectSubmitLoading}
-              >
-                {isTallerRejectSubmitLoading ? 'Procesando...' : 'Confirmar rechazo'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </CardContent>
     </Card>
   )

@@ -26,6 +26,7 @@ export const createDetalleFormulario = (index: number): FormDetalleProducto => (
   id: `detalle-${index}`,
   productoId: '',
   metrosCuadrados: 0,
+  cantidadUnidades: 0,
 })
 
 export const formatMoney = (value: number): string => `$${Math.round(value).toLocaleString()}`

@@ -37,7 +37,7 @@ export const configuracionInicial: ConfiguracionSistema = {
 export const bloquesYLotes: BloqueOLote[] = [
   {
     id: 'BL001',
-    nombre: 'Bloque Carrara #1',
+    nombre: 'A-001',
     tipo: 'Bloque',
     dimensionBase: '60x40',
     costo: 15000,
@@ -53,7 +53,7 @@ export const bloquesYLotes: BloqueOLote[] = [
   },
   {
     id: 'BL002',
-    nombre: 'Bloque Emperador #3',
+    nombre: 'A-002',
     tipo: 'Bloque',
     dimensionBase: '40x40',
     costo: 12000,
@@ -69,7 +69,7 @@ export const bloquesYLotes: BloqueOLote[] = [
   },
   {
     id: 'LT001',
-    nombre: 'Lote Crema Marfil #15',
+    nombre: 'L-001',
     tipo: 'Lote',
     dimensionBase: '60x40',
     costo: 8500,
@@ -85,7 +85,7 @@ export const bloquesYLotes: BloqueOLote[] = [
   },
   {
     id: 'BL003',
-    nombre: 'Bloque Calacatta Gold #2',
+    nombre: 'A-003',
     tipo: 'Bloque',
     dimensionBase: '80x40',
     costo: 25000,
@@ -110,7 +110,7 @@ export const productos: Producto[] = [
     ubicacion: 'almacen',
     dimension: '60x40',
     origenId: 'BL001',
-    origenNombre: 'Bloque Carrara #1',
+    origenNombre: 'A-001',
     cantidadLosas: 45,
     metrosCuadrados: 10.8,
     precioM2: 200,
@@ -124,7 +124,7 @@ export const productos: Producto[] = [
     ubicacion: 'almacen',
     dimension: '80x40',
     origenId: 'BL001',
-    origenNombre: 'Bloque Carrara #1',
+    origenNombre: 'A-001',
     cantidadLosas: 30,
     metrosCuadrados: 9.6,
     precioM2: 160,
@@ -138,7 +138,7 @@ export const productos: Producto[] = [
     ubicacion: 'almacen',
     dimension: '40x40',
     origenId: 'BL002',
-    origenNombre: 'Bloque Emperador #3',
+    origenNombre: 'A-002',
     cantidadLosas: 60,
     metrosCuadrados: 9.6,
     precioM2: 180,
@@ -152,7 +152,7 @@ export const productos: Producto[] = [
     ubicacion: 'almacen',
     dimension: '60x40',
     origenId: 'LT001',
-    origenNombre: 'Lote Crema Marfil #15',
+    origenNombre: 'L-001',
     cantidadLosas: 80,
     metrosCuadrados: 19.2,
     precioM2: 200,
@@ -166,7 +166,7 @@ export const productos: Producto[] = [
     ubicacion: 'almacen',
     dimension: '80x40',
     origenId: 'BL003',
-    origenNombre: 'Bloque Calacatta Gold #2',
+    origenNombre: 'A-003',
     cantidadLosas: 20,
     metrosCuadrados: 6.4,
     precioM2: 320,
@@ -180,7 +180,7 @@ export const productos: Producto[] = [
     ubicacion: 'almacen',
     dimension: '60x40',
     origenId: 'BL002',
-    origenNombre: 'Bloque Emperador #3',
+    origenNombre: 'A-002',
     cantidadLosas: 35,
     metrosCuadrados: 8.4,
     precioM2: 140,
@@ -326,7 +326,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     id: 'PG001',
     fecha: '2026-01-28',
     origenId: 'BL001',
-    origenNombre: 'Bloque Carrara #1',
+    origenNombre: 'A-001',
     tipo: 'Piso',
     dimension: '60x40',
     cantidadPicar: 15,
@@ -345,7 +345,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     id: 'PG002',
     fecha: '2026-01-28',
     origenId: 'BL002',
-    origenNombre: 'Bloque Emperador #3',
+    origenNombre: 'A-002',
     tipo: 'Piso',
     dimension: '40x40',
     cantidadPicar: 0,
@@ -363,7 +363,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     id: 'PG003',
     fecha: '2026-01-27',
     origenId: 'LT001',
-    origenNombre: 'Lote Crema Marfil #15',
+    origenNombre: 'L-001',
     tipo: 'Piso',
     dimension: '60x40',
     cantidadPicar: 0,
@@ -382,7 +382,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     id: 'PG004',
     fecha: '2026-01-26',
     origenId: 'BL002',
-    origenNombre: 'Bloque Emperador #3',
+    origenNombre: 'A-002',
     tipo: 'Plancha',
     dimension: '80x40',
     cantidadPicar: 12,
@@ -396,19 +396,19 @@ export const produccionDiaria: ProduccionDiaria[] = [
 ]
 
 export const produccionTrabajadores: ProduccionTrabajador[] = [
-  { id: 'PD001', fecha: '2026-01-28', trabajadorId: 'T001', trabajadorNombre: 'Carlos Mendoza', accion: 'picar', origenId: 'BL001', origenNombre: 'Bloque Carrara #1', tipo: 'Piso', dimension: '60x40', cantidadLosas: 15, pagoPorLosa: 400, pagoTotal: 6000, bono: 500, pagoFinal: 6500, pagado: false },
-  { id: 'PD002', fecha: '2026-01-28', trabajadorId: 'T002', trabajadorNombre: 'Roberto Sánchez', accion: 'pulir', origenId: 'BL001', origenNombre: 'Bloque Carrara #1', tipo: 'Piso', dimension: '60x40', cantidadLosas: 20, pagoPorLosa: 280, pagoTotal: 5600, bono: 0, pagoFinal: 5600, pagado: false },
-  { id: 'PD003', fecha: '2026-01-28', trabajadorId: 'T003', trabajadorNombre: 'Miguel Ángel Torres', accion: 'escuadrar', origenId: 'BL002', origenNombre: 'Bloque Emperador #3', tipo: 'Piso', dimension: '40x40', cantidadLosas: 25, pagoPorLosa: 120, pagoTotal: 3000, bono: 300, pagoFinal: 3300, pagado: false },
-  { id: 'PD004', fecha: '2026-01-27', trabajadorId: 'T001', trabajadorNombre: 'Carlos Mendoza', accion: 'escuadrar', origenId: 'LT001', origenNombre: 'Lote Crema Marfil #15', tipo: 'Piso', dimension: '60x40', cantidadLosas: 30, pagoPorLosa: 100, pagoTotal: 3000, bono: 0, pagoFinal: 3000, pagado: false },
-  { id: 'PD005', fecha: '2026-01-27', trabajadorId: 'T004', trabajadorNombre: 'Fernando Ruiz', accion: 'pulir', origenId: 'LT001', origenNombre: 'Lote Crema Marfil #15', tipo: 'Piso', dimension: '60x40', cantidadLosas: 35, pagoPorLosa: 300, pagoTotal: 10500, bono: 1000, pagoFinal: 11500, pagado: true },
-  { id: 'PD006', fecha: '2026-01-26', trabajadorId: 'T003', trabajadorNombre: 'Miguel Ángel Torres', accion: 'picar', origenId: 'BL002', origenNombre: 'Bloque Emperador #3', tipo: 'Plancha', dimension: '80x40', cantidadLosas: 12, pagoPorLosa: 420, pagoTotal: 5040, bono: 0, pagoFinal: 5040, pagado: true },
+  { id: 'PD001', fecha: '2026-01-28', trabajadorId: 'T001', trabajadorNombre: 'Carlos Mendoza', accion: 'picar', origenId: 'BL001', origenNombre: 'A-001', tipo: 'Piso', dimension: '60x40', cantidadLosas: 15, pagoPorLosa: 400, pagoTotal: 6000, bono: 500, pagoFinal: 6500, pagado: false },
+  { id: 'PD002', fecha: '2026-01-28', trabajadorId: 'T002', trabajadorNombre: 'Roberto Sánchez', accion: 'pulir', origenId: 'BL001', origenNombre: 'A-001', tipo: 'Piso', dimension: '60x40', cantidadLosas: 20, pagoPorLosa: 280, pagoTotal: 5600, bono: 0, pagoFinal: 5600, pagado: false },
+  { id: 'PD003', fecha: '2026-01-28', trabajadorId: 'T003', trabajadorNombre: 'Miguel Ángel Torres', accion: 'escuadrar', origenId: 'BL002', origenNombre: 'A-002', tipo: 'Piso', dimension: '40x40', cantidadLosas: 25, pagoPorLosa: 120, pagoTotal: 3000, bono: 300, pagoFinal: 3300, pagado: false },
+  { id: 'PD004', fecha: '2026-01-27', trabajadorId: 'T001', trabajadorNombre: 'Carlos Mendoza', accion: 'escuadrar', origenId: 'LT001', origenNombre: 'L-001', tipo: 'Piso', dimension: '60x40', cantidadLosas: 30, pagoPorLosa: 100, pagoTotal: 3000, bono: 0, pagoFinal: 3000, pagado: false },
+  { id: 'PD005', fecha: '2026-01-27', trabajadorId: 'T004', trabajadorNombre: 'Fernando Ruiz', accion: 'pulir', origenId: 'LT001', origenNombre: 'L-001', tipo: 'Piso', dimension: '60x40', cantidadLosas: 35, pagoPorLosa: 300, pagoTotal: 10500, bono: 1000, pagoFinal: 11500, pagado: true },
+  { id: 'PD006', fecha: '2026-01-26', trabajadorId: 'T003', trabajadorNombre: 'Miguel Ángel Torres', accion: 'picar', origenId: 'BL002', origenNombre: 'A-002', tipo: 'Plancha', dimension: '80x40', cantidadLosas: 12, pagoPorLosa: 420, pagoTotal: 5040, bono: 0, pagoFinal: 5040, pagado: true },
 ]
 
 export const mermas: Merma[] = [
-  { id: 'M001', fecha: '2026-01-28', origenId: 'BL001', origenNombre: 'Bloque Carrara #1', tipo: 'Piso', dimension: '60x40', cantidadLosas: 2, metrosCuadrados: 0.48, motivo: 'Partida al picar', observaciones: 'Vetas internas causaron fractura' },
-  { id: 'M002', fecha: '2026-01-27', origenId: 'BL002', origenNombre: 'Bloque Emperador #3', tipo: 'Piso', dimension: '40x40', cantidadLosas: 2, metrosCuadrados: 0.32, motivo: 'Partida al pulir', observaciones: 'Presión excesiva en el proceso' },
-  { id: 'M003', fecha: '2026-01-25', origenId: 'LT001', origenNombre: 'Lote Crema Marfil #15', tipo: 'Piso', dimension: '60x40', cantidadLosas: 1, metrosCuadrados: 0.24, motivo: 'Recorte aprovechable', observaciones: 'Recorte de bordes para escuadrar' },
-  { id: 'M004', fecha: '2026-01-24', origenId: 'BL003', origenNombre: 'Bloque Calacatta Gold #2', tipo: 'Plancha', dimension: '80x40', cantidadLosas: 2, metrosCuadrados: 0.64, motivo: 'Defecto de material', observaciones: 'Grieta natural descubierta al procesar' },
+  { id: 'M001', fecha: '2026-01-28', origenId: 'BL001', origenNombre: 'A-001', tipo: 'Piso', dimension: '60x40', cantidadLosas: 2, metrosCuadrados: 0.48, motivo: 'Partida al picar', observaciones: 'Vetas internas causaron fractura' },
+  { id: 'M002', fecha: '2026-01-27', origenId: 'BL002', origenNombre: 'A-002', tipo: 'Piso', dimension: '40x40', cantidadLosas: 2, metrosCuadrados: 0.32, motivo: 'Partida al pulir', observaciones: 'Presión excesiva en el proceso' },
+  { id: 'M003', fecha: '2026-01-25', origenId: 'LT001', origenNombre: 'L-001', tipo: 'Piso', dimension: '60x40', cantidadLosas: 1, metrosCuadrados: 0.24, motivo: 'Recorte aprovechable', observaciones: 'Recorte de bordes para escuadrar' },
+  { id: 'M004', fecha: '2026-01-24', origenId: 'BL003', origenNombre: 'A-003', tipo: 'Plancha', dimension: '80x40', cantidadLosas: 2, metrosCuadrados: 0.64, motivo: 'Defecto de material', observaciones: 'Grieta natural descubierta al procesar' },
 ]
 
 export const ventas: Venta[] = [
@@ -424,10 +424,10 @@ export const historialPagos: HistorialPago[] = [
 ]
 
 export const logsSistema: SystemLog[] = [
-  { id: 'LOG001', fecha: '2026-02-03 08:15', usuario: 'admin@marmol.local', accion: 'Creo bloque', modulo: 'Bloques', descripcion: 'Registro de Bloque Carrara #4', nivel: 'info' },
-  { id: 'LOG002', fecha: '2026-02-03 09:05', usuario: 'produccion@marmol.local', accion: 'Registro produccion', modulo: 'Produccion', descripcion: 'Registro de losas pulidas (20) en Bloque Carrara #1', nivel: 'info' },
+  { id: 'LOG001', fecha: '2026-02-03 08:15', usuario: 'admin@marmol.local', accion: 'Creo bloque', modulo: 'Bloques', descripcion: 'Registro de A-004', nivel: 'info' },
+  { id: 'LOG002', fecha: '2026-02-03 09:05', usuario: 'produccion@marmol.local', accion: 'Registro produccion', modulo: 'Produccion', descripcion: 'Registro de losas pulidas (20) en A-001', nivel: 'info' },
   { id: 'LOG003', fecha: '2026-02-02 16:40', usuario: 'ventas@marmol.local', accion: 'Venta creada', modulo: 'Ventas', descripcion: 'Venta V004 creada para Hotel Grand Palace', nivel: 'alerta' },
-  { id: 'LOG004', fecha: '2026-02-02 18:10', usuario: 'admin@marmol.local', accion: 'Cambio de estado', modulo: 'Bloques', descripcion: 'Bloque Calacatta Gold #2 marcado como agotado', nivel: 'info' },
+  { id: 'LOG004', fecha: '2026-02-02 18:10', usuario: 'admin@marmol.local', accion: 'Cambio de estado', modulo: 'Bloques', descripcion: 'A-003 marcado como agotado', nivel: 'info' },
   { id: 'LOG005', fecha: '2026-02-01 13:22', usuario: 'produccion@marmol.local', accion: 'Merma registrada', modulo: 'Mermas', descripcion: 'Merma por partida al pulir (0.32 m2)', nivel: 'alerta' },
   { id: 'LOG006', fecha: '2026-02-01 14:05', usuario: 'admin@marmol.local', accion: 'Error de registro', modulo: 'Inventario', descripcion: 'Intento de registrar producto sin origen valido', nivel: 'error' },
 ]
@@ -469,6 +469,7 @@ export const workshops: WorkshopTenant[] = [
   { id: 'TLR-002', nombre: 'Taller Guadalajara', ciudad: 'Guadalajara', direccion: 'Carr. Chapala 980, Zona Industrial', encargado: 'Lucia Herrera', telefono: '+52 333 210 9988', correo: 'gdl@marmol.local', estado: 'activo', empleados: 12, capacidadM2Mes: 1100, ventasMes: 162000, produccionMesM2: 940, margenOperativo: 0.22, ordenesActivas: 9, ultimaActualizacion: '2026-02-04' },
   { id: 'TLR-003', nombre: 'Taller Monterrey', ciudad: 'Monterrey', direccion: 'Av. Lazaro Cardenas 1340, Sur', encargado: 'Marco Salinas', telefono: '+52 818 555 3020', correo: 'mty@marmol.local', estado: 'en-implementacion', empleados: 9, capacidadM2Mes: 780, ventasMes: 98000, produccionMesM2: 520, margenOperativo: 0.18, ordenesActivas: 6, ultimaActualizacion: '2026-02-02' },
 ]
+
 
 
 

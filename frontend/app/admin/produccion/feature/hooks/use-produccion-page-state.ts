@@ -11,8 +11,10 @@ import {
   getTrabajadores,
 } from '@/lib/resources-api'
 import { useProduccionStore } from '@/hooks/use-produccion'
+import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import {
   losasAMetros,
+  PLANCHA_DIMENSION,
   TIPO_EQUIPO_POR_ACCION,
   type AccionLosa,
   type BloqueOLote,
@@ -53,6 +55,7 @@ const buildPseudoOrigen = (
   if (existing) return existing
   return {
     id: origenId,
+    codigo: origenNombre,
     nombre: origenNombre,
     tipo: 'Bloque',
     dimensionBase: '60x40',
@@ -67,6 +70,14 @@ const buildPseudoOrigen = (
     gananciaReal: 0,
     estado: 'activo',
   }
+}
+
+const resolveDimensionByTipo = (
+  tipo: ProduccionDiaria['tipo'] | '',
+  dimension: ProduccionDiaria['dimension'],
+): ProduccionDiaria['dimension'] => {
+  if (tipo === 'Plancha') return PLANCHA_DIMENSION
+  return dimension
 }
 
 export const useProduccionPageState = () => {
@@ -198,6 +209,87 @@ export const useProduccionPageState = () => {
     return map
   }, [stockProcesoDisponible])
 
+  const codigosOrigenPorId = useMemo(() => {
+    const map = new Map<string, string>()
+    bloquesYLotes.forEach((bloque) => {
+      const codigo = getBloqueCodigo(bloque).trim().toUpperCase()
+      if (!codigo) return
+
+      map.set(bloque.id.trim(), codigo)
+      map.set((bloque.nombre ?? '').trim().toLowerCase(), codigo)
+      map.set((bloque.codigo ?? '').trim().toLowerCase(), codigo)
+    })
+    return map
+  }, [bloquesYLotes])
+
+  const resolveLegacyCodigo = (value: string): string | null => {
+    const normalized = value.trim().toUpperCase()
+    if (!normalized) return null
+    if (/^[AL]-\d{3}$/.test(normalized)) return normalized
+
+    const bloqueMatch = normalized.match(/^BL(\d+)$/)
+    if (bloqueMatch) {
+      return `A-${bloqueMatch[1].padStart(3, '0')}`
+    }
+
+    const loteMatch = normalized.match(/^LT(\d+)$/)
+    if (loteMatch) {
+      return `L-${loteMatch[1].padStart(3, '0')}`
+    }
+
+    const bloqueNombreMatch = normalized.match(/^BLOQUE\s+(\d+)$/)
+    if (bloqueNombreMatch) {
+      return `A-${bloqueNombreMatch[1].padStart(3, '0')}`
+    }
+
+    const loteNombreMatch = normalized.match(/^LOTE\s+(\d+)$/)
+    if (loteNombreMatch) {
+      return `L-${loteNombreMatch[1].padStart(3, '0')}`
+    }
+
+    return null
+  }
+
+  const resolveOrigenCodigo = useCallback(
+    (origenId: string, origenNombre: string): string => {
+      const byId = codigosOrigenPorId.get(origenId.trim()) || codigosOrigenPorId.get(origenId.trim().toLowerCase())
+      if (byId) return byId
+
+      const byNombre = codigosOrigenPorId.get(origenNombre.trim().toLowerCase())
+      if (byNombre) return byNombre
+
+      const legacyFromId = resolveLegacyCodigo(origenId)
+      if (legacyFromId) return legacyFromId
+
+      const legacyFromNombre = resolveLegacyCodigo(origenNombre)
+      if (legacyFromNombre) return legacyFromNombre
+
+      return 'SIN-CODIGO'
+    },
+    [codigosOrigenPorId],
+  )
+
+  const normalizeUsageForPlancha = useCallback((uso: ActionUsageForm): ActionUsageForm => {
+    if (uso.tipo !== 'Plancha') return uso
+
+    const baseDimension = uso.dimensiones.find((item) => item.dimension === PLANCHA_DIMENSION) ?? uso.dimensiones[0]
+    if (!baseDimension) {
+      return {
+        ...uso,
+        dimensiones: [createUsageDimensionRow(PLANCHA_DIMENSION)],
+      }
+    }
+
+    if (baseDimension.dimension === PLANCHA_DIMENSION && uso.dimensiones.length === 1) {
+      return uso
+    }
+
+    return {
+      ...uso,
+      dimensiones: [{ ...baseDimension, dimension: PLANCHA_DIMENSION }],
+    }
+  }, [])
+
   const getLosasDisponiblesParaAccion = useCallback(
     (
       accion: AccionLosa,
@@ -206,10 +298,22 @@ export const useProduccionPageState = () => {
       dimension: ProduccionDiaria['dimension'],
     ): number | null => {
       if (accion !== 'escuadrar' && accion !== 'devastar' && accion !== 'resinar' && accion !== 'pulir') return null
-      if (!origenId || !tipo) return null
+      if (!origenId) return null
 
       const estadoRequerido = estadoProcesoRequeridoPorAccion[accion]
-      const stockKey = `${origenId}::${tipo}::${dimension}::${estadoRequerido}`
+      if (accion === 'resinar' && !tipo) {
+        return (['Piso', 'Plancha'] as const).reduce((maxValue, tipoItem) => {
+          const dimensionNormalizada = resolveDimensionByTipo(tipoItem, dimension)
+          const stockKey = `${origenId}::${tipoItem}::${dimensionNormalizada}::${estadoRequerido}`
+          const disponible = stockProcesoPorClave.get(stockKey) ?? 0
+          return Math.max(maxValue, disponible)
+        }, 0)
+      }
+
+      if (!tipo) return null
+
+      const dimensionNormalizada = resolveDimensionByTipo(tipo, dimension)
+      const stockKey = `${origenId}::${tipo}::${dimensionNormalizada}::${estadoRequerido}`
       return stockProcesoPorClave.get(stockKey) ?? 0
     },
     [stockProcesoPorClave],
@@ -248,9 +352,17 @@ export const useProduccionPageState = () => {
     { picar: 0, escuadrar: 0, devastar: 0, resinar: 0, pulir: 0 },
   )
 
-  const topOrigenesResumen = [...produccionResumen]
-    .sort((a, b) => b.totalM2 - a.totalM2)
-    .slice(0, 3)
+  const topOrigenesResumen = useMemo(
+    () =>
+      [...produccionResumen]
+        .sort((a, b) => b.totalM2 - a.totalM2)
+        .slice(0, 3)
+        .map((item) => ({
+          ...item,
+          origenNombre: resolveOrigenCodigo(item.origenId, item.origenNombre),
+        })),
+    [produccionResumen, resolveOrigenCodigo],
+  )
 
   const resumenPartidas = useMemo(() => {
     return produccionResumen.reduce(
@@ -260,12 +372,15 @@ export const useProduccionPageState = () => {
         detalles.forEach((detalle) => {
           const mermaLosas = getDetalleMermaLosas(detalle)
           const reutilizableLosas = getDetalleReutilizableLosas(detalle)
+          const mermaM2Detalle =
+            detalle.accion === 'picar'
+              ? 0
+              : (detalle.metrosMermaTotal ?? 0) > 0
+                ? detalle.metrosMermaTotal ?? 0
+                : losasAMetros(mermaLosas, item.dimension)
 
           acc.mermaLosas += mermaLosas
-          acc.mermaM2 +=
-            (detalle.metrosMermaTotal ?? 0) > 0
-              ? detalle.metrosMermaTotal ?? 0
-              : losasAMetros(mermaLosas, item.dimension)
+          acc.mermaM2 += mermaM2Detalle
 
           acc.reutilizableLosas += reutilizableLosas
           acc.reutilizableM2 +=
@@ -315,7 +430,9 @@ export const useProduccionPageState = () => {
   ) => {
     setFormData((prev) => {
       const usosActualizados = prev.acciones[accion].usos.map((uso) =>
-        uso.id === usageId ? { ...uso, ...patch } : uso,
+        uso.id === usageId
+          ? normalizeUsageForPlancha({ ...uso, ...patch })
+          : uso,
       )
       const cantidadLosas = usosActualizados.reduce((sum, uso) => sum + getUsageLosas(uso), 0)
 
@@ -377,24 +494,32 @@ export const useProduccionPageState = () => {
     setFormData((prev) => {
       const usosActualizados = prev.acciones[accion].usos.map((uso) => {
         if (uso.id !== usageId) return uso
+        const usoNormalizado = normalizeUsageForPlancha(uso)
+        if (usoNormalizado.tipo === 'Plancha') {
+          return usoNormalizado
+        }
 
-        const alreadyExists = uso.dimensiones.some((dimensionUso) => dimensionUso.dimension === dimension)
+        const alreadyExists = usoNormalizado.dimensiones.some(
+          (dimensionUso) => dimensionUso.dimension === dimension,
+        )
 
         if (enabled && !alreadyExists) {
           return {
-            ...uso,
-            dimensiones: [...uso.dimensiones, createUsageDimensionRow(dimension)],
+            ...usoNormalizado,
+            dimensiones: [...usoNormalizado.dimensiones, createUsageDimensionRow(dimension)],
           }
         }
 
         if (!enabled && alreadyExists) {
           return {
-            ...uso,
-            dimensiones: uso.dimensiones.filter((dimensionUso) => dimensionUso.dimension !== dimension),
+            ...usoNormalizado,
+            dimensiones: usoNormalizado.dimensiones.filter(
+              (dimensionUso) => dimensionUso.dimension !== dimension,
+            ),
           }
         }
 
-        return uso
+        return usoNormalizado
       })
       const cantidadLosas = usosActualizados.reduce((sum, uso) => sum + getUsageLosas(uso), 0)
 
@@ -495,6 +620,9 @@ export const useProduccionPageState = () => {
 
     for (const accion of [formData.accionActiva] as AccionLosa[]) {
       const accionState = formData.acciones[accion]
+      const includeMermaEnAccion = accion !== 'picar'
+      const requiresTipo = accion !== 'resinar'
+      const requiresEquipo = accion !== 'resinar'
 
       const usosCapturados = accionState.usos.filter(
         (uso) =>
@@ -505,7 +633,7 @@ export const useProduccionPageState = () => {
           uso.dimensiones.some(
             (dimensionUso) =>
               dimensionUso.cantidadLosas > 0 ||
-              dimensionUso.mermaTotalLosas > 0 ||
+              (includeMermaEnAccion && dimensionUso.mermaTotalLosas > 0) ||
               dimensionUso.reutilizableLosas > 0,
           ),
       )
@@ -515,44 +643,63 @@ export const useProduccionPageState = () => {
       }
 
       for (const uso of usosCapturados) {
-        if (!uso.origenId || !uso.tipo || uso.trabajadorIds.length === 0 || !uso.equipoId) {
+        const usoNormalizado = normalizeUsageForPlancha(uso)
+
+        if (
+          !usoNormalizado.origenId ||
+          usoNormalizado.trabajadorIds.length === 0 ||
+          (requiresTipo && !usoNormalizado.tipo) ||
+          (requiresEquipo && !usoNormalizado.equipoId)
+        ) {
           setFormError(
-            `Completa bloque/lote, equipo, personal y tipo en ${actionLabels[accion]}.`,
+            requiresTipo && requiresEquipo
+              ? `Completa bloque/lote, equipo, personal y tipo en ${actionLabels[accion]}.`
+              : `Completa bloque/lote y personal en ${actionLabels[accion]}.`,
           )
           return
         }
 
-        const trabajadoresEquipo = [...new Set(uso.trabajadorIds)]
+        const trabajadoresEquipo = [...new Set(usoNormalizado.trabajadorIds)]
           .map((trabajadorId) => workersById.get(trabajadorId))
           .filter((trabajador): trabajador is (typeof trabajadoresActivos)[number] => Boolean(trabajador))
 
-        if (trabajadoresEquipo.length !== new Set(uso.trabajadorIds).size) {
+        if (trabajadoresEquipo.length !== new Set(usoNormalizado.trabajadorIds).size) {
           setFormError('Uno de los trabajadores seleccionados no esta activo.')
           return
         }
 
-        const origen = origenesById.get(uso.origenId)
+        const origen = origenesById.get(usoNormalizado.origenId)
         if (!origen) {
           setFormError('Uno de los bloques/lotes seleccionados no es valido.')
           return
         }
 
-        const equipo = equiposById.get(uso.equipoId)
-        if (!equipo) {
-          setFormError('Uno de los equipos seleccionados no esta activo.')
-          return
+        const equipoDetalle: { id: string; nombre: string } = {
+          id: 'EQUIPO-N/A',
+          nombre: 'Sin equipo',
         }
 
-        const tipoEsperado = TIPO_EQUIPO_POR_ACCION[accion]
-        if (equipo.tipo !== tipoEsperado) {
-          setFormError(`${actionLabels[accion]} solo permite equipos tipo ${tipoEsperado}.`)
-          return
+        if (requiresEquipo) {
+          const equipo = equiposById.get(usoNormalizado.equipoId)
+          if (!equipo) {
+            setFormError('Uno de los equipos seleccionados no esta activo.')
+            return
+          }
+
+          const tipoEsperado = TIPO_EQUIPO_POR_ACCION[accion]
+          if (equipo.tipo !== tipoEsperado) {
+            setFormError(`${actionLabels[accion]} solo permite equipos tipo ${tipoEsperado}.`)
+            return
+          }
+
+          equipoDetalle.id = equipo.id
+          equipoDetalle.nombre = equipo.nombre
         }
 
-        const dimensionesCapturadas = uso.dimensiones.filter(
+        const dimensionesCapturadas = usoNormalizado.dimensiones.filter(
           (dimensionUso) =>
             dimensionUso.cantidadLosas > 0 ||
-            dimensionUso.mermaTotalLosas > 0 ||
+            (includeMermaEnAccion && dimensionUso.mermaTotalLosas > 0) ||
             dimensionUso.reutilizableLosas > 0,
         )
 
@@ -562,6 +709,9 @@ export const useProduccionPageState = () => {
         }
 
         for (const dimensionUso of dimensionesCapturadas) {
+          const mermaTotalLosas = includeMermaEnAccion ? dimensionUso.mermaTotalLosas : 0
+          let tipoUso = (accion === 'resinar' ? '' : usoNormalizado.tipo) as ProduccionDiaria['tipo'] | ''
+
           if (!Number.isInteger(dimensionUso.cantidadLosas) || dimensionUso.cantidadLosas <= 0) {
             setFormError(
               `Las losas de ${actionLabels[accion]} en dimension ${dimensionUso.dimension} deben ser enteras y mayores a 0.`,
@@ -570,7 +720,7 @@ export const useProduccionPageState = () => {
           }
 
           if (
-            !Number.isInteger(dimensionUso.mermaTotalLosas) ||
+            !Number.isInteger(mermaTotalLosas) ||
             !Number.isInteger(dimensionUso.reutilizableLosas)
           ) {
             setFormError(
@@ -579,30 +729,63 @@ export const useProduccionPageState = () => {
             return
           }
 
-          if (dimensionUso.mermaTotalLosas < 0 || dimensionUso.reutilizableLosas < 0) {
+          if (mermaTotalLosas < 0 || dimensionUso.reutilizableLosas < 0) {
             setFormError(
               `Merma y reutilizable en ${actionLabels[accion]} (${dimensionUso.dimension}) no pueden ser negativos.`,
             )
             return
           }
 
-          if (dimensionUso.mermaTotalLosas + dimensionUso.reutilizableLosas > dimensionUso.cantidadLosas) {
+          if (mermaTotalLosas + dimensionUso.reutilizableLosas > dimensionUso.cantidadLosas) {
             setFormError(
               `En ${actionLabels[accion]} (${dimensionUso.dimension}) la suma de merma + reutilizable no puede superar las losas procesadas.`,
             )
             return
           }
 
+          if (accion === 'resinar' && !tipoUso) {
+            const estadoRequerido = estadoProcesoRequeridoPorAccion[accion]
+            const candidato = (['Piso', 'Plancha'] as const)
+              .map((tipoItem) => {
+                const dimensionCandidata = resolveDimensionByTipo(tipoItem, dimensionUso.dimension)
+                const stockKey = `${usoNormalizado.origenId}::${tipoItem}::${dimensionCandidata}::${estadoRequerido}`
+                const disponible = stockProcesoPorClave.get(stockKey) ?? 0
+                const reservado = consumoProcesoReservado.get(stockKey) ?? 0
+                return {
+                  tipo: tipoItem as ProduccionDiaria['tipo'],
+                  restante: disponible - reservado,
+                }
+              })
+              .sort((a, b) => b.restante - a.restante)
+              .find((item) => item.restante >= dimensionUso.cantidadLosas)
+
+            if (!candidato) {
+              setFormError(
+                `Stock insuficiente para ${actionLabels[accion]} (${dimensionUso.dimension}). No se pudo inferir el tipo automaticamente.`,
+              )
+              return
+            }
+
+            tipoUso = candidato.tipo
+          }
+
+          if (!tipoUso) {
+            setFormError(`Falta tipo para ${actionLabels[accion]} (${dimensionUso.dimension}).`)
+            return
+          }
+
+          const dimensionUsoReal = resolveDimensionByTipo(tipoUso, dimensionUso.dimension)
+
           if (accion === 'escuadrar' || accion === 'devastar' || accion === 'resinar' || accion === 'pulir') {
             const estadoRequerido = estadoProcesoRequeridoPorAccion[accion]
-            const stockKey = `${uso.origenId}::${uso.tipo}::${dimensionUso.dimension}::${estadoRequerido}`
+            const stockKey = `${usoNormalizado.origenId}::${tipoUso}::${dimensionUsoReal}::${estadoRequerido}`
             const disponible = stockProcesoPorClave.get(stockKey) ?? 0
             const reservado = consumoProcesoReservado.get(stockKey) ?? 0
             const restante = disponible - reservado
 
             if (restante < dimensionUso.cantidadLosas) {
               setFormError(
-                `Stock fuera de almacen insuficiente para ${actionLabels[accion]} (${dimensionUso.dimension}, estado ${estadoRequerido}). Disponible: ${Math.max(0, restante)} losas.`,
+                `Stock fuera de almacen insuficiente para ${actionLabels[accion]} (${dimensionUsoReal}, estado ${estadoRequerido}). Disponible: ${Math.max(0, restante)} losas.`,
               )
               return
             }
@@ -616,20 +799,20 @@ export const useProduccionPageState = () => {
           if (accion === 'resinar') {
             if (!Number.isFinite(dimensionUso.cantidadResina) || dimensionUso.cantidadResina <= 0) {
               setFormError(
-                `Debes indicar la cantidad de resina consumida en ${actionLabels[accion]} (${dimensionUso.dimension}).`,
+                `Debes indicar la cantidad de resina consumida en ${actionLabels[accion]} (${dimensionUsoReal}).`,
               )
               return
             }
           }
 
-          const comboKey = `${uso.origenId}::${uso.tipo}::${dimensionUso.dimension}`
+          const comboKey = `${usoNormalizado.origenId}::${tipoUso}::${dimensionUsoReal}`
           const comboActual =
             registrosPorCombo.get(comboKey) ??
             {
-              origenId: uso.origenId,
-              origenNombre: origen.nombre,
-              tipo: uso.tipo,
-              dimension: dimensionUso.dimension,
+              origenId: usoNormalizado.origenId,
+              origenNombre: getBloqueCodigo(origen),
+              tipo: tipoUso,
+              dimension: dimensionUsoReal,
               actionTotals: {
                 picar: 0,
                 escuadrar: 0,
@@ -651,14 +834,14 @@ export const useProduccionPageState = () => {
               id: trabajador.id,
               nombre: trabajador.nombre,
             })),
-            equipoId: equipo.id,
-            equipoNombre: equipo.nombre,
+            equipoId: equipoDetalle.id,
+            equipoNombre: equipoDetalle.nombre,
             cantidadLosas: dimensionUso.cantidadLosas,
-            metrosCuadrados: losasAMetros(dimensionUso.cantidadLosas, dimensionUso.dimension),
-            losasMermaTotal: dimensionUso.mermaTotalLosas,
-            metrosMermaTotal: losasAMetros(dimensionUso.mermaTotalLosas, dimensionUso.dimension),
+            metrosCuadrados: losasAMetros(dimensionUso.cantidadLosas, dimensionUsoReal),
+            losasMermaTotal: mermaTotalLosas,
+            metrosMermaTotal: losasAMetros(mermaTotalLosas, dimensionUsoReal),
             losasReutilizables: dimensionUso.reutilizableLosas,
-            metrosReutilizables: losasAMetros(dimensionUso.reutilizableLosas, dimensionUso.dimension),
+            metrosReutilizables: losasAMetros(dimensionUso.reutilizableLosas, dimensionUsoReal),
             cantidadResina: accion === 'resinar' ? dimensionUso.cantidadResina : undefined,
           })
 
@@ -838,6 +1021,7 @@ export const useProduccionPageState = () => {
     totalM2Resumen,
     toggleUsageDimension,
     trabajadoresActivos,
+    resolveOrigenCodigo,
     updateUsage,
     updateUsageDimension,
   }

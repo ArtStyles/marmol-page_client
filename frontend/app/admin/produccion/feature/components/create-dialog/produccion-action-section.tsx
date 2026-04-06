@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  PLANCHA_DIMENSION,
   TIPO_EQUIPO_POR_ACCION,
   type AccionLosa,
   type BloqueOLote,
@@ -25,6 +26,7 @@ import {
   type TipoProducto,
   type Trabajador,
 } from '@/lib/types'
+import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import { cn } from '@/lib/utils'
 import { Plus, Trash2, X } from 'lucide-react'
 import type {
@@ -87,8 +89,10 @@ export function ProduccionActionSection({
   updateUsage,
   updateUsageDimension,
 }: ProduccionActionSectionProps) {
+  const isResinar = accion === 'resinar'
   const tipoEquipo = TIPO_EQUIPO_POR_ACCION[accion]
   const equiposPorAccion = equiposActivos.filter((equipo) => equipo.tipo === tipoEquipo)
+  const supportsMerma = accion !== 'picar'
 
   const totalAsignado = accionState.usos.reduce(
     (sum, uso) =>
@@ -99,26 +103,9 @@ export function ProduccionActionSection({
       ),
     0,
   )
-  const totalMermaAccion = accionState.usos.reduce(
-    (sum, uso) =>
-      sum +
-      uso.dimensiones.reduce(
-        (sumDimension, dimensionUso) => sumDimension + dimensionUso.mermaTotalLosas,
-        0,
-      ),
-    0,
-  )
-  const totalReutilizableAccion = accionState.usos.reduce(
-    (sum, uso) =>
-      sum +
-      uso.dimensiones.reduce(
-        (sumDimension, dimensionUso) => sumDimension + dimensionUso.reutilizableLosas,
-        0,
-      ),
-    0,
-  )
 
   const selectedDimensionsLabel = (uso: ActionUsageForm): string => {
+    if (uso.tipo === 'Plancha') return `${PLANCHA_DIMENSION} (fija)`
     if (uso.dimensiones.length === 0) return 'Seleccionar dimensiones'
     if (uso.dimensiones.length === dimensionOptions.length) return 'Todas'
     return uso.dimensiones.map((item) => item.dimension).join(', ')
@@ -130,9 +117,6 @@ export function ProduccionActionSection({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <Badge className={cn('w-fit', actionColors[accion])}>{actionLabels[accion]}</Badge>
-            <p className="mt-1 text-[11px] text-slate-500">
-              Configura la fila base y luego captura subfilas por dimension.
-            </p>
           </div>
           <div className="text-right">
             <p className="text-xs text-slate-500">Asignado</p>
@@ -149,6 +133,8 @@ export function ProduccionActionSection({
               personalSeleccionado.length > 0
                 ? personalSeleccionado.map((trabajador) => trabajador.nombre).join(', ')
                 : 'Seleccionar personal'
+            const isPlancha = uso.tipo === 'Plancha'
+            const dimensionesUso = uso.dimensiones
 
             return (
               <div
@@ -171,9 +157,14 @@ export function ProduccionActionSection({
                   </Button>
                 </div>
 
-                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div
+                  className={cn(
+                    'mt-3 grid gap-3 md:grid-cols-2',
+                    isResinar ? 'xl:grid-cols-3' : 'xl:grid-cols-5',
+                  )}
+                >
                   <div className="space-y-1">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Bloque/lote</p>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Codigo</p>
                     <Select
                       value={uso.origenId}
                       onValueChange={(value) => updateUsage(accion, uso.id, { origenId: value })}
@@ -184,31 +175,33 @@ export function ProduccionActionSection({
                       <SelectContent>
                         {origenesActivos.map((bloque) => (
                           <SelectItem key={bloque.id} value={bloque.id}>
-                            {bloque.nombre} ({bloque.tipo})
+                            {getBloqueCodigo(bloque)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="space-y-1">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Equipo</p>
-                    <Select
-                      value={uso.equipoId}
-                      onValueChange={(value) => updateUsage(accion, uso.id, { equipoId: value })}
-                    >
-                      <SelectTrigger className="h-9 w-full">
-                        <SelectValue placeholder="Seleccionar equipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {equiposPorAccion.map((equipo) => (
-                          <SelectItem key={equipo.id} value={equipo.id}>
-                            {equipo.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {!isResinar ? (
+                    <div className="space-y-1">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Equipo</p>
+                      <Select
+                        value={uso.equipoId}
+                        onValueChange={(value) => updateUsage(accion, uso.id, { equipoId: value })}
+                      >
+                        <SelectTrigger className="h-9 w-full">
+                          <SelectValue placeholder="Seleccionar equipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {equiposPorAccion.map((equipo) => (
+                            <SelectItem key={equipo.id} value={equipo.id}>
+                              {equipo.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
 
                   <div className="space-y-1">
                     <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Personal</p>
@@ -260,87 +253,85 @@ export function ProduccionActionSection({
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <p className="text-[10px] text-slate-500">{uso.trabajadorIds.length} integrante(s)</p>
                   </div>
 
-                  <div className="space-y-1">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Tipo</p>
-                    <Select
-                      value={uso.tipo}
-                      onValueChange={(value) => updateUsage(accion, uso.id, { tipo: value as TipoProducto })}
-                    >
-                      <SelectTrigger className="h-9 w-full">
-                        <SelectValue placeholder="Tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tipoOptions.map((tipo) => (
-                          <SelectItem key={tipo} value={tipo}>
-                            {tipo}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Dimensiones</p>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-9 w-full justify-between bg-transparent text-left font-normal"
-                        >
-                          <span className="truncate">{selectedDimensionsLabel(uso)}</span>
-                          <span className="ml-2 text-[10px] text-slate-500">{uso.dimensiones.length}</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="start"
-                        className="w-[var(--radix-dropdown-menu-trigger-width)]"
+                  {!isResinar ? (
+                    <div className="space-y-1">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Tipo</p>
+                      <Select
+                        value={uso.tipo}
+                        onValueChange={(value) => updateUsage(accion, uso.id, { tipo: value as TipoProducto })}
                       >
-                        {dimensionOptions.map((dimension) => {
-                          const isSelected = uso.dimensiones.some(
-                            (dimensionUso) => dimensionUso.dimension === dimension,
-                          )
+                        <SelectTrigger className="h-9 w-full">
+                          <SelectValue placeholder="Tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tipoOptions.map((tipo) => (
+                            <SelectItem key={tipo} value={tipo}>
+                              {tipo}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
 
-                          return (
-                            <DropdownMenuCheckboxItem
-                              key={`${uso.id}-${dimension}`}
-                              checked={isSelected}
-                              onSelect={(event) => event.preventDefault()}
-                              onCheckedChange={(checked) => {
-                                toggleUsageDimension(accion, uso.id, dimension as Dimension, checked === true)
-                              }}
-                            >
-                              {dimension}
-                            </DropdownMenuCheckboxItem>
-                          )
-                        })}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                  {!isPlancha ? (
+                    <div className="space-y-1">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Dimensiones</p>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-9 w-full justify-between bg-transparent text-left font-normal"
+                          >
+                            <span className="truncate">{selectedDimensionsLabel(uso)}</span>
+                            <span className="ml-2 text-[10px] text-slate-500">{uso.dimensiones.length}</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="start"
+                          className="w-[var(--radix-dropdown-menu-trigger-width)]"
+                        >
+                          {dimensionOptions.map((dimension) => {
+                            const isSelected = uso.dimensiones.some(
+                              (dimensionUso) => dimensionUso.dimension === dimension,
+                            )
+
+                            return (
+                              <DropdownMenuCheckboxItem
+                                key={`${uso.id}-${dimension}`}
+                                checked={isSelected}
+                                onSelect={(event) => event.preventDefault()}
+                                onCheckedChange={(checked) => {
+                                  toggleUsageDimension(accion, uso.id, dimension, checked === true)
+                                }}
+                              >
+                                {dimension}
+                              </DropdownMenuCheckboxItem>
+                            )
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                  {uso.dimensiones.length === 0 ? (
-                    <p className="text-xs text-slate-500">Selecciona una o varias dimensiones para capturar detalle.</p>
-                  ) : (
-                    uso.dimensiones.map((dimensionUso) => (
+                  {dimensionesUso.length > 0 ? (
+                    dimensionesUso.map((dimensionUso) => (
                       <Badge key={dimensionUso.id} variant="outline" className="bg-white">
                         {dimensionUso.dimension}
                       </Badge>
                     ))
-                  )}
+                  ) : null}
                 </div>
 
-                {uso.dimensiones.length > 0 && (
+                {dimensionesUso.length > 0 && (
                   <div className="mt-3 rounded-lg border border-slate-200/80 bg-slate-50/80 p-2">
-                    <p className="px-1 pb-2 text-[10px] uppercase tracking-[0.16em] text-slate-500">
-                      Subfilas por dimension
-                    </p>
                     <div className="space-y-2">
-                      {uso.dimensiones.map((dimensionUso) => (
+                      {dimensionesUso.map((dimensionUso) => (
                         <div
                           key={dimensionUso.id}
                           className="rounded-md border border-slate-200/80 bg-white p-2"
@@ -349,23 +340,29 @@ export function ProduccionActionSection({
                             <Badge variant="outline" className="bg-slate-50 text-slate-700">
                               {dimensionUso.dimension}
                             </Badge>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() =>
-                                toggleUsageDimension(accion, uso.id, dimensionUso.dimension, false)
-                              }
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
+                            {!isPlancha ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() =>
+                                  toggleUsageDimension(accion, uso.id, dimensionUso.dimension, false)
+                                }
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            ) : null}
                           </div>
 
                           <div
                             className={cn(
                               'grid gap-2',
-                              accion === 'resinar' ? 'sm:grid-cols-4' : 'sm:grid-cols-3',
+                              accion === 'resinar'
+                                ? 'sm:grid-cols-4'
+                                : supportsMerma
+                                  ? 'sm:grid-cols-3'
+                                  : 'sm:grid-cols-2',
                             )}
                           >
                             <div className="space-y-1">
@@ -393,79 +390,60 @@ export function ProduccionActionSection({
                                   })
                                 }
                               />
-                              {(accion === 'escuadrar' ||
-                                accion === 'devastar' ||
-                                accion === 'resinar' ||
-                                accion === 'pulir') && (
-                                <p
-                                  className={cn(
-                                    'text-[10px]',
-                                    (() => {
-                                      const disponibles = getLosasDisponiblesParaAccion(
-                                        accion,
-                                        uso.origenId,
-                                        uso.tipo,
-                                        dimensionUso.dimension,
-                                      )
-                                      if (disponibles === null) return 'text-slate-500'
-                                      return dimensionUso.cantidadLosas > disponibles
+                              {(() => {
+                                const disponibles = getLosasDisponiblesParaAccion(
+                                  accion,
+                                  uso.origenId,
+                                  uso.tipo,
+                                  dimensionUso.dimension,
+                                )
+                                if (disponibles === null) return null
+
+                                return (
+                                  <p
+                                    className={cn(
+                                      'text-[10px]',
+                                      dimensionUso.cantidadLosas > disponibles
                                         ? 'text-rose-600'
-                                        : 'text-slate-600'
-                                    })(),
-                                  )}
-                                >
-                                  {(() => {
-                                    const estadoRequerido =
-                                      accion === 'escuadrar'
-                                        ? 'Picado'
-                                        : accion === 'devastar'
-                                          ? 'Escuadrado'
-                                          : accion === 'resinar'
-                                            ? 'Devastado'
-                                            : 'Resinado'
-                                    const disponibles = getLosasDisponiblesParaAccion(
-                                      accion,
-                                      uso.origenId,
-                                      uso.tipo,
-                                      dimensionUso.dimension,
-                                    )
-
-                                    if (disponibles === null) {
-                                      return `Disponibles: selecciona bloque/lote y tipo (estado ${estadoRequerido})`
-                                    }
-
-                                    return `Disponibles: ${disponibles} losas (estado ${estadoRequerido})`
-                                  })()}
-                                </p>
-                              )}
+                                        : 'text-transparent',
+                                    )}
+                                  >
+                                    {dimensionUso.cantidadLosas > disponibles
+                                      ? `Maximo disponible: ${disponibles}`
+                                      : '.'}
+                                  </p>
+                                )
+                              })()}
                             </div>
 
-                            <div className="space-y-1">
-                              <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Merma prod. (no pago)</p>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="1"
-                                placeholder="0"
-                                className="h-9 text-right"
-                                value={
-                                  dimensionUso.mermaTotalTouched || dimensionUso.mermaTotalLosas > 0
-                                    ? dimensionUso.mermaTotalLosas
-                                    : ''
-                                }
-                                onChange={(event) =>
-                                  updateUsageDimensionNumericInput({
-                                    action: accion,
-                                    usageId: uso.id,
-                                    dimensionUsageId: dimensionUso.id,
-                                    rawValue: event.target.value,
-                                    numericField: 'mermaTotalLosas',
-                                    touchedField: 'mermaTotalTouched',
-                                    updateUsageDimension,
-                                  })
-                                }
-                              />
-                            </div>
+                            {supportsMerma && (
+                              <div className="space-y-1">
+                                <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Merma prod. (no pago)</p>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  placeholder="0"
+                                  className="h-9 text-right"
+                                  value={
+                                    dimensionUso.mermaTotalTouched || dimensionUso.mermaTotalLosas > 0
+                                      ? dimensionUso.mermaTotalLosas
+                                      : ''
+                                  }
+                                  onChange={(event) =>
+                                    updateUsageDimensionNumericInput({
+                                      action: accion,
+                                      usageId: uso.id,
+                                      dimensionUsageId: dimensionUso.id,
+                                      rawValue: event.target.value,
+                                      numericField: 'mermaTotalLosas',
+                                      touchedField: 'mermaTotalTouched',
+                                      updateUsageDimension,
+                                    })
+                                  }
+                                />
+                              </div>
+                            )}
 
                             <div className="space-y-1">
                               <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Reutilizable (paga)</p>
@@ -533,7 +511,7 @@ export function ProduccionActionSection({
           })}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-start gap-2">
           <Button
             type="button"
             variant="outline"
@@ -544,13 +522,9 @@ export function ProduccionActionSection({
             <Plus className="mr-1 h-3.5 w-3.5" />
             Nueva fila
           </Button>
-          <div className="text-right">
-            <p className="text-xs text-slate-600">Merma total: {totalMermaAccion} losas</p>
-            <p className="text-xs text-slate-600">Reutilizable total: {totalReutilizableAccion} losas</p>
-          </div>
         </div>
 
-        {equiposPorAccion.length === 0 && (
+        {!isResinar && equiposPorAccion.length === 0 && (
           <p className="text-xs text-amber-700">No hay equipos activos tipo {tipoEquipo}.</p>
         )}
       </div>

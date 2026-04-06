@@ -192,6 +192,7 @@ export interface VentaDetalleProducto {
   origenNombre: string
   dimension: Dimension
   estado: EstadoInventario
+  cantidadUnidades?: number
   metrosCuadrados: number
   precioM2: number
   subtotal: number

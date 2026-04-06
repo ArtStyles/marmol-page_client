@@ -208,7 +208,7 @@ export const getDetalleLosasPorTrabajador = (detalle: ProduccionDetalleAccion): 
   detalle.cantidadLosas / getDetalleTrabajadoresCount(detalle)
 
 export const getDetalleMermaLosas = (detalle: ProduccionDetalleAccion): number =>
-  detalle.losasMermaTotal ?? 0
+  detalle.accion === 'picar' ? 0 : (detalle.losasMermaTotal ?? 0)
 
 export const getDetalleReutilizableLosas = (detalle: ProduccionDetalleAccion): number =>
   detalle.losasReutilizables ?? 0
