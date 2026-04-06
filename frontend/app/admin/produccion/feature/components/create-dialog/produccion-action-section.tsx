@@ -17,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  PLANCHA_DIMENSION,
   TIPO_EQUIPO_POR_ACCION,
   type AccionLosa,
   type BloqueOLote,
@@ -105,7 +104,6 @@ export function ProduccionActionSection({
   )
 
   const selectedDimensionsLabel = (uso: ActionUsageForm): string => {
-    if (uso.tipo === 'Plancha') return `${PLANCHA_DIMENSION} (fija)`
     if (uso.dimensiones.length === 0) return 'Seleccionar dimensiones'
     if (uso.dimensiones.length === dimensionOptions.length) return 'Todas'
     return uso.dimensiones.map((item) => item.dimension).join(', ')
@@ -315,18 +313,20 @@ export function ProduccionActionSection({
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                  )}
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {dimensionesUso.length > 0 ? (
-                    dimensionesUso.map((dimensionUso) => (
-                      <Badge key={dimensionUso.id} variant="outline" className="bg-white">
-                        {dimensionUso.dimension}
-                      </Badge>
-                    ))
                   ) : null}
                 </div>
+
+                {!isPlancha ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {dimensionesUso.length > 0 ? (
+                      dimensionesUso.map((dimensionUso) => (
+                        <Badge key={dimensionUso.id} variant="outline" className="bg-white">
+                          {dimensionUso.dimension}
+                        </Badge>
+                      ))
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {dimensionesUso.length > 0 && (
                   <div className="mt-3 rounded-lg border border-slate-200/80 bg-slate-50/80 p-2">
@@ -336,11 +336,11 @@ export function ProduccionActionSection({
                           key={dimensionUso.id}
                           className="rounded-md border border-slate-200/80 bg-white p-2"
                         >
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <Badge variant="outline" className="bg-slate-50 text-slate-700">
-                              {dimensionUso.dimension}
-                            </Badge>
-                            {!isPlancha ? (
+                          {!isPlancha ? (
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <Badge variant="outline" className="bg-slate-50 text-slate-700">
+                                {dimensionUso.dimension}
+                              </Badge>
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -352,8 +352,8 @@ export function ProduccionActionSection({
                               >
                                 <X className="h-4 w-4" />
                               </Button>
-                            ) : null}
-                          </div>
+                            </div>
+                          ) : null}
 
                           <div
                             className={cn(

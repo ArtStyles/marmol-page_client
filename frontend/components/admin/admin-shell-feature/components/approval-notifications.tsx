@@ -21,7 +21,7 @@ import {
   approveInventarioMovimiento,
   approveProduccionAlmacen,
   approveProduccionTaller,
-  getInventarioMovimientos,
+  getInventarioMovimientosPage,
   getProduccion,
   rejectInventarioMovimiento,
 } from '@/lib/resources-api'
@@ -56,6 +56,32 @@ const toTimestamp = (value: string | undefined): number => {
   if (!value) return 0
   const parsed = Date.parse(value)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+async function loadPendingInventarioMovimientos(): Promise<InventarioMovimiento[]> {
+  const items: InventarioMovimiento[] = []
+  const seen = new Set<string>()
+  let cursor: string | undefined
+  let hasMore = true
+
+  while (hasMore) {
+    const page = await getInventarioMovimientosPage({
+      limit: 50,
+      cursor,
+      estado: 'pendiente',
+    })
+
+    for (const item of page.items) {
+      if (seen.has(item.id)) continue
+      seen.add(item.id)
+      items.push(item)
+    }
+
+    hasMore = page.hasMore && !!page.nextCursor
+    cursor = page.nextCursor ?? undefined
+  }
+
+  return items
 }
 
 export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProps) => {
@@ -119,7 +145,9 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
           ? getProduccion()
           : Promise.resolve([])
       const inventarioPromise: Promise<InventarioMovimiento[]> =
-        canApproveAlmacen && canReadInventario ? getInventarioMovimientos() : Promise.resolve([])
+        canApproveAlmacen && canReadInventario
+          ? loadPendingInventarioMovimientos()
+          : Promise.resolve([])
 
       const [produccion, movimientosInventario] = await Promise.all([
         produccionPromise,

@@ -30,7 +30,7 @@ import { useInventarioStore } from '@/hooks/use-inventario'
 import {
   approveInventarioMovimiento,
   createSalidaProcesoInventario,
-  getInventarioMovimientos,
+  getInventarioMovimientosPage,
   rejectInventarioMovimiento,
 } from '@/lib/resources-api'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
@@ -45,7 +45,7 @@ import {
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
-import { BarChart3, Search } from 'lucide-react'
+import { BarChart3, ChevronDown, Search } from 'lucide-react'
 
 type EstadoRow = {
   estado: Producto['estado']
@@ -154,6 +154,7 @@ const estadoRequeridoProcesoPorAccion: Record<
   pulir: 'Resinado',
 }
 
+const MOVIMIENTOS_PAGE_SIZE = 10
 
 function buildEstadoRows(items: Producto[]): EstadoRow[] {
   return estadoOrden.map((estado) => {
@@ -209,6 +210,10 @@ export default function InventarioPage() {
   const [metricView, setMetricView] = useState<MetricView>('both')
   const [movimientos, setMovimientos] = useState<InventarioMovimiento[]>([])
   const [movimientosLoading, setMovimientosLoading] = useState(true)
+  const [movimientosLoadingMore, setMovimientosLoadingMore] = useState(false)
+  const [movimientosHasMore, setMovimientosHasMore] = useState(false)
+  const [movimientosNextCursor, setMovimientosNextCursor] = useState<string | null>(null)
+  const [movimientosOpen, setMovimientosOpen] = useState(false)
   const [movimientosError, setMovimientosError] = useState<string | null>(null)
   const [movimientoActionLoadingById, setMovimientoActionLoadingById] = useState<Record<string, boolean>>({})
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
@@ -243,13 +248,17 @@ export default function InventarioPage() {
   useEffect(() => {
     let alive = true
 
-    const loadMovimientos = async () => {
+    const loadMovimientosIniciales = async () => {
       setMovimientosLoading(true)
       setMovimientosError(null)
       try {
-        const data = await getInventarioMovimientos()
+        const data = await getInventarioMovimientosPage({
+          limit: MOVIMIENTOS_PAGE_SIZE,
+        })
         if (!alive) return
-        setMovimientos(data)
+        setMovimientos(data.items)
+        setMovimientosHasMore(data.hasMore)
+        setMovimientosNextCursor(data.nextCursor)
       } catch (error) {
         if (!alive) return
         setMovimientosError(
@@ -257,12 +266,15 @@ export default function InventarioPage() {
             ? error.message
             : 'No se pudo cargar el historial de movimientos de almacen.',
         )
+        setMovimientos([])
+        setMovimientosHasMore(false)
+        setMovimientosNextCursor(null)
       } finally {
         if (alive) setMovimientosLoading(false)
       }
     }
 
-    void loadMovimientos()
+    void loadMovimientosIniciales()
 
     return () => {
       alive = false
@@ -619,7 +631,7 @@ export default function InventarioPage() {
         cantidadLosas,
         motivo,
       })
-      setMovimientos((prev) => [movimiento, ...prev])
+      setMovimientos((prev) => [movimiento, ...prev.filter((item) => item.id !== movimiento.id)])
       closeProcesoDialog()
     } catch (error) {
       const message =
@@ -630,6 +642,33 @@ export default function InventarioPage() {
       setMovimientosError(message)
     } finally {
       setProcesoDialogSubmitting(false)
+    }
+  }
+
+  const handleLoadMoreMovimientos = async () => {
+    if (!movimientosHasMore || !movimientosNextCursor || movimientosLoadingMore) return
+    setMovimientosError(null)
+    setMovimientosLoadingMore(true)
+    try {
+      const data = await getInventarioMovimientosPage({
+        limit: MOVIMIENTOS_PAGE_SIZE,
+        cursor: movimientosNextCursor,
+      })
+      setMovimientos((prev) => {
+        const ids = new Set(prev.map((item) => item.id))
+        const nextItems = data.items.filter((item) => !ids.has(item.id))
+        return [...prev, ...nextItems]
+      })
+      setMovimientosHasMore(data.hasMore)
+      setMovimientosNextCursor(data.nextCursor)
+    } catch (error) {
+      setMovimientosError(
+        error instanceof Error
+          ? error.message
+          : 'No se pudieron cargar mas movimientos de almacen.',
+      )
+    } finally {
+      setMovimientosLoadingMore(false)
     }
   }
 
@@ -864,7 +903,7 @@ export default function InventarioPage() {
 
 
         <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Historial exclusivo de almacen</p>
               <h2 className="text-lg font-semibold text-slate-900">Entradas y salidas con aprobacion</h2>
@@ -879,114 +918,166 @@ export default function InventarioPage() {
               <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
                 {canApproveMovimientos ? 'Aprobador: almacen' : 'Solo consulta'}
               </Badge>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 border-slate-200 bg-white/70 text-slate-700"
+                onClick={() => {
+                  setMovimientosOpen((prev) => !prev)
+                }}
+                aria-expanded={movimientosOpen}
+              >
+                {movimientosOpen ? 'Ocultar historial' : 'Ver historial'}
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 transition-transform duration-300 ease-out',
+                    movimientosOpen ? 'rotate-180' : 'rotate-0',
+                  )}
+                />
+              </Button>
             </div>
           </div>
 
-          {movimientosError ? (
-            <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {movimientosError}
-            </p>
-          ) : null}
+          <div
+            className={cn(
+              'grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-500 ease-out',
+              movimientosOpen ? 'mt-4 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0',
+            )}
+          >
+            <div className="min-h-0 overflow-hidden">
+              {movimientosError ? (
+                <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {movimientosError}
+                </p>
+              ) : null}
 
-          {movimientosLoading ? (
-            <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
-              Cargando movimientos de almacen...
-            </div>
-          ) : movimientosOrdenados.length === 0 ? (
-            <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
-              Sin movimientos registrados.
-            </div>
-          ) : (
-            <div className="mt-4 divide-y divide-slate-200/60 overflow-hidden rounded-xl border border-slate-200/80">
-              {movimientosOrdenados.map((movimiento) => {
-                const totalLosas = movimiento.detalles.reduce((sum, detalle) => sum + detalle.cantidadLosas, 0)
-                const totalM2 = movimiento.detalles.reduce((sum, detalle) => sum + detalle.metrosCuadrados, 0)
-                const isActionLoading = !!movimientoActionLoadingById[movimiento.id]
-                const detalleResumen = movimiento.detalles
-                  .slice(0, 2)
-                  .map((detalle) => {
-                    const ubicacionResumen = detalle.ubicacionDestino
-                      ? ` (${detalle.ubicacionOrigen ?? 'almacen'} -> ${detalle.ubicacionDestino})`
-                      : detalle.ubicacionOrigen
-                        ? ` (${detalle.ubicacionOrigen})`
-                        : ''
-                    return `${detalle.origenNombre} ${detalle.dimension}${ubicacionResumen}`
-                  })
-                  .join(' | ')
+              {movimientosLoading ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
+                  Cargando movimientos de almacen...
+                </div>
+              ) : movimientosOrdenados.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
+                  Sin movimientos registrados.
+                </div>
+              ) : (
+                <>
+                  <div className="max-h-[540px] overflow-y-auto scroll-smooth rounded-xl border border-slate-200/80">
+                    <div className="divide-y divide-slate-200/60">
+                      {movimientosOrdenados.map((movimiento) => {
+                        const totalLosas = movimiento.detalles.reduce((sum, detalle) => sum + detalle.cantidadLosas, 0)
+                        const totalM2 = movimiento.detalles.reduce((sum, detalle) => sum + detalle.metrosCuadrados, 0)
+                        const isActionLoading = !!movimientoActionLoadingById[movimiento.id]
+                        const detalleResumen = movimiento.detalles
+                          .slice(0, 2)
+                          .map((detalle) => {
+                            const ubicacionResumen = detalle.ubicacionDestino
+                              ? ` (${detalle.ubicacionOrigen ?? 'almacen'} -> ${detalle.ubicacionDestino})`
+                              : detalle.ubicacionOrigen
+                                ? ` (${detalle.ubicacionOrigen})`
+                                : ''
+                            return `${detalle.origenNombre} ${detalle.dimension}${ubicacionResumen}`
+                          })
+                          .join(' | ')
 
-                return (
-                  <div key={movimiento.id} className="bg-white/70 px-3 py-3">
-                    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-slate-900">{movimiento.id}</p>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              'border-slate-200 bg-slate-50 text-slate-700',
-                              movimientoTipoBadgeClass[movimiento.tipo],
-                            )}
-                          >
-                            {movimiento.tipo.toUpperCase()} / {movimiento.origen}
-                          </Badge>
-                          <Badge variant="outline" className={cn('text-[11px]', movimientoEstadoBadgeClass[movimiento.estado])}>
-                            {movimientoEstadoLabel[movimiento.estado]}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-600">
-                          Fecha: {formatDateTime(movimiento.fechaSolicitud)} - Motivo: {movimiento.motivo}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {totalLosas.toLocaleString()} losas - {totalM2.toFixed(2)} m2 - {movimiento.detalles.length} detalle(s)
-                        </p>
-                        {detalleResumen ? (
-                          <p className="mt-1 text-[11px] text-slate-500">{detalleResumen}</p>
-                        ) : null}
-                        {movimiento.motivoRechazo ? (
-                          <p className="mt-1 text-[11px] text-rose-700">Rechazo: {movimiento.motivoRechazo}</p>
-                        ) : null}
-                      </div>
+                        return (
+                          <div key={movimiento.id} className="bg-white/70 px-3 py-3">
+                            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm font-semibold text-slate-900">{movimiento.id}</p>
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      'border-slate-200 bg-slate-50 text-slate-700',
+                                      movimientoTipoBadgeClass[movimiento.tipo],
+                                    )}
+                                  >
+                                    {movimiento.tipo.toUpperCase()} / {movimiento.origen}
+                                  </Badge>
+                                  <Badge variant="outline" className={cn('text-[11px]', movimientoEstadoBadgeClass[movimiento.estado])}>
+                                    {movimientoEstadoLabel[movimiento.estado]}
+                                  </Badge>
+                                </div>
+                                <p className="mt-1 text-xs text-slate-600">
+                                  Fecha: {formatDateTime(movimiento.fechaSolicitud)} - Motivo: {movimiento.motivo}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {totalLosas.toLocaleString()} losas - {totalM2.toFixed(2)} m2 - {movimiento.detalles.length} detalle(s)
+                                </p>
+                                {detalleResumen ? (
+                                  <p className="mt-1 text-[11px] text-slate-500">{detalleResumen}</p>
+                                ) : null}
+                                {movimiento.motivoRechazo ? (
+                                  <p className="mt-1 text-[11px] text-rose-700">Rechazo: {movimiento.motivoRechazo}</p>
+                                ) : null}
+                              </div>
 
-                      {canApproveMovimientos && movimiento.estado === 'pendiente' ? (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={isActionLoading}
-                            onClick={() => {
-                              void handleApproveMovimiento(movimiento.id)
-                            }}
-                          >
-                            {isActionLoading ? 'Procesando...' : 'Aprobar'}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="border-rose-200 text-rose-700"
-                            disabled={isActionLoading}
-                            onClick={() => {
-                              void handleRejectMovimiento(movimiento.id)
-                            }}
-                          >
-                            Rechazar
-                          </Button>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-slate-500">
-                          {movimiento.estado === 'pendiente'
-                            ? 'Pendiente por aprobacion de almacen'
-                            : movimiento.fechaResolucion
-                              ? `Resuelto: ${formatDateTime(movimiento.fechaResolucion)}`
-                              : 'Resuelto'}
-                        </p>
-                      )}
+                              {canApproveMovimientos && movimiento.estado === 'pendiente' ? (
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={isActionLoading}
+                                    onClick={() => {
+                                      void handleApproveMovimiento(movimiento.id)
+                                    }}
+                                  >
+                                    {isActionLoading ? 'Procesando...' : 'Aprobar'}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-rose-200 text-rose-700"
+                                    disabled={isActionLoading}
+                                    onClick={() => {
+                                      void handleRejectMovimiento(movimiento.id)
+                                    }}
+                                  >
+                                    Rechazar
+                                  </Button>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-slate-500">
+                                  {movimiento.estado === 'pendiente'
+                                    ? 'Pendiente por aprobacion de almacen'
+                                    : movimiento.fechaResolucion
+                                      ? `Resuelto: ${formatDateTime(movimiento.fechaResolucion)}`
+                                      : 'Resuelto'}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
-                )
-              })}
+
+                  {movimientosHasMore ? (
+                    <div className="mt-3 flex items-center justify-center">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 border-slate-200 bg-white/70 text-slate-700"
+                        disabled={movimientosLoadingMore}
+                        onClick={() => {
+                          void handleLoadMoreMovimientos()
+                        }}
+                      >
+                        {movimientosLoadingMore ? 'Cargando...' : 'Cargar mas'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-center text-[11px] text-slate-500">
+                      Mostrando {movimientosOrdenados.length} movimiento(s).
+                    </p>
+                  )}
+                </>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         <Dialog

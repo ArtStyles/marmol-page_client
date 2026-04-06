@@ -1,5 +1,6 @@
-﻿import type { Request, Response } from 'express'
+import type { Request, Response } from 'express'
 import * as container from '../../container.js'
+import type { InventarioMovimientoResponseDto } from '../../../application/dtos/index.js'
 
 function resolveActor(req: Request): { userId: string; userName: string } {
   return {
@@ -8,8 +9,32 @@ function resolveActor(req: Request): { userId: string; userName: string } {
   }
 }
 
-export async function getInventarioMovimientos(_req: Request, res: Response) {
-  const data = await container.getInventarioMovimientosUseCase.execute()
+function parseLimit(raw: unknown): number | undefined {
+  if (typeof raw !== 'string' || raw.trim() === '') return undefined
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed)) return undefined
+  const integerValue = Math.trunc(parsed)
+  if (integerValue <= 0) return undefined
+  return integerValue
+}
+
+function parseEstado(raw: unknown): InventarioMovimientoResponseDto['estado'] | undefined {
+  if (raw === 'pendiente' || raw === 'aprobado' || raw === 'rechazado') return raw
+  return undefined
+}
+
+function parseCursor(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined
+  const trimmed = raw.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+export async function getInventarioMovimientos(req: Request, res: Response) {
+  const data = await container.getInventarioMovimientosUseCase.execute({
+    limit: parseLimit(req.query.limit),
+    estado: parseEstado(req.query.estado),
+    cursor: parseCursor(req.query.cursor),
+  })
   res.json(data)
 }
 

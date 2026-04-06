@@ -1,4 +1,8 @@
-import type { InventarioMovimientoRepositoryPort } from '../../../domain/ports/index.js'
+import type {
+  InventarioMovimientoPageQuery,
+  InventarioMovimientoPageResult,
+  InventarioMovimientoRepositoryPort,
+} from '../../../domain/ports/index.js'
 import type { InventarioMovimiento } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
 import { nextId, toTimestampIso } from './helpers.js'
@@ -29,10 +33,55 @@ export class PostgresInventarioMovimientoRepository implements InventarioMovimie
     const pool = getPool()
     const workshopId = getCurrentWorkshopId()
     const r = await pool.query(
-      'SELECT * FROM inventario_movimientos WHERE workshop_id = $1 ORDER BY fecha_solicitud DESC, id',
+      'SELECT * FROM inventario_movimientos WHERE workshop_id = $1 ORDER BY fecha_solicitud DESC, id DESC',
       [workshopId],
     )
     return r.rows.map(rowToInventarioMovimiento)
+  }
+
+  async findPage(query: InventarioMovimientoPageQuery): Promise<InventarioMovimientoPageResult> {
+    const pool = getPool()
+    const workshopId = getCurrentWorkshopId()
+    const values: unknown[] = [workshopId]
+    const where: string[] = ['workshop_id = $1']
+
+    if (query.estado) {
+      values.push(query.estado)
+      where.push(`estado = $${values.length}`)
+    }
+
+    if (query.cursor) {
+      values.push(query.cursor.fechaSolicitud)
+      values.push(query.cursor.id)
+      where.push(`(fecha_solicitud, id) < ($${values.length - 1}::timestamptz, $${values.length})`)
+    }
+
+    values.push(query.limit + 1)
+
+    const sql = `
+      SELECT *
+      FROM inventario_movimientos
+      WHERE ${where.join(' AND ')}
+      ORDER BY fecha_solicitud DESC, id DESC
+      LIMIT $${values.length}
+    `
+
+    const r = await pool.query(sql, values)
+    const mapped = r.rows.map(rowToInventarioMovimiento)
+    const hasMore = mapped.length > query.limit
+    const items = hasMore ? mapped.slice(0, query.limit) : mapped
+    const lastItem = hasMore ? items[items.length - 1] : null
+
+    return {
+      items,
+      hasMore,
+      nextCursor: lastItem
+        ? {
+            fechaSolicitud: lastItem.fechaSolicitud,
+            id: lastItem.id,
+          }
+        : null,
+    }
   }
 
   async findById(id: string): Promise<InventarioMovimiento | null> {

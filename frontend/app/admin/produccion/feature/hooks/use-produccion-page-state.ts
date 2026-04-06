@@ -5,10 +5,12 @@ import {
   approveProduccionAlmacen,
   approveProduccionTaller,
   createProduccion,
+  deleteProduccion,
   getBloques,
   getEquipos,
   getProductos,
   getTrabajadores,
+  updateProduccion,
 } from '@/lib/resources-api'
 import { useProduccionStore } from '@/hooks/use-produccion'
 import { getBloqueCodigo } from '@/lib/bloque-codigo'
@@ -96,6 +98,9 @@ export const useProduccionPageState = () => {
   const [approvalError, setApprovalError] = useState<string | null>(null)
   const [tallerApprovalLoadingById, setTallerApprovalLoadingById] = useState<Record<string, boolean>>({})
   const [almacenApprovalLoadingById, setAlmacenApprovalLoadingById] = useState<Record<string, boolean>>({})
+  const [entryActionError, setEntryActionError] = useState<string | null>(null)
+  const [entryUpdateLoadingById, setEntryUpdateLoadingById] = useState<Record<string, boolean>>({})
+  const [entryDeleteLoadingById, setEntryDeleteLoadingById] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     let alive = true
@@ -134,7 +139,12 @@ export const useProduccionPageState = () => {
   }, [])
 
   const trabajadoresActivos = useMemo(
-    () => trabajadores.filter((trabajador) => trabajador.estado === 'activo'),
+    () =>
+      trabajadores.filter(
+        (trabajador) =>
+          trabajador.estado === 'activo' &&
+          trabajador.rol.trim().toLowerCase() === 'obrero',
+      ),
     [trabajadores],
   )
   const equiposActivos = useMemo(() => equipos.filter((equipo) => equipo.estado === 'activo'), [equipos])
@@ -978,18 +988,64 @@ export const useProduccionPageState = () => {
       setAlmacenApprovalLoadingById((prev) => ({ ...prev, [produccionId]: false }))
     }
   }
+
+  const updateProduccionRegistro = async (
+    produccionId: string,
+    patch: Partial<ProduccionDiaria>,
+  ): Promise<ProduccionDiaria | null> => {
+    setEntryActionError(null)
+    setEntryUpdateLoadingById((prev) => ({ ...prev, [produccionId]: true }))
+
+    try {
+      const updated = await updateProduccion(produccionId, patch)
+      replaceProduccion((prev) =>
+        prev.map((registro) => (registro.id === updated.id ? updated : registro)),
+      )
+      return updated
+    } catch (error) {
+      setEntryActionError(
+        error instanceof Error ? error.message : 'No se pudo actualizar la entrada de produccion.',
+      )
+      return null
+    } finally {
+      setEntryUpdateLoadingById((prev) => ({ ...prev, [produccionId]: false }))
+    }
+  }
+
+  const deleteProduccionRegistro = async (produccionId: string): Promise<boolean> => {
+    setEntryActionError(null)
+    setEntryDeleteLoadingById((prev) => ({ ...prev, [produccionId]: true }))
+
+    try {
+      await deleteProduccion(produccionId)
+      replaceProduccion((prev) => prev.filter((registro) => registro.id !== produccionId))
+      return true
+    } catch (error) {
+      setEntryActionError(
+        error instanceof Error ? error.message : 'No se pudo eliminar la entrada de produccion.',
+      )
+      return false
+    } finally {
+      setEntryDeleteLoadingById((prev) => ({ ...prev, [produccionId]: false }))
+    }
+  }
+
   const getDatePolicy = (fecha: string) => resolveDateEditPolicy(produccion, fecha)
 
   return {
     addUsage,
     almacenApprovalLoadingById,
     approvalError,
+    deleteProduccionRegistro,
     approveProduccionAlmacenRegistro,
     approveProduccionTallerRegistro,
     dependenciesError,
     dateEditPolicy,
     dateFilter,
     equiposActivos,
+    entryActionError,
+    entryDeleteLoadingById,
+    entryUpdateLoadingById,
     fechaResumen,
     fechasOrdenadas,
     formData,
@@ -1022,8 +1078,9 @@ export const useProduccionPageState = () => {
     toggleUsageDimension,
     trabajadoresActivos,
     resolveOrigenCodigo,
+    setEntryActionError,
+    updateProduccionRegistro,
     updateUsage,
     updateUsageDimension,
   }
 }
-

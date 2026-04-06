@@ -296,6 +296,12 @@ export interface InventarioMovimiento {
   detalles: InventarioMovimientoDetalle[]
 }
 
+export interface InventarioMovimientoPage {
+  items: InventarioMovimiento[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
 export interface Trabajador {
   id: string
   nombre: string

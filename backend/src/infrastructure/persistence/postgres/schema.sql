@@ -414,6 +414,8 @@ CREATE INDEX IF NOT EXISTS idx_historial_pagos_workshop_id ON historial_pagos(wo
 CREATE INDEX IF NOT EXISTS idx_system_logs_workshop_id ON system_logs(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_admin_users_workshop_id ON admin_users(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_inventario_movimientos_workshop_id ON inventario_movimientos(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_inventario_movimientos_workshop_fecha_id_desc
+  ON inventario_movimientos(workshop_id, fecha_solicitud DESC, id DESC);
 
 -- Seed minimo: solo usuarios para autenticacion (sin datos operativos demo)
 -- Password en texto plano solo para desarrollo local.

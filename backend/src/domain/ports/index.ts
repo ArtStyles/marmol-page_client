@@ -10,7 +10,12 @@ export type { VentaRepositoryPort } from './venta.port.js'
 export type { GastoRepositoryPort } from './gasto.port.js'
 export type { HistorialPagoRepositoryPort } from './historial-pago.port.js'
 export type { LogRepositoryPort } from './log.port.js'
-export type { InventarioMovimientoRepositoryPort } from './inventario-movimiento.port.js'
+export type {
+  InventarioMovimientoPageCursor,
+  InventarioMovimientoPageQuery,
+  InventarioMovimientoPageResult,
+  InventarioMovimientoRepositoryPort,
+} from './inventario-movimiento.port.js'
 export type { WorkshopRepositoryPort, WorkshopCreateInput } from './workshop.port.js'
 export type { AuthPort } from './auth.port.js'
 export type {

@@ -5,6 +5,7 @@
   Equipo,
   HistorialPago,
   InventarioMovimiento,
+  InventarioMovimientoPage,
   Merma,
   ProduccionDiaria,
   ProduccionTrabajador,
@@ -211,8 +212,51 @@ export const createVenta = (input: Omit<Venta, 'id'>): Promise<Venta> =>
     body: input,
   })
 
-export const getInventarioMovimientos = (): Promise<InventarioMovimiento[]> =>
-  apiRequest<InventarioMovimiento[]>('/inventario-movimientos')
+type GetInventarioMovimientosPageParams = {
+  limit?: number
+  cursor?: string
+  estado?: InventarioMovimiento['estado']
+}
+
+function buildInventarioMovimientosPagePath(
+  params: GetInventarioMovimientosPageParams = {},
+): string {
+  const query = new URLSearchParams()
+  if (typeof params.limit === 'number' && Number.isFinite(params.limit)) {
+    query.set('limit', String(Math.trunc(params.limit)))
+  }
+  if (params.cursor) query.set('cursor', params.cursor)
+  if (params.estado) query.set('estado', params.estado)
+  const queryString = query.toString()
+  return queryString.length > 0
+    ? `/inventario-movimientos?${queryString}`
+    : '/inventario-movimientos'
+}
+
+export const getInventarioMovimientosPage = (
+  params: GetInventarioMovimientosPageParams = {},
+): Promise<InventarioMovimientoPage> =>
+  apiRequest<InventarioMovimientoPage>(buildInventarioMovimientosPagePath(params))
+
+export const getInventarioMovimientos = async (): Promise<InventarioMovimiento[]> => {
+  const collected: InventarioMovimiento[] = []
+  const seen = new Set<string>()
+  let cursor: string | undefined
+  let hasMore = true
+
+  while (hasMore) {
+    const page = await getInventarioMovimientosPage({ limit: 100, cursor })
+    for (const item of page.items) {
+      if (seen.has(item.id)) continue
+      seen.add(item.id)
+      collected.push(item)
+    }
+    hasMore = page.hasMore && !!page.nextCursor
+    cursor = page.nextCursor ?? undefined
+  }
+
+  return collected
+}
 
 export const getInventarioMovimientoById = (id: string): Promise<InventarioMovimiento> =>
   apiRequest<InventarioMovimiento>(`/inventario-movimientos/${id}`)

@@ -3,11 +3,14 @@ import type {
   AprobarInventarioMovimientoDto,
   CreateRetornoProcesoInventarioDto,
   CreateSalidaProcesoInventarioDto,
+  InventarioMovimientoListQueryDto,
+  InventarioMovimientoListResponseDto,
   InventarioMovimientoResponseDto,
   RechazarInventarioMovimientoDto,
 } from '../../dtos/index.js'
 import type {
   BloqueRepositoryPort,
+  InventarioMovimientoPageCursor,
   InventarioMovimientoRepositoryPort,
   MermaRepositoryPort,
   ProduccionRepositoryPort,
@@ -20,16 +23,63 @@ import {
   validateInventarioSalida,
 } from './inventario-movimiento.helpers.js'
 
+const DEFAULT_MOVIMIENTOS_PAGE_SIZE = 10
+const MAX_MOVIMIENTOS_PAGE_SIZE = 100
+
 export interface MovimientoActor {
   userId: string
   userName: string
 }
 
+function clampMovimientosLimit(limit: number | undefined): number {
+  if (typeof limit !== 'number' || !Number.isFinite(limit)) return DEFAULT_MOVIMIENTOS_PAGE_SIZE
+  const integerLimit = Math.trunc(limit)
+  if (integerLimit <= 0) return DEFAULT_MOVIMIENTOS_PAGE_SIZE
+  return Math.min(MAX_MOVIMIENTOS_PAGE_SIZE, integerLimit)
+}
+
+function encodeMovimientosCursor(cursor: InventarioMovimientoPageCursor): string {
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url')
+}
+
+function decodeMovimientosCursor(rawCursor: string): InventarioMovimientoPageCursor {
+  try {
+    const decoded = Buffer.from(rawCursor, 'base64url').toString('utf8')
+    const parsed = JSON.parse(decoded) as Partial<InventarioMovimientoPageCursor>
+    if (typeof parsed.id !== 'string' || typeof parsed.fechaSolicitud !== 'string') {
+      throw new Error('invalid-cursor-shape')
+    }
+    if (!Number.isFinite(Date.parse(parsed.fechaSolicitud))) {
+      throw new Error('invalid-cursor-date')
+    }
+    return {
+      id: parsed.id,
+      fechaSolicitud: parsed.fechaSolicitud,
+    }
+  } catch {
+    throw new DomainError('Cursor de paginacion invalido.', 400, 'MOVIMIENTOS_CURSOR_INVALIDO')
+  }
+}
+
 export class GetInventarioMovimientosUseCase {
   constructor(private readonly repository: InventarioMovimientoRepositoryPort) {}
 
-  async execute(): Promise<InventarioMovimientoResponseDto[]> {
-    return this.repository.findAll()
+  async execute(
+    query: InventarioMovimientoListQueryDto = {},
+  ): Promise<InventarioMovimientoListResponseDto> {
+    const limit = clampMovimientosLimit(query.limit)
+    const cursor = query.cursor?.trim() ? decodeMovimientosCursor(query.cursor.trim()) : undefined
+    const result = await this.repository.findPage({
+      limit,
+      cursor,
+      estado: query.estado,
+    })
+
+    return {
+      items: result.items,
+      nextCursor: result.nextCursor ? encodeMovimientosCursor(result.nextCursor) : null,
+      hasMore: result.hasMore,
+    }
   }
 }
 

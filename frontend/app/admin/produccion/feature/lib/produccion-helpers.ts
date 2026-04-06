@@ -126,6 +126,46 @@ export const resolveDateEditPolicy = (
   }
 }
 
+export const isProduccionEnAlmacen = (registro: ProduccionDiaria): boolean =>
+  registro.inventarioAplicado === true || registro.aprobacionAlmacenEstado === 'aprobado'
+
+export const isProduccionProceso = (registro: ProduccionDiaria): boolean =>
+  registro.cantidadEscuadrar > 0 ||
+  registro.cantidadDevastar > 0 ||
+  registro.cantidadResinar > 0 ||
+  registro.cantidadPulir > 0
+
+export const canEditProduccionEntrada = (registro: ProduccionDiaria): boolean =>
+  !isProduccionEnAlmacen(registro) &&
+  registro.aprobacionTallerEstado !== 'aprobado' &&
+  !isProduccionProceso(registro)
+
+export const canDeleteProduccionEntrada = (registro: ProduccionDiaria): boolean =>
+  !isProduccionEnAlmacen(registro) && !isProduccionProceso(registro)
+
+export const getProduccionEditLockReason = (registro: ProduccionDiaria): string | null => {
+  if (isProduccionEnAlmacen(registro)) {
+    return 'La entrada ya esta en almacen.'
+  }
+  if (registro.aprobacionTallerEstado === 'aprobado') {
+    return 'La entrada ya fue aprobada por taller.'
+  }
+  if (isProduccionProceso(registro)) {
+    return 'Entradas de proceso no se editan desde este modulo.'
+  }
+  return null
+}
+
+export const getProduccionDeleteLockReason = (registro: ProduccionDiaria): string | null => {
+  if (isProduccionEnAlmacen(registro)) {
+    return 'La entrada ya esta en almacen.'
+  }
+  if (isProduccionProceso(registro)) {
+    return 'Entradas de proceso no se eliminan desde este modulo.'
+  }
+  return null
+}
+
 export const buildNextProduccionId = (registros: ProduccionDiaria[]): string => {
   const maxIdNumber = registros.reduce((maxValue, registro) => {
     const numericId = Number(registro.id.replace(/\D/g, ''))

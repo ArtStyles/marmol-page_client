@@ -4,6 +4,18 @@ export type CreateInventarioMovimientoDto = Omit<InventarioMovimiento, 'id'>
 export type UpdateInventarioMovimientoDto = Partial<Omit<InventarioMovimiento, 'id'>>
 export type InventarioMovimientoResponseDto = InventarioMovimiento
 
+export interface InventarioMovimientoListQueryDto {
+  limit?: number
+  cursor?: string
+  estado?: InventarioMovimiento['estado']
+}
+
+export interface InventarioMovimientoListResponseDto {
+  items: InventarioMovimientoResponseDto[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
 export interface AprobarInventarioMovimientoDto {
   observaciones?: string
 }
