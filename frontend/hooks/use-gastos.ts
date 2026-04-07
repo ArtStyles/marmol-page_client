@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { createGasto, getGastos } from '@/lib/resources-api'
 
 export const gastoTipos = [
@@ -50,7 +51,24 @@ const normalizeGasto = (item: Partial<GastoRegistro>, index: number): GastoRegis
   encargado: typeof item.encargado === 'string' ? item.encargado : 'Sin responsable',
 })
 
-export function useGastosStore() {
+const readSessionUser = (): AdminUser | null => {
+  if (typeof window === 'undefined') return null
+  const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as AdminUser
+  } catch {
+    window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    return null
+  }
+}
+
+type UseGastosStoreOptions = {
+  enabled?: boolean
+}
+
+export function useGastosStore(options: UseGastosStoreOptions = {}) {
+  const enabled = options.enabled ?? true
   const [gastos, setGastos] = useState<GastoRegistro[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -58,6 +76,24 @@ export function useGastosStore() {
   useEffect(() => {
     let active = true
     const load = async () => {
+      if (!enabled) {
+        if (!active) return
+        setGastos([])
+        setError(null)
+        setLoading(false)
+        return
+      }
+
+      const sessionUser = readSessionUser()
+      const canReadGastos = hasPermission(sessionUser, 'gastos:read')
+      if (!canReadGastos) {
+        if (!active) return
+        setGastos([])
+        setError(null)
+        setLoading(false)
+        return
+      }
+
       try {
         setLoading(true)
         setError(null)
@@ -76,9 +112,15 @@ export function useGastosStore() {
     return () => {
       active = false
     }
-  }, [])
+  }, [enabled])
 
   const addGasto = async (input: Omit<GastoRegistro, 'id'>): Promise<boolean> => {
+    const sessionUser = readSessionUser()
+    if (!hasPermission(sessionUser, 'gastos:write')) {
+      setError('No tienes permisos para registrar gastos.')
+      return false
+    }
+
     try {
       setError(null)
       const created = await createGasto(input)

@@ -118,9 +118,9 @@ export interface CatalogoItem {
 
 export function losasAMetros(losas: number, dimension: Dimension): number {
   const dimensiones: Record<Dimension, number> = {
-    '40x40': 0.16,
-    '60x40': 0.24,
-    '80x40': 0.32,
+    '40x40': 1 / 6,
+    '60x40': 1 / 4,
+    '80x40': 1 / 3,
   }
   return losas * dimensiones[dimension]
 }

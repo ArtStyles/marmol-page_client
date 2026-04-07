@@ -117,7 +117,7 @@ export const productos: Producto[] = [
     origenId: 'BL001',
     origenNombre: 'A-001',
     cantidadLosas: 45,
-    metrosCuadrados: 10.8,
+    metrosCuadrados: 11.25,
     precioM2: 200,
     imagen: '/marble-carrara.jpg'
   },
@@ -131,7 +131,7 @@ export const productos: Producto[] = [
     origenId: 'BL001',
     origenNombre: 'A-001',
     cantidadLosas: 30,
-    metrosCuadrados: 9.6,
+    metrosCuadrados: 10.0,
     precioM2: 160,
     imagen: '/marble-carrara.jpg'
   },
@@ -145,7 +145,7 @@ export const productos: Producto[] = [
     origenId: 'BL002',
     origenNombre: 'A-002',
     cantidadLosas: 60,
-    metrosCuadrados: 9.6,
+    metrosCuadrados: 10.0,
     precioM2: 180,
     imagen: '/marble-emperador.jpg'
   },
@@ -159,7 +159,7 @@ export const productos: Producto[] = [
     origenId: 'LT001',
     origenNombre: 'L-001',
     cantidadLosas: 80,
-    metrosCuadrados: 19.2,
+    metrosCuadrados: 20.0,
     precioM2: 200,
     imagen: '/marble-crema.jpg'
   },
@@ -173,7 +173,7 @@ export const productos: Producto[] = [
     origenId: 'BL003',
     origenNombre: 'A-003',
     cantidadLosas: 20,
-    metrosCuadrados: 6.4,
+    metrosCuadrados: 6.67,
     precioM2: 320,
     imagen: '/marble-calacatta.jpg'
   },
@@ -187,7 +187,7 @@ export const productos: Producto[] = [
     origenId: 'BL002',
     origenNombre: 'A-002',
     cantidadLosas: 35,
-    metrosCuadrados: 8.4,
+    metrosCuadrados: 8.75,
     precioM2: 140,
     imagen: '/marble-emperador.jpg'
   }
@@ -337,7 +337,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadDevastar: 0,
     cantidadResinar: 0,
     totalLosas: 35,
-    totalM2: 8.4,
+    totalM2: 8.75,
     detallesAcciones: [
       {
         id: 'PGA001',
@@ -347,7 +347,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
         equipoId: 'EQ001',
         equipoNombre: 'Cortadora Norte 01',
         cantidadLosas: 15,
-        metrosCuadrados: 3.6,
+        metrosCuadrados: 3.75,
       },
       {
         id: 'PGA002',
@@ -357,7 +357,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
         equipoId: 'EQ003',
         equipoNombre: 'Pulidora Central 01',
         cantidadLosas: 20,
-        metrosCuadrados: 4.8,
+        metrosCuadrados: 5.0,
       },
     ]
   },
@@ -374,7 +374,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadDevastar: 0,
     cantidadResinar: 0,
     totalLosas: 25,
-    totalM2: 4,
+    totalM2: 4.17,
     detallesAcciones: [
       {
         id: 'PGA003',
@@ -384,7 +384,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
         equipoId: 'EQ005',
         equipoNombre: 'Escuadradora Este 01',
         cantidadLosas: 25,
-        metrosCuadrados: 4,
+        metrosCuadrados: 4.17,
       },
     ]
   },
@@ -401,7 +401,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadDevastar: 0,
     cantidadResinar: 0,
     totalLosas: 65,
-    totalM2: 15.6,
+    totalM2: 16.25,
     detallesAcciones: [
       {
         id: 'PGA004',
@@ -411,7 +411,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
         equipoId: 'EQ004',
         equipoNombre: 'Pulidora Central 02',
         cantidadLosas: 35,
-        metrosCuadrados: 8.4,
+        metrosCuadrados: 8.75,
       },
       {
         id: 'PGA005',
@@ -421,7 +421,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
         equipoId: 'EQ005',
         equipoNombre: 'Escuadradora Este 01',
         cantidadLosas: 30,
-        metrosCuadrados: 7.2,
+        metrosCuadrados: 7.5,
       },
     ]
   },
@@ -438,7 +438,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadDevastar: 0,
     cantidadResinar: 0,
     totalLosas: 12,
-    totalM2: 3.84
+    totalM2: 4.0
   }
 ]
 
@@ -557,7 +557,7 @@ export const mermas: Merma[] = [
     tipo: 'Piso',
     dimension: '60x40',
     cantidadLosas: 2,
-    metrosCuadrados: 0.48,
+    metrosCuadrados: 0.5,
     motivo: 'Partida al picar',
     observaciones: 'Vetas internas causaron fractura, pÃ©rdida total de 2 losas'
   },
@@ -569,7 +569,7 @@ export const mermas: Merma[] = [
     tipo: 'Piso',
     dimension: '40x40',
     cantidadLosas: 2,
-    metrosCuadrados: 0.32,
+    metrosCuadrados: 0.33,
     motivo: 'Partida al pulir',
     observaciones: 'PresiÃ³n excesiva en el proceso, pÃ©rdida total de 2 losas'
   },
@@ -581,7 +581,7 @@ export const mermas: Merma[] = [
     tipo: 'Piso',
     dimension: '60x40',
     cantidadLosas: 1,
-    metrosCuadrados: 0.24,
+    metrosCuadrados: 0.25,
     motivo: 'Recorte aprovechable',
     observaciones: 'Recorte de bordes para escuadrar, pÃ©rdida equivalente a 1 losa'
   },
@@ -593,7 +593,7 @@ export const mermas: Merma[] = [
     tipo: 'Plancha',
     dimension: '80x40',
     cantidadLosas: 2,
-    metrosCuadrados: 0.64,
+    metrosCuadrados: 0.67,
     motivo: 'Defecto de material',
     observaciones: 'Grieta natural descubierta al procesar'
   }
@@ -744,7 +744,7 @@ export const logsSistema: SystemLog[] = [
     usuario: 'produccion@marmol.local',
     accion: 'Merma registrada',
     modulo: 'Mermas',
-    descripcion: 'Merma por partida al pulir (0.32 m2)',
+    descripcion: 'Merma por partida al pulir (0.33 m2)',
     nivel: 'alerta'
   },
   {

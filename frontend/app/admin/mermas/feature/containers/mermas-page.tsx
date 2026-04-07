@@ -25,6 +25,7 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 import { useProduccionStore } from '@/hooks/use-produccion'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { createMerma, getBloques, getMermas } from '@/lib/resources-api'
 import {
   losasAMetros,
@@ -256,7 +257,25 @@ export default function MermasPage() {
       setLoading(true)
       setSyncError(null)
       try {
-        const [bloquesData, mermasData] = await Promise.all([getBloques(), getMermas()])
+        let sessionUser: AdminUser | null = null
+        if (typeof window !== 'undefined') {
+          const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+          if (raw) {
+            try {
+              sessionUser = JSON.parse(raw) as AdminUser
+            } catch {
+              window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+            }
+          }
+        }
+
+        const canReadBloques = hasPermission(sessionUser, 'bloques:read')
+        const canReadMermas = hasPermission(sessionUser, 'mermas:read')
+
+        const [bloquesData, mermasData] = await Promise.all([
+          canReadBloques ? getBloques() : Promise.resolve<BloqueOLote[]>([]),
+          canReadMermas ? getMermas() : Promise.resolve<Merma[]>([]),
+        ])
         if (!alive) return
         setBloquesYLotes(bloquesData)
         setManualMermas(

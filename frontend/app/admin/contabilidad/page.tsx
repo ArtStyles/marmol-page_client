@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Badge } from '@/components/ui/badge'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { getHistorialPagos, getProduccionTrabajadores, getVentas } from '@/lib/resources-api'
 import type { HistorialPago, ProduccionTrabajador, Venta } from '@/lib/types'
 import { FileText, ShieldAlert } from 'lucide-react'
@@ -21,10 +22,28 @@ export default function ContabilidadPage() {
       setLoading(true)
       setError(null)
       try {
+        let sessionUser: AdminUser | null = null
+        if (typeof window !== 'undefined') {
+          const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+          if (raw) {
+            try {
+              sessionUser = JSON.parse(raw) as AdminUser
+            } catch {
+              window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+            }
+          }
+        }
+
+        const canReadVentas = hasPermission(sessionUser, 'ventas:read')
+        const canReadPagos = hasPermission(sessionUser, 'pagos:read')
+        const canReadAsignaciones = hasPermission(sessionUser, 'asignaciones:read')
+
         const [ventasData, historialData, produccionData] = await Promise.all([
-          getVentas(),
-          getHistorialPagos(),
-          getProduccionTrabajadores(),
+          canReadVentas ? getVentas() : Promise.resolve<Venta[]>([]),
+          canReadPagos ? getHistorialPagos() : Promise.resolve<HistorialPago[]>([]),
+          canReadAsignaciones
+            ? getProduccionTrabajadores()
+            : Promise.resolve<ProduccionTrabajador[]>([]),
         ])
         if (!alive) return
         setVentas(ventasData)

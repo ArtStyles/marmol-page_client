@@ -112,7 +112,7 @@ export const productos: Producto[] = [
     origenId: 'BL001',
     origenNombre: 'A-001',
     cantidadLosas: 45,
-    metrosCuadrados: 10.8,
+    metrosCuadrados: 11.25,
     precioM2: 200,
     imagen: '/marble-carrara.jpg',
   },
@@ -126,7 +126,7 @@ export const productos: Producto[] = [
     origenId: 'BL001',
     origenNombre: 'A-001',
     cantidadLosas: 30,
-    metrosCuadrados: 9.6,
+    metrosCuadrados: 10.0,
     precioM2: 160,
     imagen: '/marble-carrara.jpg',
   },
@@ -140,7 +140,7 @@ export const productos: Producto[] = [
     origenId: 'BL002',
     origenNombre: 'A-002',
     cantidadLosas: 60,
-    metrosCuadrados: 9.6,
+    metrosCuadrados: 10.0,
     precioM2: 180,
     imagen: '/marble-emperador.jpg',
   },
@@ -154,7 +154,7 @@ export const productos: Producto[] = [
     origenId: 'LT001',
     origenNombre: 'L-001',
     cantidadLosas: 80,
-    metrosCuadrados: 19.2,
+    metrosCuadrados: 20.0,
     precioM2: 200,
     imagen: '/marble-crema.jpg',
   },
@@ -168,7 +168,7 @@ export const productos: Producto[] = [
     origenId: 'BL003',
     origenNombre: 'A-003',
     cantidadLosas: 20,
-    metrosCuadrados: 6.4,
+    metrosCuadrados: 6.67,
     precioM2: 320,
     imagen: '/marble-calacatta.jpg',
   },
@@ -182,7 +182,7 @@ export const productos: Producto[] = [
     origenId: 'BL002',
     origenNombre: 'A-002',
     cantidadLosas: 35,
-    metrosCuadrados: 8.4,
+    metrosCuadrados: 8.75,
     precioM2: 140,
     imagen: '/marble-emperador.jpg',
   },
@@ -335,10 +335,10 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadDevastar: 0,
     cantidadResinar: 0,
     totalLosas: 35,
-    totalM2: 8.4,
+    totalM2: 8.75,
     detallesAcciones: [
-      { id: 'PGA001', accion: 'picar', trabajadorId: 'T001', trabajadorNombre: 'Carlos Mendoza', equipoId: 'EQ001', equipoNombre: 'Cortadora Norte 01', cantidadLosas: 15, metrosCuadrados: 3.6 },
-      { id: 'PGA002', accion: 'pulir', trabajadorId: 'T002', trabajadorNombre: 'Roberto Sánchez', equipoId: 'EQ003', equipoNombre: 'Pulidora Central 01', cantidadLosas: 20, metrosCuadrados: 4.8 },
+      { id: 'PGA001', accion: 'picar', trabajadorId: 'T001', trabajadorNombre: 'Carlos Mendoza', equipoId: 'EQ001', equipoNombre: 'Cortadora Norte 01', cantidadLosas: 15, metrosCuadrados: 3.75 },
+      { id: 'PGA002', accion: 'pulir', trabajadorId: 'T002', trabajadorNombre: 'Roberto Sánchez', equipoId: 'EQ003', equipoNombre: 'Pulidora Central 01', cantidadLosas: 20, metrosCuadrados: 5.0 },
     ],
   },
   {
@@ -354,9 +354,9 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadDevastar: 0,
     cantidadResinar: 0,
     totalLosas: 25,
-    totalM2: 4,
+    totalM2: 4.17,
     detallesAcciones: [
-      { id: 'PGA003', accion: 'escuadrar', trabajadorId: 'T003', trabajadorNombre: 'Miguel Ángel Torres', equipoId: 'EQ005', equipoNombre: 'Escuadradora Este 01', cantidadLosas: 25, metrosCuadrados: 4 },
+      { id: 'PGA003', accion: 'escuadrar', trabajadorId: 'T003', trabajadorNombre: 'Miguel Ángel Torres', equipoId: 'EQ005', equipoNombre: 'Escuadradora Este 01', cantidadLosas: 25, metrosCuadrados: 4.17 },
     ],
   },
   {
@@ -372,10 +372,10 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadDevastar: 0,
     cantidadResinar: 0,
     totalLosas: 65,
-    totalM2: 15.6,
+    totalM2: 16.25,
     detallesAcciones: [
-      { id: 'PGA004', accion: 'pulir', trabajadorId: 'T004', trabajadorNombre: 'Fernando Ruiz', equipoId: 'EQ004', equipoNombre: 'Pulidora Central 02', cantidadLosas: 35, metrosCuadrados: 8.4 },
-      { id: 'PGA005', accion: 'escuadrar', trabajadorId: 'T001', trabajadorNombre: 'Carlos Mendoza', equipoId: 'EQ005', equipoNombre: 'Escuadradora Este 01', cantidadLosas: 30, metrosCuadrados: 7.2 },
+      { id: 'PGA004', accion: 'pulir', trabajadorId: 'T004', trabajadorNombre: 'Fernando Ruiz', equipoId: 'EQ004', equipoNombre: 'Pulidora Central 02', cantidadLosas: 35, metrosCuadrados: 8.75 },
+      { id: 'PGA005', accion: 'escuadrar', trabajadorId: 'T001', trabajadorNombre: 'Carlos Mendoza', equipoId: 'EQ005', equipoNombre: 'Escuadradora Este 01', cantidadLosas: 30, metrosCuadrados: 7.5 },
     ],
   },
   {
@@ -391,7 +391,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     cantidadDevastar: 0,
     cantidadResinar: 0,
     totalLosas: 12,
-    totalM2: 3.84,
+    totalM2: 4.0,
   },
 ]
 
@@ -405,10 +405,10 @@ export const produccionTrabajadores: ProduccionTrabajador[] = [
 ]
 
 export const mermas: Merma[] = [
-  { id: 'M001', fecha: '2026-01-28', origenId: 'BL001', origenNombre: 'A-001', tipo: 'Piso', dimension: '60x40', cantidadLosas: 2, metrosCuadrados: 0.48, motivo: 'Partida al picar', observaciones: 'Vetas internas causaron fractura' },
-  { id: 'M002', fecha: '2026-01-27', origenId: 'BL002', origenNombre: 'A-002', tipo: 'Piso', dimension: '40x40', cantidadLosas: 2, metrosCuadrados: 0.32, motivo: 'Partida al pulir', observaciones: 'Presión excesiva en el proceso' },
-  { id: 'M003', fecha: '2026-01-25', origenId: 'LT001', origenNombre: 'L-001', tipo: 'Piso', dimension: '60x40', cantidadLosas: 1, metrosCuadrados: 0.24, motivo: 'Recorte aprovechable', observaciones: 'Recorte de bordes para escuadrar' },
-  { id: 'M004', fecha: '2026-01-24', origenId: 'BL003', origenNombre: 'A-003', tipo: 'Plancha', dimension: '80x40', cantidadLosas: 2, metrosCuadrados: 0.64, motivo: 'Defecto de material', observaciones: 'Grieta natural descubierta al procesar' },
+  { id: 'M001', fecha: '2026-01-28', origenId: 'BL001', origenNombre: 'A-001', tipo: 'Piso', dimension: '60x40', cantidadLosas: 2, metrosCuadrados: 0.5, motivo: 'Partida al picar', observaciones: 'Vetas internas causaron fractura' },
+  { id: 'M002', fecha: '2026-01-27', origenId: 'BL002', origenNombre: 'A-002', tipo: 'Piso', dimension: '40x40', cantidadLosas: 2, metrosCuadrados: 0.33, motivo: 'Partida al pulir', observaciones: 'Presión excesiva en el proceso' },
+  { id: 'M003', fecha: '2026-01-25', origenId: 'LT001', origenNombre: 'L-001', tipo: 'Piso', dimension: '60x40', cantidadLosas: 1, metrosCuadrados: 0.25, motivo: 'Recorte aprovechable', observaciones: 'Recorte de bordes para escuadrar' },
+  { id: 'M004', fecha: '2026-01-24', origenId: 'BL003', origenNombre: 'A-003', tipo: 'Plancha', dimension: '80x40', cantidadLosas: 2, metrosCuadrados: 0.67, motivo: 'Defecto de material', observaciones: 'Grieta natural descubierta al procesar' },
 ]
 
 export const ventas: Venta[] = [
@@ -428,7 +428,7 @@ export const logsSistema: SystemLog[] = [
   { id: 'LOG002', fecha: '2026-02-03 09:05', usuario: 'produccion@marmol.local', accion: 'Registro produccion', modulo: 'Produccion', descripcion: 'Registro de losas pulidas (20) en A-001', nivel: 'info' },
   { id: 'LOG003', fecha: '2026-02-02 16:40', usuario: 'ventas@marmol.local', accion: 'Venta creada', modulo: 'Ventas', descripcion: 'Venta V004 creada para Hotel Grand Palace', nivel: 'alerta' },
   { id: 'LOG004', fecha: '2026-02-02 18:10', usuario: 'admin@marmol.local', accion: 'Cambio de estado', modulo: 'Bloques', descripcion: 'A-003 marcado como agotado', nivel: 'info' },
-  { id: 'LOG005', fecha: '2026-02-01 13:22', usuario: 'produccion@marmol.local', accion: 'Merma registrada', modulo: 'Mermas', descripcion: 'Merma por partida al pulir (0.32 m2)', nivel: 'alerta' },
+  { id: 'LOG005', fecha: '2026-02-01 13:22', usuario: 'produccion@marmol.local', accion: 'Merma registrada', modulo: 'Mermas', descripcion: 'Merma por partida al pulir (0.33 m2)', nivel: 'alerta' },
   { id: 'LOG006', fecha: '2026-02-01 14:05', usuario: 'admin@marmol.local', accion: 'Error de registro', modulo: 'Inventario', descripcion: 'Intento de registrar producto sin origen valido', nivel: 'error' },
 ]
 

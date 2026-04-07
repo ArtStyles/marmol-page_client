@@ -1,12 +1,13 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { Search } from 'lucide-react'
+import { ChevronDown, Search } from 'lucide-react'
 import { useAsignacionesPageState } from '../hooks/use-asignaciones-page-state'
 import {
   actionColors,
@@ -31,6 +32,33 @@ export default function AsignacionesPage() {
     totalPagoReferencia,
     trabajadoresActivos,
   } = useAsignacionesPageState()
+  const [expandedWorkers, setExpandedWorkers] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    setExpandedWorkers((previous) => {
+      const next = groupedAsignaciones.reduce<Record<string, boolean>>((acc, worker) => {
+        acc[worker.trabajadorId] = previous[worker.trabajadorId] ?? false
+        return acc
+      }, {})
+
+      const sameKeys = Object.keys(previous).length === Object.keys(next).length
+      const sameValues = Object.entries(next).every(([workerId, isExpanded]) => previous[workerId] === isExpanded)
+
+      if (sameKeys && sameValues) {
+        return previous
+      }
+
+      return next
+    })
+  }, [groupedAsignaciones])
+
+  const toggleWorkerDetails = (workerId: string) => {
+    setExpandedWorkers((previous) => ({
+      ...previous,
+      [workerId]: !previous[workerId],
+    }))
+  }
+
   const rightPanel = (
     <div className="space-y-4">
       <AdminPanelCard title="Resumen automatico" meta={fechaReferencia}>
@@ -140,96 +168,117 @@ export default function AsignacionesPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {groupedAsignaciones.map((worker) => (
-                  <div
-                    key={worker.trabajadorId}
-                    className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
-                  >
-                    <div className="flex flex-col gap-3 border-b border-slate-200/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Trabajador</p>
-                        <p className="text-base font-semibold text-slate-900">{worker.trabajadorNombre}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {actionOrder.map((accion) => (
-                          <div
-                            key={`${worker.trabajadorId}-${accion}`}
-                            className={cn(
-                              'rounded-lg border px-2.5 py-1 text-right',
-                              accion === 'pulir'
-                                ? 'border-emerald-200/70 bg-emerald-50/70 text-emerald-700'
-                                : accion === 'resinar'
-                                  ? 'border-cyan-200/70 bg-cyan-50/70 text-cyan-700'
-                                  : accion === 'devastar'
-                                    ? 'border-violet-200/70 bg-violet-50/70 text-violet-700'
-                                    : 'border-slate-200 bg-white text-slate-900',
-                            )}
+                {groupedAsignaciones.map((worker) => {
+                  const isExpanded = expandedWorkers[worker.trabajadorId] ?? false
+
+                  return (
+                    <div
+                      key={worker.trabajadorId}
+                      className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
+                    >
+                      <div
+                        className={cn(
+                          'flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between',
+                          isExpanded && 'border-b border-slate-200/70',
+                        )}
+                      >
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Trabajador</p>
+                          <p className="text-base font-semibold text-slate-900">{worker.trabajadorNombre}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {actionOrder.map((accion) => (
+                            <div
+                              key={`${worker.trabajadorId}-${accion}`}
+                              className={cn(
+                                'rounded-lg border px-2.5 py-1 text-right',
+                                accion === 'pulir'
+                                  ? 'border-emerald-200/70 bg-emerald-50/70 text-emerald-700'
+                                  : accion === 'resinar'
+                                    ? 'border-cyan-200/70 bg-cyan-50/70 text-cyan-700'
+                                    : accion === 'devastar'
+                                      ? 'border-violet-200/70 bg-violet-50/70 text-violet-700'
+                                      : 'border-slate-200 bg-white text-slate-900',
+                              )}
+                            >
+                              <p className={cn('text-[10px] uppercase tracking-[0.2em]', accion === 'pulir' || accion === 'resinar' || accion === 'devastar' ? '' : 'text-slate-500')}>
+                                {actionLabels[accion]}
+                              </p>
+                              <p className="text-sm font-semibold">
+                                {formatLosas(worker.resumenAcciones[accion].losas)} / {worker.resumenAcciones[accion].m2.toFixed(2)} m2
+                              </p>
+                            </div>
+                          ))}
+                          <div className="rounded-lg border border-cyan-200/70 bg-cyan-50/70 px-2.5 py-1 text-right text-cyan-700">
+                            <p className="text-[10px] uppercase tracking-[0.2em]">Ganancia est.</p>
+                            <p className="text-sm font-semibold">{formatMoney(worker.totalPagoEstimado)}</p>
+                          </div>
+                          <button
+                            type="button"
+                            aria-expanded={isExpanded}
+                            aria-controls={`worker-details-${worker.trabajadorId}`}
+                            onClick={() => toggleWorkerDetails(worker.trabajadorId)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-700 transition-colors hover:bg-slate-50"
                           >
-                            <p className={cn('text-[10px] uppercase tracking-[0.2em]', accion === 'pulir' || accion === 'resinar' || accion === 'devastar' ? '' : 'text-slate-500')}>
-                              {actionLabels[accion]}
-                            </p>
-                            <p className="text-sm font-semibold">
-                              {formatLosas(worker.resumenAcciones[accion].losas)} / {worker.resumenAcciones[accion].m2.toFixed(2)} m2
-                            </p>
-                          </div>
-                        ))}
-                        <div className="rounded-lg border border-cyan-200/70 bg-cyan-50/70 px-2.5 py-1 text-right text-cyan-700">
-                          <p className="text-[10px] uppercase tracking-[0.2em]">Ganancia est.</p>
-                          <p className="text-sm font-semibold">{formatMoney(worker.totalPagoEstimado)}</p>
+                            {isExpanded ? 'Ocultar' : 'Detalle'}
+                            <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', isExpanded && 'rotate-180')} />
+                          </button>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="divide-y divide-slate-200/60">
-                      {worker.lotes.map((lote) => (
-                        <div key={`${worker.trabajadorId}-${lote.origenId}`} className="px-4 py-3">
-                          <div className="grid gap-2 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,2.4fr)] lg:items-center">
-                            <div>
-                              <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Bloque/Lote</p>
-                              <p className="text-sm font-semibold text-slate-900">{lote.origenNombre}</p>
-                            </div>
-
-                            <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/60">
-                              <div className="grid grid-cols-[90px_1fr_92px_92px_118px] border-b border-slate-200/70 px-2.5 py-1">
-                                <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Accion</span>
-                                <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Equipo</span>
-                                <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">Losas eq</span>
-                                <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">M2 eq</span>
-                                <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">Ganancia est.</span>
-                              </div>
-
-                              {lote.items.map((item, index) => (
-                                <div
-                                  key={item.id}
-                                  className={cn(
-                                    'grid grid-cols-[90px_1fr_92px_92px_118px] items-center gap-2 px-2.5 py-1.5',
-                                    index < lote.items.length - 1 && 'border-b border-slate-200/70',
-                                  )}
-                                >
-                                  <Badge className={`w-fit ${actionColors[item.accion]}`}>{actionLabels[item.accion]}</Badge>
-                                  <div>
-                                    <p className="text-xs font-medium text-slate-800">{item.equipoNombre}</p>
-                                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
-                                      Equipo de {item.integrantesEquipo} persona(s) | {item.tipo} / {item.dimension} | Tarifa {formatMoney(item.tarifaAplicada)}
-                                    </p>
-                                  </div>
-                                  <span className="text-right text-sm font-semibold text-slate-800">
-                                    {formatLosas(item.cantidadLosas)}
-                                    <span className="block text-[10px] font-normal text-slate-500">
-                                      pagables {formatLosas(item.losasPagables)}
-                                    </span>
-                                  </span>
-                                  <span className="text-right text-sm font-semibold text-emerald-700">{item.totalM2.toFixed(2)}</span>
-                                  <span className="text-right text-sm font-semibold text-cyan-700">{formatMoney(item.pagoEstimado)}</span>
+                      {isExpanded ? (
+                        <div id={`worker-details-${worker.trabajadorId}`} className="divide-y divide-slate-200/60">
+                          {worker.lotes.map((lote) => (
+                            <div key={`${worker.trabajadorId}-${lote.origenId}`} className="px-4 py-3">
+                              <div className="grid gap-2 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,2.4fr)] lg:items-center">
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Bloque/Lote</p>
+                                  <p className="text-sm font-semibold text-slate-900">{lote.origenNombre}</p>
                                 </div>
-                              ))}
+
+                                <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/60">
+                                  <div className="grid grid-cols-[90px_1fr_92px_92px_118px] border-b border-slate-200/70 px-2.5 py-1">
+                                    <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Accion</span>
+                                    <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Equipo</span>
+                                    <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">Losas eq</span>
+                                    <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">M2 eq</span>
+                                    <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">Ganancia est.</span>
+                                  </div>
+
+                                  {lote.items.map((item, index) => (
+                                    <div
+                                      key={item.id}
+                                      className={cn(
+                                        'grid grid-cols-[90px_1fr_92px_92px_118px] items-center gap-2 px-2.5 py-1.5',
+                                        index < lote.items.length - 1 && 'border-b border-slate-200/70',
+                                      )}
+                                    >
+                                      <Badge className={`w-fit ${actionColors[item.accion]}`}>{actionLabels[item.accion]}</Badge>
+                                      <div>
+                                        <p className="text-xs font-medium text-slate-800">{item.equipoNombre}</p>
+                                        <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                                          Equipo de {item.integrantesEquipo} persona(s) | {item.tipo} / {item.dimension} | Tarifa {formatMoney(item.tarifaAplicada)}
+                                        </p>
+                                      </div>
+                                      <span className="text-right text-sm font-semibold text-slate-800">
+                                        {formatLosas(item.cantidadLosas)}
+                                        <span className="block text-[10px] font-normal text-slate-500">
+                                          pagables {formatLosas(item.losasPagables)}
+                                        </span>
+                                      </span>
+                                      <span className="text-right text-sm font-semibold text-emerald-700">{item.totalM2.toFixed(2)}</span>
+                                      <span className="text-right text-sm font-semibold text-cyan-700">{formatMoney(item.pagoEstimado)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
-                          </div>
+                          ))}
                         </div>
-                      ))}
+                      ) : null}
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </CardContent>

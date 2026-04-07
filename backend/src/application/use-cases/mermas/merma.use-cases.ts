@@ -124,9 +124,9 @@ export class DeleteMermaUseCase {
 }
 
 function dimensionToArea(dimension: CreateMermaDto['dimension']): number {
-  if (dimension === '40x40') return 0.16
-  if (dimension === '60x40') return 0.24
-  return 0.32
+  if (dimension === '40x40') return 1 / 6
+  if (dimension === '60x40') return 1 / 4
+  return 1 / 3
 }
 
 function round2(value: number): number {

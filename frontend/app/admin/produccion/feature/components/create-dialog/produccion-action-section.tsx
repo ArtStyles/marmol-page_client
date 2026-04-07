@@ -91,7 +91,7 @@ export function ProduccionActionSection({
   const isResinar = accion === 'resinar'
   const tipoEquipo = TIPO_EQUIPO_POR_ACCION[accion]
   const equiposPorAccion = equiposActivos.filter((equipo) => equipo.tipo === tipoEquipo)
-  const supportsMerma = accion !== 'picar'
+  const supportsMerma = accion !== 'picar' && accion !== 'resinar'
 
   const totalAsignado = accionState.usos.reduce(
     (sum, uso) =>
@@ -358,8 +358,8 @@ export function ProduccionActionSection({
                           <div
                             className={cn(
                               'grid gap-2',
-                              accion === 'resinar'
-                                ? 'sm:grid-cols-4'
+                              isResinar
+                                ? 'sm:grid-cols-2'
                                 : supportsMerma
                                   ? 'sm:grid-cols-3'
                                   : 'sm:grid-cols-2',
@@ -445,32 +445,34 @@ export function ProduccionActionSection({
                               </div>
                             )}
 
-                            <div className="space-y-1">
-                              <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Reutilizable (paga)</p>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="1"
-                                placeholder="0"
-                                className="h-9 text-right"
-                                value={
-                                  dimensionUso.reutilizableTouched || dimensionUso.reutilizableLosas > 0
-                                    ? dimensionUso.reutilizableLosas
-                                    : ''
-                                }
-                                onChange={(event) =>
-                                  updateUsageDimensionNumericInput({
-                                    action: accion,
-                                    usageId: uso.id,
-                                    dimensionUsageId: dimensionUso.id,
-                                    rawValue: event.target.value,
-                                    numericField: 'reutilizableLosas',
-                                    touchedField: 'reutilizableTouched',
-                                    updateUsageDimension,
-                                  })
-                                }
-                              />
-                            </div>
+                            {!isResinar && (
+                              <div className="space-y-1">
+                                <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Reutilizable (paga)</p>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  placeholder="0"
+                                  className="h-9 text-right"
+                                  value={
+                                    dimensionUso.reutilizableTouched || dimensionUso.reutilizableLosas > 0
+                                      ? dimensionUso.reutilizableLosas
+                                      : ''
+                                  }
+                                  onChange={(event) =>
+                                    updateUsageDimensionNumericInput({
+                                      action: accion,
+                                      usageId: uso.id,
+                                      dimensionUsageId: dimensionUso.id,
+                                      rawValue: event.target.value,
+                                      numericField: 'reutilizableLosas',
+                                      touchedField: 'reutilizableTouched',
+                                      updateUsageDimension,
+                                    })
+                                  }
+                                />
+                              </div>
+                            )}
 
                             {accion === 'resinar' && (
                               <div className="space-y-1">

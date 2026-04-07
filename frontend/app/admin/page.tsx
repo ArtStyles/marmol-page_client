@@ -74,11 +74,22 @@ export default function AdminDashboard() {
   const [loadingData, setLoadingData] = useState(true)
   const [dataError, setDataError] = useState<string | null>(null)
 
+  const canReadBloques = hasPermission(sessionUser, 'bloques:read')
+  const canReadEquipos = hasPermission(sessionUser, 'equipos:read')
+  const canReadMermas = hasPermission(sessionUser, 'mermas:read')
+  const canReadProduccion = hasPermission(sessionUser, 'produccion:read')
+  const canReadAsignaciones = hasPermission(sessionUser, 'asignaciones:read')
+  const canReadInventario = hasPermission(sessionUser, 'inventario:read')
+  const canReadTrabajadores = hasPermission(sessionUser, 'trabajadores:read')
+  const canReadVentas = hasPermission(sessionUser, 'ventas:read')
+
   const totalLosasInventario = productos.reduce((sum, p) => sum + p.cantidadLosas, 0)
   const totalM2Inventario = productos.reduce((sum, p) => sum + p.metrosCuadrados, 0)
 
   const ventasCompletadas = ventas.filter((v) => v.estado === 'completada')
-  const ventasPendientes = ventas.filter((v) => v.estado === 'pendiente').length
+  const ventasPendientes = ventas.filter(
+    (v) => v.estado === 'pendiente' || v.estado === 'pendiente_aprobacion_almacen',
+  ).length
   const totalVentas = ventasCompletadas.reduce((sum, v) => sum + v.total, 0)
 
   const activeWorkers = trabajadores.filter((w) => w.estado === 'activo').length
@@ -92,7 +103,10 @@ export default function AdminDashboard() {
   }, {})
 
   const fechasOrdenadas = Object.keys(produccionPorFecha).sort()
-  const fechaUltima = fechasOrdenadas[fechasOrdenadas.length - 1] ?? '2026-01-28'
+  const hasProduccionData = fechasOrdenadas.length > 0
+  const fechaUltima = hasProduccionData
+    ? fechasOrdenadas[fechasOrdenadas.length - 1]
+    : toDateKey(new Date())
   const produccionHoy = produccionDiaria.filter((p) => p.fecha === fechaUltima)
   const totalM2Hoy = produccionHoy.reduce((sum, p) => sum + p.totalM2, 0)
 
@@ -135,6 +149,20 @@ export default function AdminDashboard() {
   }, [])
 
   useEffect(() => {
+    if (!sessionUser) {
+      setBloquesYLotes([])
+      setEquipos([])
+      setMermas([])
+      setProduccionDiaria([])
+      setProduccionTrabajadores([])
+      setProductos([])
+      setTrabajadores([])
+      setVentas([])
+      setLoadingData(false)
+      setDataError(null)
+      return
+    }
+
     let alive = true
 
     const load = async () => {
@@ -151,14 +179,16 @@ export default function AdminDashboard() {
           trabajadoresData,
           ventasData,
         ] = await Promise.all([
-          getBloques(),
-          getEquipos(),
-          getMermas(),
-          getProduccion(),
-          getProduccionTrabajadores(),
-          getProductos(),
-          getTrabajadores(),
-          getVentas(),
+          canReadBloques ? getBloques() : Promise.resolve<BloqueOLote[]>([]),
+          canReadEquipos ? getEquipos() : Promise.resolve<Equipo[]>([]),
+          canReadMermas ? getMermas() : Promise.resolve<Merma[]>([]),
+          canReadProduccion ? getProduccion() : Promise.resolve<ProduccionDiaria[]>([]),
+          canReadAsignaciones
+            ? getProduccionTrabajadores()
+            : Promise.resolve<ProduccionTrabajador[]>([]),
+          canReadInventario ? getProductos() : Promise.resolve<Producto[]>([]),
+          canReadTrabajadores ? getTrabajadores() : Promise.resolve<Trabajador[]>([]),
+          canReadVentas ? getVentas() : Promise.resolve<Venta[]>([]),
         ])
 
         if (!alive) return
@@ -183,7 +213,17 @@ export default function AdminDashboard() {
     return () => {
       alive = false
     }
-  }, [])
+  }, [
+    canReadAsignaciones,
+    canReadBloques,
+    canReadEquipos,
+    canReadInventario,
+    canReadMermas,
+    canReadProduccion,
+    canReadTrabajadores,
+    canReadVentas,
+    sessionUser,
+  ])
 
   const moduleCards = [
     {
@@ -191,7 +231,7 @@ export default function AdminDashboard() {
       title: 'Produccion diaria',
       description: `${produccionHoy.length} registros activos`,
       value: `${totalM2Hoy.toFixed(1)} m2`,
-      footer: `Datos ${fechaUltima}`,
+      footer: hasProduccionData ? `Datos ${fechaUltima}` : 'Sin datos cargados',
       accent: 'linear-gradient(135deg, #e7f4ff 0%, #ffffff 65%)',
       icon: Factory,
     },
@@ -238,7 +278,7 @@ export default function AdminDashboard() {
 
   const rightPanel = (
     <div className="space-y-4">
-      <AdminPanelCard title="Resumen rapido" meta={fechaUltima}>
+      <AdminPanelCard title="Resumen rapido" meta={hasProduccionData ? fechaUltima : 'Sin datos'}>
         <div className="space-y-3 text-sm text-slate-700">
           <div className="flex items-center justify-between">
             <span>Ventas del mes</span>
@@ -358,7 +398,7 @@ export default function AdminDashboard() {
                 Semana actual
               </span>
               <span className="rounded-full border border-white/60 bg-white/70 px-3 py-1">
-                Datos al {fechaUltima}
+                {hasProduccionData ? `Datos al ${fechaUltima}` : 'Sin datos de produccion'}
               </span>
             </div>
           </div>

@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useGastosStore, gastoFlujos, gastoTipos, type GastoFlujo, type GastoTipo } from '@/hooks/use-gastos'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { getVentas } from '@/lib/resources-api'
 import type { Venta } from '@/lib/types'
 import { Plus, ReceiptText, Search, TrendingDown, UserRound } from 'lucide-react'
@@ -67,6 +68,25 @@ export default function GastosPage() {
     let active = true
     const load = async () => {
       try {
+        let sessionUser: AdminUser | null = null
+        if (typeof window !== 'undefined') {
+          const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+          if (raw) {
+            try {
+              sessionUser = JSON.parse(raw) as AdminUser
+            } catch {
+              window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+            }
+          }
+        }
+
+        const canReadVentas = hasPermission(sessionUser, 'ventas:read')
+        if (!canReadVentas) {
+          if (!active) return
+          setVentas([])
+          return
+        }
+
         const items = await getVentas()
         if (!active) return
         setVentas(items)

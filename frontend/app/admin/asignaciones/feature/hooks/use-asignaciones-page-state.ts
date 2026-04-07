@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useProduccionStore } from '@/hooks/use-produccion'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { getTrabajadores } from '@/lib/resources-api'
 import type { AccionLosa, Trabajador } from '@/lib/types'
 import { actionSortIndex, buildAsignacionesFromProduccion, createResumenAcciones } from '../lib/asignaciones-helpers'
@@ -23,6 +24,25 @@ export const useAsignacionesPageState = () => {
       setLoading(true)
       setError(null)
       try {
+        let sessionUser: AdminUser | null = null
+        if (typeof window !== 'undefined') {
+          const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+          if (raw) {
+            try {
+              sessionUser = JSON.parse(raw) as AdminUser
+            } catch {
+              window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+            }
+          }
+        }
+
+        const canReadTrabajadores = hasPermission(sessionUser, 'trabajadores:read')
+        if (!canReadTrabajadores) {
+          if (!alive) return
+          setTrabajadoresBase([])
+          return
+        }
+
         const data = await getTrabajadores()
         if (!alive) return
         setTrabajadoresBase(data)

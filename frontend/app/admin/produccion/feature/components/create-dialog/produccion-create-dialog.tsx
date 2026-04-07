@@ -25,6 +25,7 @@ import { ProduccionActionSection } from './produccion-action-section'
 
 type ProduccionCreateDialogProps = {
   addUsage: (accion: AccionLosa) => void
+  canWriteProduccion: boolean
   dateEditPolicy: DateEditPolicy
   equiposActivos: Equipo[]
   formData: FormData
@@ -57,6 +58,7 @@ type ProduccionCreateDialogProps = {
 
 export function ProduccionCreateDialog({
   addUsage,
+  canWriteProduccion,
   dateEditPolicy,
   equiposActivos,
   formData,
@@ -79,9 +81,19 @@ export function ProduccionCreateDialog({
   const accionActiva = formData.accionActiva
 
   return (
-    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+    <Dialog
+      open={isDialogOpen}
+      onOpenChange={(open) => {
+        if (open && !canWriteProduccion) return
+        setIsDialogOpen(open)
+      }}
+    >
       <DialogTrigger asChild>
-        <Button onClick={prepareNewForm}>
+        <Button
+          onClick={prepareNewForm}
+          disabled={!canWriteProduccion}
+          title={canWriteProduccion ? 'Registrar Produccion' : 'Sin permiso para registrar produccion'}
+        >
           <Plus className="mr-2 h-4 w-4" />
           Registrar Produccion
         </Button>
@@ -91,19 +103,48 @@ export function ProduccionCreateDialog({
           <DialogTitle>Registrar produccion diaria</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-2">
+        <form
+          onSubmit={(event) => {
+            if (!canWriteProduccion) {
+              event.preventDefault()
+              return
+            }
+            handleSubmit(event)
+          }}
+          className="space-y-5"
+        >
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <div className="max-w-md space-y-2">
               <Label>Fecha de produccion</Label>
               <Input
                 type="date"
                 max={today}
                 value={formData.fecha}
+                disabled={!canWriteProduccion}
                 onChange={(event) =>
                   setFormData((prev) => ({ ...prev, fecha: event.target.value }))
                 }
               />
             </div>
+
+            {accionActiva ? (
+              <div className="sm:justify-self-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="bg-transparent"
+                  disabled={!canWriteProduccion}
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      accionActiva: '',
+                    }))
+                  }
+                >
+                  Cambiar accion
+                </Button>
+              </div>
+            ) : null}
           </div>
 
           {dateEditPolicy.hasRecords && !dateEditPolicy.canMutate ? (
@@ -127,6 +168,7 @@ export function ProduccionCreateDialog({
                     type="button"
                     variant="outline"
                     className="justify-center bg-transparent"
+                    disabled={!canWriteProduccion}
                     onClick={() =>
                       setFormData((prev) => ({
                         ...prev,
@@ -141,23 +183,6 @@ export function ProduccionCreateDialog({
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <Label>Produccion por equipo</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="bg-transparent"
-                  onClick={() =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      accionActiva: '',
-                    }))
-                  }
-                >
-                  Cambiar accion
-                </Button>
-              </div>
-
               <ProduccionActionSection
                 accion={accionActiva}
                 accionState={formData.acciones[accionActiva]}
@@ -188,7 +213,11 @@ export function ProduccionCreateDialog({
             <Button
               type="submit"
               className="flex-1"
-              disabled={(dateEditPolicy.hasRecords && !dateEditPolicy.canMutate) || !accionActiva}
+              disabled={
+                !canWriteProduccion ||
+                (dateEditPolicy.hasRecords && !dateEditPolicy.canMutate) ||
+                !accionActiva
+              }
             >
               {dateEditPolicy.hasRecords ? 'Registrar otro envio' : 'Registrar'}
             </Button>

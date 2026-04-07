@@ -27,6 +27,7 @@ import {
   type ProduccionDiaria,
   type Trabajador,
 } from '@/lib/types'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import type { ActionUsageDimensionForm, ActionUsageForm, FormData } from '../model/types'
 import {
   actionLabels,
@@ -109,11 +110,27 @@ export const useProduccionPageState = () => {
       setLoadingDependencies(true)
       setDependenciesError(null)
       try {
+        const sessionUser = (() => {
+          if (typeof window === 'undefined') return null
+          const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+          if (!raw) return null
+          try {
+            return JSON.parse(raw) as AdminUser
+          } catch {
+            return null
+          }
+        })()
+
+        const canReadBloques = hasPermission(sessionUser, 'bloques:read')
+        const canReadInventario = hasPermission(sessionUser, 'inventario:read')
+        const canReadEquipos = hasPermission(sessionUser, 'equipos:read')
+        const canReadTrabajadores = hasPermission(sessionUser, 'trabajadores:read')
+
         const [bloquesData, productosData, equiposData, trabajadoresData] = await Promise.all([
-          getBloques(),
-          getProductos(),
-          getEquipos(),
-          getTrabajadores(),
+          canReadBloques ? getBloques() : Promise.resolve<BloqueOLote[]>([]),
+          canReadInventario ? getProductos() : Promise.resolve<Producto[]>([]),
+          canReadEquipos ? getEquipos() : Promise.resolve<Equipo[]>([]),
+          canReadTrabajadores ? getTrabajadores() : Promise.resolve<Trabajador[]>([]),
         ])
 
         if (!alive) return
@@ -630,7 +647,8 @@ export const useProduccionPageState = () => {
 
     for (const accion of [formData.accionActiva] as AccionLosa[]) {
       const accionState = formData.acciones[accion]
-      const includeMermaEnAccion = accion !== 'picar'
+      const includeMermaEnAccion = accion !== 'picar' && accion !== 'resinar'
+      const includeReutilizableEnAccion = accion !== 'resinar'
       const requiresTipo = accion !== 'resinar'
       const requiresEquipo = accion !== 'resinar'
 
@@ -644,7 +662,7 @@ export const useProduccionPageState = () => {
             (dimensionUso) =>
               dimensionUso.cantidadLosas > 0 ||
               (includeMermaEnAccion && dimensionUso.mermaTotalLosas > 0) ||
-              dimensionUso.reutilizableLosas > 0,
+              (includeReutilizableEnAccion && dimensionUso.reutilizableLosas > 0),
           ),
       )
 
@@ -710,7 +728,7 @@ export const useProduccionPageState = () => {
           (dimensionUso) =>
             dimensionUso.cantidadLosas > 0 ||
             (includeMermaEnAccion && dimensionUso.mermaTotalLosas > 0) ||
-            dimensionUso.reutilizableLosas > 0,
+            (includeReutilizableEnAccion && dimensionUso.reutilizableLosas > 0),
         )
 
         if (dimensionesCapturadas.length === 0) {
@@ -720,6 +738,7 @@ export const useProduccionPageState = () => {
 
         for (const dimensionUso of dimensionesCapturadas) {
           const mermaTotalLosas = includeMermaEnAccion ? dimensionUso.mermaTotalLosas : 0
+          const reutilizableLosas = includeReutilizableEnAccion ? dimensionUso.reutilizableLosas : 0
           let tipoUso = (accion === 'resinar' ? '' : usoNormalizado.tipo) as ProduccionDiaria['tipo'] | ''
 
           if (!Number.isInteger(dimensionUso.cantidadLosas) || dimensionUso.cantidadLosas <= 0) {
@@ -731,7 +750,7 @@ export const useProduccionPageState = () => {
 
           if (
             !Number.isInteger(mermaTotalLosas) ||
-            !Number.isInteger(dimensionUso.reutilizableLosas)
+            !Number.isInteger(reutilizableLosas)
           ) {
             setFormError(
               `Merma y reutilizable en ${actionLabels[accion]} (${dimensionUso.dimension}) deben ser numeros enteros.`,
@@ -739,14 +758,14 @@ export const useProduccionPageState = () => {
             return
           }
 
-          if (mermaTotalLosas < 0 || dimensionUso.reutilizableLosas < 0) {
+          if (mermaTotalLosas < 0 || reutilizableLosas < 0) {
             setFormError(
               `Merma y reutilizable en ${actionLabels[accion]} (${dimensionUso.dimension}) no pueden ser negativos.`,
             )
             return
           }
 
-          if (mermaTotalLosas + dimensionUso.reutilizableLosas > dimensionUso.cantidadLosas) {
+          if (mermaTotalLosas + reutilizableLosas > dimensionUso.cantidadLosas) {
             setFormError(
               `En ${actionLabels[accion]} (${dimensionUso.dimension}) la suma de merma + reutilizable no puede superar las losas procesadas.`,
             )
@@ -850,8 +869,8 @@ export const useProduccionPageState = () => {
             metrosCuadrados: losasAMetros(dimensionUso.cantidadLosas, dimensionUsoReal),
             losasMermaTotal: mermaTotalLosas,
             metrosMermaTotal: losasAMetros(mermaTotalLosas, dimensionUsoReal),
-            losasReutilizables: dimensionUso.reutilizableLosas,
-            metrosReutilizables: losasAMetros(dimensionUso.reutilizableLosas, dimensionUsoReal),
+            losasReutilizables: reutilizableLosas,
+            metrosReutilizables: losasAMetros(reutilizableLosas, dimensionUsoReal),
             cantidadResina: accion === 'resinar' ? dimensionUso.cantidadResina : undefined,
           })
 

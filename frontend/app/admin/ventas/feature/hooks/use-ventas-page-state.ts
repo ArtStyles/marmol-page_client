@@ -111,6 +111,38 @@ export const useVentasPageState = () => {
     }
   }
 
+  const buildDetalleVenta = (
+    detalleFormulario: FormDetalleProducto,
+  ): VentaDetalleProducto | null => {
+    const producto = productos.find((item) => item.id === detalleFormulario.productoId)
+    if (!producto) return null
+
+    const { cantidadUnidades, metrosCuadrados } = resolveDetalleCantidad(detalleFormulario, producto)
+    if (metrosCuadrados <= 0) return null
+
+    const precioM2 = getPrecioProducto(producto)
+    const baseDetalle = {
+      productoId: producto.id,
+      productoNombre: producto.nombre,
+      origenId: producto.origenId,
+      origenNombre: producto.origenNombre,
+      dimension: producto.dimension,
+      estado: producto.estado,
+      metrosCuadrados,
+      precioM2,
+      subtotal: metrosCuadrados * precioM2,
+    }
+
+    if (producto.tipo === 'Plancha') {
+      return {
+        ...baseDetalle,
+        cantidadUnidades,
+      }
+    }
+
+    return baseDetalle
+  }
+
   const filteredVentas = ventas.filter((venta) => {
     const query = searchTerm.toLowerCase()
     const detalles = getVentaDetalles(venta)
@@ -171,29 +203,10 @@ export const useVentasPageState = () => {
 
   const recentVentas = [...ventas].sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 3)
 
-  const detallesCalculados = formData.detallesProductos
-    .map((detalle) => {
-      const producto = productos.find((item) => item.id === detalle.productoId)
-      if (!producto) return null
-
-      const { cantidadUnidades, metrosCuadrados } = resolveDetalleCantidad(detalle, producto)
-      if (metrosCuadrados <= 0) return null
-
-      const precioM2 = getPrecioProducto(producto)
-      return {
-        productoId: producto.id,
-        productoNombre: producto.nombre,
-        origenId: producto.origenId,
-        origenNombre: producto.origenNombre,
-        dimension: producto.dimension,
-        estado: producto.estado,
-        cantidadUnidades: producto.tipo === 'Plancha' ? cantidadUnidades : undefined,
-        metrosCuadrados,
-        precioM2,
-        subtotal: metrosCuadrados * precioM2,
-      } satisfies VentaDetalleProducto
-    })
-    .filter((detalle): detalle is VentaDetalleProducto => Boolean(detalle))
+  const detallesCalculados = formData.detallesProductos.flatMap((detalle) => {
+    const parsedDetalle = buildDetalleVenta(detalle)
+    return parsedDetalle ? [parsedDetalle] : []
+  })
 
   const totalM2Form = detallesCalculados.reduce((sum, detalle) => sum + detalle.metrosCuadrados, 0)
   const subtotalCalculado = detallesCalculados.reduce((sum, detalle) => sum + detalle.subtotal, 0)
@@ -316,28 +329,10 @@ export const useVentasPageState = () => {
 
     const detallesVenta = formData.detallesProductos
       .filter((detalle) => detalle.productoId)
-      .map((detalle) => {
-        const producto = productos.find((item) => item.id === detalle.productoId)
-        if (!producto) return null
-
-        const { cantidadUnidades, metrosCuadrados } = resolveDetalleCantidad(detalle, producto)
-        if (metrosCuadrados <= 0) return null
-
-        const precioM2 = getPrecioProducto(producto)
-        return {
-          productoId: producto.id,
-          productoNombre: producto.nombre,
-          origenId: producto.origenId,
-          origenNombre: producto.origenNombre,
-          dimension: producto.dimension,
-          estado: producto.estado,
-          cantidadUnidades: producto.tipo === 'Plancha' ? cantidadUnidades : undefined,
-          metrosCuadrados,
-          precioM2,
-          subtotal: metrosCuadrados * precioM2,
-        } satisfies VentaDetalleProducto
+      .flatMap((detalle) => {
+        const parsedDetalle = buildDetalleVenta(detalle)
+        return parsedDetalle ? [parsedDetalle] : []
       })
-      .filter((detalle): detalle is VentaDetalleProducto => Boolean(detalle))
 
     if (detallesVenta.length === 0) {
       setFormError('Agrega al menos un producto para registrar la venta.')
@@ -362,6 +357,10 @@ export const useVentasPageState = () => {
       return
     }
     const primerDetalle = detallesVenta[0]
+    if (!primerDetalle) {
+      setFormError('Agrega al menos un producto para registrar la venta.')
+      return
+    }
     const nombreResumen =
       detallesVenta.length > 1
         ? `${primerDetalle.productoNombre} +${detallesVenta.length - 1}`

@@ -58,18 +58,23 @@ const toTimestamp = (value: string | undefined): number => {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-async function loadPendingInventarioMovimientos(): Promise<InventarioMovimiento[]> {
+async function loadPendingInventarioMovimientos(
+  options: { maxPages?: number } = {},
+): Promise<InventarioMovimiento[]> {
   const items: InventarioMovimiento[] = []
   const seen = new Set<string>()
+  const maxPages = options.maxPages ?? Number.POSITIVE_INFINITY
   let cursor: string | undefined
   let hasMore = true
+  let pagesLoaded = 0
 
-  while (hasMore) {
+  while (hasMore && pagesLoaded < maxPages) {
     const page = await getInventarioMovimientosPage({
       limit: 50,
       cursor,
       estado: 'pendiente',
     })
+    pagesLoaded += 1
 
     for (const item of page.items) {
       if (seen.has(item.id)) continue
@@ -107,6 +112,8 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
   const isSuperAdmin = sessionUser?.role === 'Super Admin'
   const canApproveTaller = isSuperAdmin || hasPermission(sessionUser, 'produccion:approve_taller')
   const canApproveAlmacen = isSuperAdmin || hasPermission(sessionUser, 'inventario:approve')
+  const canRejectProduccionAlmacen = canApproveTaller
+  const canManageApprovals = canApproveTaller || canApproveAlmacen
   const canReadProduccion = isSuperAdmin || hasPermission(sessionUser, 'produccion:read')
   const canReadInventario = isSuperAdmin || hasPermission(sessionUser, 'inventario:read')
 
@@ -129,8 +136,26 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
     [workshopScopeId],
   )
 
-  const loadNotifications = useCallback(async () => {
-    if (!canApproveTaller && !canApproveAlmacen) {
+  const canApproveNotification = useCallback(
+    (item: ApprovalNotification): boolean => {
+      if (item.type === 'produccion_taller') return canApproveTaller
+      if (item.type === 'produccion_almacen') return canApproveAlmacen
+      return canApproveAlmacen
+    },
+    [canApproveAlmacen, canApproveTaller],
+  )
+
+  const canRejectNotification = useCallback(
+    (item: ApprovalNotification): boolean => {
+      if (item.type === 'produccion_taller') return canApproveTaller
+      if (item.type === 'produccion_almacen') return canRejectProduccionAlmacen
+      return canApproveAlmacen
+    },
+    [canApproveAlmacen, canApproveTaller, canRejectProduccionAlmacen],
+  )
+
+  const loadNotifications = useCallback(async (options: { lightweight?: boolean } = {}) => {
+    if (!canManageApprovals) {
       setNotifications([])
       setSyncError(null)
       return
@@ -146,7 +171,9 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
           : Promise.resolve([])
       const inventarioPromise: Promise<InventarioMovimiento[]> =
         canApproveAlmacen && canReadInventario
-          ? loadPendingInventarioMovimientos()
+          ? loadPendingInventarioMovimientos({
+              maxPages: options.lightweight ? 1 : Number.POSITIVE_INFINITY,
+            })
           : Promise.resolve([])
 
       const [produccion, movimientosInventario] = await Promise.all([
@@ -171,7 +198,7 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
         }
       }
 
-      if (canApproveAlmacen) {
+      if (canApproveAlmacen || canRejectProduccionAlmacen) {
         for (const registro of produccion) {
           if (resolveAprobacion(registro.aprobacionTallerEstado) !== 'aprobado') continue
           if (resolveAprobacion(registro.aprobacionAlmacenEstado) !== 'pendiente') continue
@@ -186,17 +213,19 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
           })
         }
 
-        for (const movimiento of movimientosInventario) {
-          if (movimiento.estado !== 'pendiente') continue
-          pending.push({
-            id: `inv-mov-${movimiento.id}`,
-            type: 'inventario_movimiento',
-            referenceId: movimiento.id,
-            title: 'Movimiento de almacen pendiente',
-            detail: `${movimiento.tipo} - ${movimiento.origen} - ${movimiento.motivo}`,
-            href: scopedRoute('/admin/inventario'),
-            timestamp: toTimestamp(movimiento.fechaSolicitud),
-          })
+        if (canApproveAlmacen) {
+          for (const movimiento of movimientosInventario) {
+            if (movimiento.estado !== 'pendiente') continue
+            pending.push({
+              id: `inv-mov-${movimiento.id}`,
+              type: 'inventario_movimiento',
+              referenceId: movimiento.id,
+              title: 'Movimiento de almacen pendiente',
+              detail: `${movimiento.tipo} - ${movimiento.origen} - ${movimiento.motivo}`,
+              href: scopedRoute('/admin/inventario'),
+              timestamp: toTimestamp(movimiento.fechaSolicitud),
+            })
+          }
         }
       }
 
@@ -210,20 +239,40 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
   }, [
     canApproveAlmacen,
     canApproveTaller,
+    canManageApprovals,
     canReadInventario,
     canReadProduccion,
+    canRejectProduccionAlmacen,
     scopedRoute,
   ])
 
   useEffect(() => {
-    void loadNotifications()
-    const timerId = window.setInterval(() => {
-      void loadNotifications()
-    }, 60_000)
+    void loadNotifications({ lightweight: true })
+  }, [loadNotifications])
+
+  useEffect(() => {
+    if (!dialogOpen) return
+
+    const poll = () => {
+      if (typeof document !== 'undefined' && document.hidden) return
+      void loadNotifications({ lightweight: true })
+    }
+
+    const timerId = window.setInterval(poll, 60_000)
+    const onVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        void loadNotifications({ lightweight: true })
+      }
+    }
+
+    window.addEventListener('focus', onVisibilityChange)
+    document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
       window.clearInterval(timerId)
+      window.removeEventListener('focus', onVisibilityChange)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [loadNotifications])
+  }, [dialogOpen, loadNotifications])
 
   const runAction = useCallback(
     async (notificationId: string, action: () => Promise<void>) => {
@@ -343,6 +392,11 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
   }, [closeRejectDialog, rejectDialogMotivo, rejectDialogTarget, runAction])
 
   const handleApprove = (item: ApprovalNotification) => {
+    if (!canApproveNotification(item)) {
+      setSyncError('No tienes permisos para aprobar esta solicitud.')
+      return
+    }
+
     if (item.type === 'produccion_taller') {
       void runAction(item.id, async () => {
         await approveProduccionTaller(item.referenceId, { aprobado: true })
@@ -365,9 +419,9 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
   }
 
   const handleReject = (item: ApprovalNotification) => {
-    const canReject = item.type === 'inventario_movimiento' || canApproveTaller
+    const canReject = canRejectNotification(item)
     if (!canReject) {
-      setSyncError('Para denegar esta solicitud necesitas permiso de aprobacion de taller.')
+      setSyncError('No tienes permisos para denegar esta solicitud.')
       return
     }
 
@@ -378,23 +432,31 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
   }
 
   const totalPendientes = notifications.length
+  const badgeClassName =
+    totalPendientes > 0
+      ? 'pointer-events-none absolute -right-2.5 -top-2.5 h-5 min-w-5 rounded-full border-2 border-white bg-red-600 px-1 text-[10px] font-bold leading-none text-white'
+      : 'pointer-events-none absolute -right-2.5 -top-2.5 h-5 min-w-5 rounded-full border-2 border-white bg-slate-200 px-1 text-[10px] font-bold leading-none text-slate-700'
 
   return (
     <div>
       <Button
         type="button"
+        size="icon-lg"
         variant="outline"
-        className="w-full justify-between bg-white/70"
+        className="relative ml-auto flex bg-white/70"
         onClick={() => {
           setDialogOpen(true)
           void loadNotifications()
         }}
+        aria-label="Notificaciones"
       >
-        <span className="flex items-center gap-2">
-          <Bell className="h-4 w-4" />
-          Notificaciones
+        <span className="relative inline-flex items-center justify-center leading-none">
+          <Bell className="h-6 w-6 text-slate-800" strokeWidth={2.4} />
+          <Badge className={badgeClassName}>
+            {totalPendientes}
+          </Badge>
         </span>
-        <Badge variant={totalPendientes > 0 ? 'default' : 'secondary'}>{totalPendientes}</Badge>
+        <span className="sr-only">Notificaciones</span>
       </Button>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -437,7 +499,8 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
               {!loading &&
                 notifications.map((item) => {
                   const isActionLoading = !!actionLoadingById[item.id]
-                  const canReject = item.type === 'inventario_movimiento' || canApproveTaller
+                  const canApprove = canApproveNotification(item)
+                  const canReject = canRejectNotification(item)
 
                   return (
                     <div
@@ -452,7 +515,7 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
                           type="button"
                           size="sm"
                           className="h-7 px-2 text-[11px]"
-                          disabled={isActionLoading}
+                          disabled={isActionLoading || !canApprove}
                           onClick={() => handleApprove(item)}
                         >
                           {isActionLoading ? 'Procesando...' : 'Aprobar'}
@@ -475,6 +538,11 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
                       {!canReject && item.type === 'produccion_almacen' ? (
                         <p className="mt-2 text-[11px] text-amber-700">
                           Solo usuarios con permiso de taller pueden denegar esta solicitud.
+                        </p>
+                      ) : null}
+                      {canReject && !canApprove && item.type === 'produccion_almacen' ? (
+                        <p className="mt-2 text-[11px] text-slate-600">
+                          Puedes denegar esta solicitud; la aprobacion la realiza almacen.
                         </p>
                       ) : null}
                     </div>

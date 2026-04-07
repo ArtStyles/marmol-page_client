@@ -26,6 +26,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { useConfiguracion } from '@/hooks/use-configuracion'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 
 type AcumuladoPagoTrabajador = Trabajador & {
   produccionesPendientes: ProduccionTrabajador[]
@@ -58,10 +59,27 @@ export default function PagosPage() {
     if (showLoading) setLoading(true)
     setSyncError(null)
     try {
+      let sessionUser: AdminUser | null = null
+      if (typeof window !== 'undefined') {
+        const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+        if (raw) {
+          try {
+            sessionUser = JSON.parse(raw) as AdminUser
+          } catch {
+            window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+          }
+        }
+      }
+
+      const canReadPagos = hasPermission(sessionUser, 'pagos:read')
+      const canReadTrabajadores = hasPermission(sessionUser, 'trabajadores:read')
+      const canReadAsignaciones = hasPermission(sessionUser, 'asignaciones:read')
       const [historialData, trabajadoresData, produccionData] = await Promise.all([
-        getHistorialPagos(),
-        getTrabajadores(),
-        getProduccionTrabajadores(),
+        canReadPagos ? getHistorialPagos() : Promise.resolve<HistorialPago[]>([]),
+        canReadTrabajadores ? getTrabajadores() : Promise.resolve<Trabajador[]>([]),
+        canReadAsignaciones
+          ? getProduccionTrabajadores()
+          : Promise.resolve<ProduccionTrabajador[]>([]),
       ])
       setHistorial(historialData)
       setTrabajadores(trabajadoresData)

@@ -5,6 +5,7 @@ import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Badge } from '@/components/ui/badge'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useGastosStore } from '@/hooks/use-gastos'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import {
   getBloques,
   getMermas,
@@ -43,14 +44,35 @@ export default function FinanzasPage() {
       setLoading(true)
       setSyncError(null)
       try {
+        let sessionUser: AdminUser | null = null
+        if (typeof window !== 'undefined') {
+          const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+          if (raw) {
+            try {
+              sessionUser = JSON.parse(raw) as AdminUser
+            } catch {
+              window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+            }
+          }
+        }
+
+        const canReadBloques = hasPermission(sessionUser, 'bloques:read')
+        const canReadMermas = hasPermission(sessionUser, 'mermas:read')
+        const canReadProduccion = hasPermission(sessionUser, 'produccion:read')
+        const canReadAsignaciones = hasPermission(sessionUser, 'asignaciones:read')
+        const canReadTrabajadores = hasPermission(sessionUser, 'trabajadores:read')
+        const canReadVentas = hasPermission(sessionUser, 'ventas:read')
+
         const [bloquesData, mermasData, produccionData, produccionTrabajadoresData, trabajadoresData, ventasData] =
           await Promise.all([
-            getBloques(),
-            getMermas(),
-            getProduccion(),
-            getProduccionTrabajadores(),
-            getTrabajadores(),
-            getVentas(),
+            canReadBloques ? getBloques() : Promise.resolve<BloqueOLote[]>([]),
+            canReadMermas ? getMermas() : Promise.resolve<Merma[]>([]),
+            canReadProduccion ? getProduccion() : Promise.resolve<ProduccionDiaria[]>([]),
+            canReadAsignaciones
+              ? getProduccionTrabajadores()
+              : Promise.resolve<ProduccionTrabajador[]>([]),
+            canReadTrabajadores ? getTrabajadores() : Promise.resolve<Trabajador[]>([]),
+            canReadVentas ? getVentas() : Promise.resolve<Venta[]>([]),
           ])
 
         if (!alive) return

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from 'react'
+import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import {
   createProduccion,
   deleteProduccion,
@@ -46,7 +47,24 @@ const asUpdatePayload = (item: ProduccionDiaria): Partial<ProduccionDiaria> => (
 const sameProduccion = (a: ProduccionDiaria, b: ProduccionDiaria): boolean =>
   JSON.stringify(asUpdatePayload(a)) === JSON.stringify(asUpdatePayload(b))
 
-export function useProduccionStore() {
+const readSessionUser = (): AdminUser | null => {
+  if (typeof window === 'undefined') return null
+  const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as AdminUser
+  } catch {
+    window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    return null
+  }
+}
+
+type UseProduccionStoreOptions = {
+  enabled?: boolean
+}
+
+export function useProduccionStore(options: UseProduccionStoreOptions = {}) {
+  const enabled = options.enabled ?? true
   const [produccion, setProduccionState] = useState<ProduccionDiaria[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -58,6 +76,28 @@ export function useProduccionStore() {
   useEffect(() => {
     let active = true
     const load = async () => {
+      if (!enabled) {
+        if (!active) return
+        previousProduccionRef.current = []
+        setProduccionState([])
+        setError(null)
+        hasHydratedRef.current = true
+        setLoading(false)
+        return
+      }
+
+      const sessionUser = readSessionUser()
+      const canReadProduccion = hasPermission(sessionUser, 'produccion:read')
+      if (!canReadProduccion) {
+        if (!active) return
+        previousProduccionRef.current = []
+        setProduccionState([])
+        setError(null)
+        hasHydratedRef.current = true
+        setLoading(false)
+        return
+      }
+
       try {
         setLoading(true)
         setError(null)
@@ -79,7 +119,7 @@ export function useProduccionStore() {
     return () => {
       active = false
     }
-  }, [])
+  }, [enabled])
 
   const syncProduccion = useCallback(async (prev: ProduccionDiaria[], next: ProduccionDiaria[]) => {
     const prevById = new Map(prev.map((item) => [item.id, item]))

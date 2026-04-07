@@ -115,6 +115,15 @@ export default function AdminLayout({
 
   useEffect(() => {
     if (!authUser) return
+    const canLoadWorkshops =
+      hasPermission(authUser, 'workshops:read') ||
+      hasPermission(authUser, 'workshops:write') ||
+      hasPermission(authUser, 'workshops:override_scope')
+    if (!canLoadWorkshops) {
+      setWorkshops([])
+      return
+    }
+
     let active = true
     const load = async () => {
       try {

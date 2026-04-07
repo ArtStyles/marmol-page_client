@@ -478,7 +478,7 @@ export default function BloquesPage() {
             <div className="relative w-full sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar por codigo o proveedor..."
+                placeholder="Buscar por codigo..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 className="pl-9"
@@ -500,14 +500,11 @@ export default function BloquesPage() {
             ) : (
               <div className="space-y-3">
                 <div className="overflow-x-auto">
-                  <div className="space-y-3 lg:min-w-[1180px]">
-                    <div className="hidden rounded-[16px] border border-slate-200/70 bg-slate-50/70 px-4 py-2 lg:grid lg:grid-cols-[minmax(0,1.2fr)_90px_90px_minmax(0,1fr)_120px_120px_110px_minmax(0,1.4fr)]">
+                  <div className="space-y-3 lg:min-w-[980px]">
+                    <div className="hidden rounded-[16px] border border-slate-200/70 bg-slate-50/70 px-4 py-2 lg:grid lg:grid-cols-[minmax(0,1.4fr)_90px_140px_110px_minmax(0,1.4fr)]">
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Codigo</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Tipo</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">m3</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Proveedor</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Transporte</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Costo mat.</span>
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Costo total</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Estado</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Acciones</span>
                     </div>
@@ -515,32 +512,21 @@ export default function BloquesPage() {
                     <div className="divide-y divide-slate-200/60 overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
                       {filteredBloques.map((bloque) => (
                         <div key={bloque.id} className="px-4 py-3">
-                          <div className="grid gap-2 lg:grid-cols-[minmax(0,1.2fr)_90px_90px_minmax(0,1fr)_120px_120px_110px_minmax(0,1.4fr)] lg:items-center">
+                          <div className="grid gap-2 lg:grid-cols-[minmax(0,1.4fr)_90px_140px_110px_minmax(0,1.4fr)] lg:items-center">
                             <div>
                               <p className="text-sm font-semibold text-slate-900">{getBloqueCodigo(bloque)}</p>
                               <p className="text-[11px] text-slate-500">Ingreso {bloque.fechaIngreso}</p>
-                            </div>
-
-                            <div>
-                              <Badge variant={bloque.tipo === 'Bloque' ? 'default' : 'secondary'}>
-                                {bloque.tipo}
-                              </Badge>
                             </div>
 
                             <div className="text-sm font-semibold text-slate-800">
                               {bloque.metrosComprados.toLocaleString()} m3
                             </div>
 
-                            <div className="text-sm text-slate-700">{bloque.proveedor}</div>
-
                             <div className="flex items-center justify-between text-sm lg:block lg:text-right">
-                              <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Transporte</span>
-                              <span className="font-semibold text-slate-900">${bloque.costoTransporte.toLocaleString()}</span>
-                            </div>
-
-                            <div className="flex items-center justify-between text-sm lg:block lg:text-right">
-                              <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Costo</span>
-                              <span className="font-semibold text-slate-900">${bloque.costo.toLocaleString()}</span>
+                              <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Costo total</span>
+                              <span className="font-semibold text-slate-900">
+                                ${(bloque.costo + bloque.costoTransporte).toLocaleString()}
+                              </span>
                             </div>
 
                             <div>{renderEstado(bloque)}</div>

@@ -116,11 +116,32 @@ export default function TrabajadoresPage() {
       setLoading(true)
       setSyncError(null)
       try {
+        let sessionUser: AdminUser | null = null
+        if (typeof window !== 'undefined') {
+          const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+          if (raw) {
+            try {
+              sessionUser = JSON.parse(raw) as AdminUser
+            } catch {
+              window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+            }
+          }
+        }
+
+        const canReadTrabajadores = hasPermission(sessionUser, 'trabajadores:read')
+        const canReadAsignaciones = hasPermission(sessionUser, 'asignaciones:read')
+        const canReadPagos = hasPermission(sessionUser, 'pagos:read')
+        const canReadPermissionGroups = hasPermission(sessionUser, 'permissions:read')
+
         const [trabajadoresData, produccionData, historialData, permissionGroupsData] = await Promise.all([
-          getTrabajadores(),
-          getProduccionTrabajadores(),
-          getHistorialPagos(),
-          getPermissionGroups().catch(() => [] as PermissionGroup[]),
+          canReadTrabajadores ? getTrabajadores() : Promise.resolve<Trabajador[]>([]),
+          canReadAsignaciones
+            ? getProduccionTrabajadores()
+            : Promise.resolve<ProduccionTrabajador[]>([]),
+          canReadPagos ? getHistorialPagos() : Promise.resolve<HistorialPago[]>([]),
+          canReadPermissionGroups
+            ? getPermissionGroups().catch(() => [] as PermissionGroup[])
+            : Promise.resolve<PermissionGroup[]>([]),
         ])
         if (!alive) return
         setTrabajadores(trabajadoresData)

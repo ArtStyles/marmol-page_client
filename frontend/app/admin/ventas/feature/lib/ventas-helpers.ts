@@ -11,9 +11,9 @@ export const createEmptyMetros = (): Record<Dimension, number> => ({
 })
 
 export const getDimensionAreaM2 = (dimension: Dimension): number => {
-  if (dimension === '40x40') return 0.16
-  if (dimension === '60x40') return 0.24
-  return 0.32
+  if (dimension === '40x40') return 1 / 6
+  if (dimension === '60x40') return 1 / 4
+  return 1 / 3
 }
 
 export const metrosToLosasEquivalentes = (metros: number, dimension: Dimension): number => {

@@ -56,16 +56,23 @@ export default function ObreroPage() {
   }, [])
 
   useEffect(() => {
+    if (!sessionReady) return
+
     let alive = true
 
     const load = async () => {
       setLoadingData(true)
       setDataError(null)
       try {
+        const canReadPagos = hasPermission(sessionUser, 'pagos:read')
+        const canReadTrabajadores = hasPermission(sessionUser, 'trabajadores:read')
+        const canReadAsignaciones = hasPermission(sessionUser, 'asignaciones:read')
         const [trabajadoresData, produccionData, historialData] = await Promise.all([
-          getTrabajadores(),
-          getProduccionTrabajadores(),
-          getHistorialPagos(),
+          canReadTrabajadores ? getTrabajadores() : Promise.resolve<Trabajador[]>([]),
+          canReadAsignaciones
+            ? getProduccionTrabajadores()
+            : Promise.resolve<ProduccionTrabajador[]>([]),
+          canReadPagos ? getHistorialPagos() : Promise.resolve<HistorialPago[]>([]),
         ])
         if (!alive) return
         setTrabajadores(trabajadoresData)
@@ -84,7 +91,7 @@ export default function ObreroPage() {
     return () => {
       alive = false
     }
-  }, [])
+  }, [sessionReady, sessionUser])
 
   const isObreroSession = hasPermission(sessionUser, 'obrero:panel:view')
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   createPermissionGroup,
   deletePermissionGroup,
@@ -77,6 +77,9 @@ export default function PermisosPage() {
   const [userDirectPermissions, setUserDirectPermissions] = useState<Set<string>>(new Set())
   const [userSubmitting, setUserSubmitting] = useState(false)
 
+  const canReadGroups = hasPermission(sessionUser, 'permissions:read')
+  const canReadDefinitions = hasPermission(sessionUser, 'permissions:read')
+  const canReadUsers = hasPermission(sessionUser, 'users:access:read')
   const canWriteGroups = hasPermission(sessionUser, 'permissions:write')
   const canWriteUsers = hasPermission(sessionUser, 'users:access:write')
 
@@ -117,11 +120,13 @@ export default function PermisosPage() {
   }, [groups, userGroupIds])
   const selectedUserVisiblePermissions = useMemo(() => {
     if (selectedUserIsSuperAdmin) return selectedUserEffectivePermissions
+    if (!canReadGroups) return selectedUserEffectivePermissions
     return new Set([
       ...selectedUserGroupPermissions,
       ...userDirectPermissions,
     ])
   }, [
+    canReadGroups,
     selectedUserIsSuperAdmin,
     selectedUserEffectivePermissions,
     selectedUserGroupPermissions,
@@ -164,45 +169,81 @@ export default function PermisosPage() {
     </div>
   )
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    if (!sessionUser) {
+      setDefinitions([])
+      setGroups([])
+      setUsers([])
+      setLoading(false)
+      setSyncError(null)
+      return
+    }
+
     setLoading(true)
     setSyncError(null)
-    try {
-      const [definitionsData, groupsData, usersData] = await Promise.all([
-        getPermissionDefinitions(),
-        getPermissionGroups(),
-        getUsersAccess(),
-      ])
-      setDefinitions(definitionsData)
-      setGroups(groupsData)
-      setUsers(usersData)
-      const currentSelectionExists = selectedUserId
-        ? usersData.some((user) => user.userId === selectedUserId)
-        : false
-      if (currentSelectionExists) return
-      setSelectedUserId(usersData[0]?.userId ?? null)
-    } catch (error) {
-      setSyncError(error instanceof Error ? error.message : 'No se pudieron cargar permisos.')
-    } finally {
-      setLoading(false)
+    const errors: string[] = []
+
+    const [definitionsResult, groupsResult, usersResult] = await Promise.allSettled([
+      canReadDefinitions ? getPermissionDefinitions() : Promise.resolve<PermissionDefinition[]>([]),
+      canReadGroups ? getPermissionGroups() : Promise.resolve<PermissionGroup[]>([]),
+      canReadUsers ? getUsersAccess() : Promise.resolve<UserPermissionAccess[]>([]),
+    ])
+
+    if (definitionsResult.status === 'fulfilled') {
+      setDefinitions(definitionsResult.value)
+    } else {
+      setDefinitions([])
+      errors.push('No se pudieron cargar las definiciones de permisos.')
     }
-  }
+
+    if (groupsResult.status === 'fulfilled') {
+      setGroups(groupsResult.value)
+    } else {
+      setGroups([])
+      errors.push('No se pudieron cargar los grupos de permisos.')
+    }
+
+    let usersData: UserPermissionAccess[] = []
+    if (usersResult.status === 'fulfilled') {
+      usersData = usersResult.value
+      setUsers(usersData)
+    } else {
+      setUsers([])
+      errors.push('No se pudieron cargar los accesos de usuarios.')
+    }
+
+    setSelectedUserId((previousUserId) => {
+      if (previousUserId && usersData.some((user) => user.userId === previousUserId)) {
+        return previousUserId
+      }
+      return usersData[0]?.userId ?? null
+    })
+
+    if (errors.length > 0) {
+      setSyncError(errors.join(' '))
+    }
+    setLoading(false)
+  }, [canReadDefinitions, canReadGroups, canReadUsers, sessionUser])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
-    if (!raw) return
+    if (!raw) {
+      setLoading(false)
+      return
+    }
     try {
       setSessionUser(JSON.parse(raw) as AdminUser)
     } catch {
       window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+      setLoading(false)
     }
   }, [])
 
   useEffect(() => {
+    if (!sessionUser) return
     void loadData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [loadData, sessionUser])
 
   useEffect(() => {
     if (!selectedGroup) {
@@ -417,7 +458,6 @@ export default function PermisosPage() {
                               />
                               <span>
                                 <span className="block text-sm text-slate-900">{definition.name}</span>
-                                <span className="block text-xs text-slate-500">{definition.code}</span>
                               </span>
                             </label>
                           ))}
@@ -559,7 +599,6 @@ export default function PermisosPage() {
                                 />
                                 <span>
                                   <span className="block text-sm text-slate-900">{definition.name}</span>
-                                  <span className="block text-xs text-slate-500">{definition.code}</span>
                                   {!selectedUserIsSuperAdmin &&
                                   selectedUserGroupPermissions.has(definition.code) ? (
                                     <span className="block text-[11px] text-amber-700">

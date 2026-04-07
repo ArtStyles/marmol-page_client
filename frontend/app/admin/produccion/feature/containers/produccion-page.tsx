@@ -119,6 +119,9 @@ export default function ProduccionPage() {
   const canSolicitarRetornoProceso = currentUser
     ? hasPermission(currentUser, 'inventario:write')
     : false
+  const canWriteProduccion = currentUser
+    ? hasPermission(currentUser, 'produccion:write')
+    : false
 
   const productosProcesoParaRetorno = useMemo(
     () => [...stockProcesoDisponible].sort((a, b) => a.nombre.localeCompare(b.nombre)),
@@ -285,6 +288,7 @@ export default function ProduccionPage() {
   }
 
   const openEntryEditDialog = (registro: ProduccionDiaria) => {
+    if (!canWriteProduccion) return
     if (!canEditProduccionEntrada(registro)) return
     const detallesPicar = (registro.detallesAcciones ?? []).filter((detalle) => detalle.accion === 'picar')
     const equipoInicial =
@@ -337,6 +341,7 @@ export default function ProduccionPage() {
 
   const confirmEntryEdit = async () => {
     if (!entryEditTarget) return
+    if (!canWriteProduccion) return
 
     const cantidadPicar = Math.trunc(entryEditLosas)
     if (!Number.isInteger(cantidadPicar) || cantidadPicar <= 0) {
@@ -391,6 +396,7 @@ export default function ProduccionPage() {
   }
 
   const openEntryDeleteDialog = (registro: ProduccionDiaria) => {
+    if (!canWriteProduccion) return
     if (!canDeleteProduccionEntrada(registro)) return
     setEntryActionError(null)
     setEntryDeleteTarget(registro)
@@ -406,6 +412,7 @@ export default function ProduccionPage() {
 
   const confirmEntryDelete = async () => {
     if (!entryDeleteTarget) return
+    if (!canWriteProduccion) return
     const ok = await deleteProduccionRegistro(entryDeleteTarget.id)
     if (ok) {
       closeEntryDeleteDialog()
@@ -450,6 +457,7 @@ export default function ProduccionPage() {
             ) : null}
             <ProduccionCreateDialog
               addUsage={addUsage}
+              canWriteProduccion={canWriteProduccion}
               dateEditPolicy={dateEditPolicy}
               equiposActivos={equiposActivos}
               formData={formData}
@@ -546,7 +554,7 @@ export default function ProduccionPage() {
                     ) : (
                       productosProcesoParaRetorno.map((producto) => (
                         <SelectItem key={producto.id} value={producto.id}>
-                          {producto.nombre} · {producto.estado} · {producto.cantidadLosas} losas
+                          {producto.nombre} - {producto.estado} - {producto.cantidadLosas} losas
                         </SelectItem>
                       ))
                     )}
@@ -808,6 +816,7 @@ export default function ProduccionPage() {
         </AlertDialog>
 
         <ProduccionRegistrosList
+          canWriteProduccion={canWriteProduccion}
           fechasOrdenadas={fechasOrdenadas}
           groupedByDate={groupedByDate}
           resolveOrigenCodigo={resolveOrigenCodigo}
