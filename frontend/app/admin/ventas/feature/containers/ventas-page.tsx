@@ -4,7 +4,6 @@ import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Button } from '@/components/admin/admin-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
 import { Eye, Plus, Search, Trash2 } from 'lucide-react'
 import {
   Dialog,
@@ -28,6 +27,9 @@ import {
   metrosToLosasEquivalentes,
 } from '../lib/ventas-helpers'
 import { useVentasPageState } from '../hooks/use-ventas-page-state'
+
+const estadoInventarioOrden = ['Picado', 'Escuadrado', 'Devastado', 'Resinado', 'Pulido'] as const
+const tipoProductoOrden = ['Plancha', 'Piso'] as const
 
 export default function VentasPage() {
   const {
@@ -173,6 +175,40 @@ export default function VentasPage() {
                   <div className="space-y-3">
                     {formData.detallesProductos.map((detalle, index) => {
                       const productoSeleccionado = productos.find((item) => item.id === detalle.productoId)
+                      const tiposDisponibles = tipoProductoOrden.filter((tipo) =>
+                        productos.some((producto) => producto.tipo === tipo),
+                      )
+                      const bloquesDisponibles = Array.from(
+                        new Map(
+                          productos
+                            .filter((producto) => producto.tipo === detalle.tipo)
+                            .map((producto) => [producto.origenId, producto.origenNombre]),
+                        ).entries(),
+                      )
+                        .map(([id, nombre]) => ({ id, nombre }))
+                        .sort((a, b) => a.nombre.localeCompare(b.nombre))
+                      const dimensionesDisponibles = detalle.tipo && detalle.origenId
+                        ? dimensionOptions.filter((dimension) =>
+                            productos.some(
+                              (producto) =>
+                                producto.tipo === detalle.tipo &&
+                                producto.origenId === detalle.origenId &&
+                                producto.dimension === dimension,
+                            ),
+                          )
+                        : []
+                      const estadosDisponibles =
+                        detalle.tipo && detalle.origenId && detalle.dimension
+                          ? estadoInventarioOrden.filter((estado) =>
+                              productos.some(
+                                (producto) =>
+                                  producto.tipo === detalle.tipo &&
+                                  producto.origenId === detalle.origenId &&
+                                  producto.dimension === detalle.dimension &&
+                                  producto.estado === estado,
+                              ),
+                            )
+                          : []
                       const precioM2 = productoSeleccionado ? getPrecioProducto(productoSeleccionado) : 0
                       const isPlancha = productoSeleccionado?.tipo === 'Plancha'
                       const areaM2 = productoSeleccionado ? getDimensionAreaM2(productoSeleccionado.dimension) : 0
@@ -199,25 +235,93 @@ export default function VentasPage() {
                             </Button>
                           </div>
 
-                          <div className="space-y-2">
-                            <Label>Producto</Label>
-                            <Select
-                              value={detalle.productoId}
-                              onValueChange={(value) => updateDetalleFormulario(detalle.id, { productoId: value })}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar producto" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {productos.map((producto) => (
-                                  <SelectItem key={producto.id} value={producto.id}>
-                                    {producto.tipo === 'Plancha'
-                                      ? `${producto.nombre} - ${producto.origenNombre}`
-                                      : `${producto.nombre} - ${producto.origenNombre} (${producto.dimension})`}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          <div className="grid gap-3 sm:grid-cols-4">
+                            <div className="min-w-0 space-y-2">
+                              <Label>Tipo</Label>
+                              <Select
+                                value={detalle.tipo}
+                                onValueChange={(value) =>
+                                  updateDetalleFormulario(detalle.id, { tipo: value as typeof detalle.tipo })
+                                }
+                              >
+                                <SelectTrigger className="w-full min-w-0">
+                                  <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {tiposDisponibles.map((tipo) => (
+                                    <SelectItem key={`${detalle.id}-${tipo}`} value={tipo}>
+                                      {tipo}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="min-w-0 space-y-2">
+                              <Label>Bloque</Label>
+                              <Select
+                                value={detalle.origenId}
+                                onValueChange={(value) =>
+                                  updateDetalleFormulario(detalle.id, { origenId: value })
+                                }
+                                disabled={!detalle.tipo}
+                              >
+                                <SelectTrigger className="w-full min-w-0">
+                                  <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {bloquesDisponibles.map((bloque) => (
+                                    <SelectItem key={bloque.id} value={bloque.id}>
+                                      {bloque.nombre}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="min-w-0 space-y-2">
+                              <Label>Dimension</Label>
+                              <Select
+                                value={detalle.dimension}
+                                onValueChange={(value) =>
+                                  updateDetalleFormulario(detalle.id, { dimension: value as typeof detalle.dimension })
+                                }
+                                disabled={!detalle.tipo || !detalle.origenId}
+                              >
+                                <SelectTrigger className="w-full min-w-0">
+                                  <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {dimensionesDisponibles.map((dimension) => (
+                                    <SelectItem key={`${detalle.id}-${dimension}`} value={dimension}>
+                                      {dimension}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="min-w-0 space-y-2">
+                              <Label>Estado</Label>
+                              <Select
+                                value={detalle.estado}
+                                onValueChange={(value) =>
+                                  updateDetalleFormulario(detalle.id, { estado: value as typeof detalle.estado })
+                                }
+                                disabled={!detalle.tipo || !detalle.origenId || !detalle.dimension}
+                              >
+                                <SelectTrigger className="w-full min-w-0">
+                                  <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {estadosDisponibles.map((estado) => (
+                                    <SelectItem key={`${detalle.id}-${estado}`} value={estado}>
+                                      {estado}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
 
                           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -451,25 +555,21 @@ export default function VentasPage() {
                         </div>
                       </div>
 
-                      <div className="hidden lg:grid lg:grid-cols-[90px_minmax(0,1.2fr)_minmax(0,1fr)_120px_160px] border-b border-slate-200/70 bg-slate-50/70 px-4 py-2">
+                      <div className="hidden lg:grid lg:grid-cols-[90px_minmax(0,1.4fr)_120px_160px] border-b border-slate-200/70 bg-slate-50/70 px-4 py-2">
                         <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Venta</span>
                         <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Cliente / Bloques</span>
-                        <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Dimensiones</span>
                         <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Total</span>
                         <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Acciones</span>
                       </div>
 
                       <div className="divide-y divide-slate-200/60">
                         {ventasFecha.map((venta) => {
-                          const metros = getMetrosVenta(venta)
-                          const losasEquivalentes = getLosasEquivalentesPorDimensionVenta(venta)
-                          const dimensionesActivas = dimensionOptions.filter((dimension) => metros[dimension] > 0)
                           const detallesVenta = getVentaDetalles(venta)
                           const bloquesUnicos = Array.from(new Set(detallesVenta.map((detalle) => detalle.origenNombre)))
 
                           return (
                             <div key={venta.id} className="px-4 py-3">
-                              <div className="grid gap-2 lg:grid-cols-[90px_minmax(0,1.2fr)_minmax(0,1fr)_120px_160px] lg:items-center">
+                              <div className="grid gap-2 lg:grid-cols-[90px_minmax(0,1.4fr)_120px_160px] lg:items-center">
                                 <div className="text-sm font-semibold text-slate-900">{venta.id}</div>
 
                                 <div>
@@ -478,31 +578,6 @@ export default function VentasPage() {
                                   <p className="text-[11px] text-slate-500">
                                     Bloques: {bloquesUnicos.length > 0 ? bloquesUnicos.join(', ') : 'Sin bloque'}
                                   </p>
-                                </div>
-
-                                <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/60">
-                                  <div className="grid grid-cols-[1fr_92px_112px] border-b border-slate-200/70 px-2.5 py-1">
-                                    <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Dimension</span>
-                                    <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">M2</span>
-                                    <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">Losas eq</span>
-                                  </div>
-                                  {dimensionesActivas.map((dimension, index) => (
-                                    <div
-                                      key={`${venta.id}-${dimension}`}
-                                      className={cn(
-                                        'grid grid-cols-[1fr_92px_112px] items-center gap-2 px-2.5 py-1.5',
-                                        index < dimensionesActivas.length - 1 && 'border-b border-slate-200/70',
-                                      )}
-                                    >
-                                      <span className="text-sm font-medium text-slate-700">{dimension}</span>
-                                      <span className="text-right text-sm font-semibold text-emerald-700">
-                                        {metros[dimension].toFixed(2)}
-                                      </span>
-                                      <span className="text-right text-sm font-semibold text-slate-700">
-                                        {losasEquivalentes[dimension].toFixed(2)}
-                                      </span>
-                                    </div>
-                                  ))}
                                 </div>
 
                                 <div className="flex items-center justify-between text-sm lg:block lg:text-right">

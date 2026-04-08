@@ -24,6 +24,10 @@ export const metrosToLosasEquivalentes = (metros: number, dimension: Dimension):
 
 export const createDetalleFormulario = (index: number): FormDetalleProducto => ({
   id: `detalle-${index}`,
+  tipo: '',
+  origenId: '',
+  dimension: '',
+  estado: '',
   productoId: '',
   metrosCuadrados: 0,
   cantidadUnidades: 0,

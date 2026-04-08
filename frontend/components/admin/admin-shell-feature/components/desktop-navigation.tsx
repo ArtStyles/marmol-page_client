@@ -2,31 +2,21 @@
 
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/admin/admin-button'
 import { cn } from '@/lib/utils'
 import { isNavItemActive } from '../lib/navigation'
 import type { AdminNavItem } from '../model/types'
-import type { AdminUser } from '@/lib/admin-auth'
-import { AdminPanelCard } from './admin-panel-card'
 
 type DesktopNavigationProps = {
   pathname: string
   filteredItems: AdminNavItem[]
-  sessionUser: AdminUser | null
-  onLogout: () => void
 }
 
-export const DesktopNavigation = ({
-  pathname,
-  filteredItems,
-  sessionUser,
-  onLogout,
-}: DesktopNavigationProps) => (
-  <aside className="hidden min-h-0 overflow-hidden lg:block lg:sticky lg:top-8 lg:self-start">
-    <div className="scrollbar-hidden space-y-3 py-1 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-4 lg:-mr-4">
+export const DesktopNavigation = ({ pathname, filteredItems }: DesktopNavigationProps) => (
+  <aside className="hidden min-h-0 overflow-hidden lg:block">
+    <div className="scrollbar-hidden space-y-3 py-0 lg:fixed lg:top-0 lg:left-5 lg:z-20 lg:h-screen lg:w-[200px] lg:overflow-y-auto lg:pt-5 lg:pb-5 lg:pr-3">
       <div className="rounded-[22px] border border-(--dash-border) bg-(--dash-card) p-2 shadow-(--dash-shadow)">
         <div className="flex items-center justify-between">
-          <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Menú</p>
+          <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Menu</p>
           <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.2em]">
             Panel
           </Badge>
@@ -65,19 +55,6 @@ export const DesktopNavigation = ({
           })}
         </div>
       </div>
-      {sessionUser && (
-        <AdminPanelCard title="Usuario activo" meta={sessionUser.role}>
-          <div className="space-y-3 text-sm text-slate-700">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">{sessionUser.name}</p>
-              <p className="text-xs text-slate-500">{sessionUser.email}</p>
-            </div>
-            <Button size="sm" variant="outline" className="w-full bg-white/70" onClick={onLogout}>
-              Cerrar sesión
-            </Button>
-          </div>
-        </AdminPanelCard>
-      )}
     </div>
   </aside>
 )

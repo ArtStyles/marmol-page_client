@@ -6,7 +6,6 @@ import {
   Factory,
   FileText,
   LayoutDashboard,
-  LayoutGrid,
   Package,
   ReceiptText,
   Settings,
@@ -102,12 +101,6 @@ export const buildDefaultNav = (
       label: 'Pagos',
       helper: 'Personal',
       icon: Wallet,
-    },
-    {
-      href: routeWithWorkshop('/admin/catalogo', workshopId),
-      label: 'Catálogo',
-      helper: 'Landing',
-      icon: LayoutGrid,
     },
     {
       href: routeWithWorkshop('/admin/historial', workshopId),

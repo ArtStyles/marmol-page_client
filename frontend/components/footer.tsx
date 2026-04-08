@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { Mail, Phone, MapPin } from 'lucide-react'
 
 const quickLinks = [
-  { label: 'Catálogo', href: '/catalogo' },
   { label: 'Nosotros', href: '/nosotros' },
   { label: 'Proyectos', href: '/proyectos' },
   { label: 'Blog', href: '/blog' },

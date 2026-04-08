@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   Boxes,
   Wallet,
-  LayoutGrid,
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
@@ -34,7 +33,6 @@ const primaryNavItems = [
   { label: 'Finanzas', href: '/admin/finanzas', icon: TrendingUp },
   { label: 'Gastos', href: '/admin/gastos', icon: ReceiptText },
   { label: 'Contabilidad', href: '/admin/contabilidad', icon: FileText },
-  { label: 'Catálogo', href: '/admin/catalogo', icon: LayoutGrid },
 ]
 
 const secondaryNavItems = [

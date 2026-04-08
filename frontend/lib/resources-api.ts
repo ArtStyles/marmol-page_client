@@ -50,6 +50,28 @@ export const updateConfiguracion = (
 
 export const getProductos = (): Promise<Producto[]> => apiRequest<Producto[]>('/productos')
 
+export const createProducto = (input: Omit<Producto, 'id'>): Promise<Producto> =>
+  apiRequest<Producto>('/productos', {
+    method: 'POST',
+    body: input,
+  })
+
+export const updateProducto = (
+  productoId: string,
+  patch: Partial<Producto>,
+): Promise<Producto> =>
+  apiRequest<Producto>(`/productos/${productoId}`, {
+    method: 'PATCH',
+    body: patch,
+  })
+
+export const deleteProducto = async (productoId: string): Promise<boolean> => {
+  await apiRequest<void>(`/productos/${productoId}`, {
+    method: 'DELETE',
+  })
+  return true
+}
+
 export const getBloques = (): Promise<BloqueOLote[]> => apiRequest<BloqueOLote[]>('/bloques')
 
 export const createBloque = (

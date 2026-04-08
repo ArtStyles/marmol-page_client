@@ -26,16 +26,11 @@ export const AdminShell = ({ children, rightPanel, navItems }: AdminShellProps) 
         </div>
 
         <div className="relative grid gap-4 pb-28 lg:pb-0 lg:grid-cols-[200px_minmax(0,1fr)_260px]">
-          <DesktopNavigation
-            pathname={pathname}
-            filteredItems={filteredItems}
-            sessionUser={sessionUser}
-            onLogout={handleLogout}
-          />
+          <DesktopNavigation pathname={pathname} filteredItems={filteredItems} />
 
           <section className="space-y-5">{children}</section>
 
-          <RightPanelSlot rightPanel={rightPanel} sessionUser={sessionUser} />
+          <RightPanelSlot rightPanel={rightPanel} sessionUser={sessionUser} onLogout={handleLogout} />
         </div>
 
         <MobileNavigation

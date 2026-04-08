@@ -8,12 +8,13 @@ import { ApprovalNotifications } from './approval-notifications'
 type RightPanelSlotProps = {
   rightPanel?: React.ReactNode
   sessionUser: AdminUser | null
+  onLogout: () => void
 }
 
-export const RightPanelSlot = ({ rightPanel, sessionUser }: RightPanelSlotProps) => (
-  <aside className="min-h-0 overflow-hidden lg:sticky lg:top-8 lg:self-start">
-    <div className="scrollbar-hidden space-y-4 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-4 lg:-mr-4">
-      <ApprovalNotifications sessionUser={sessionUser} />
+export const RightPanelSlot = ({ rightPanel, sessionUser, onLogout }: RightPanelSlotProps) => (
+  <aside className="min-h-0 overflow-hidden">
+    <div className="scrollbar-hidden space-y-4 lg:fixed lg:top-0 lg:right-5 lg:z-20 lg:h-screen lg:w-[260px] lg:overflow-y-auto lg:pt-5 lg:pb-5 lg:pr-3">
+      <ApprovalNotifications sessionUser={sessionUser} onLogout={onLogout} />
       {rightPanel ?? (
         <AdminPanelCard title="Resumen" meta="Panel">
           <div className="space-y-2 text-sm text-slate-700">

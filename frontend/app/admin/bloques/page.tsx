@@ -7,8 +7,15 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { Card, CardContent } from '@/components/ui/card'
-import type { BloqueOLote } from '@/lib/types'
-import { createBloque, deleteBloque, getBloques, updateBloque } from '@/lib/resources-api'
+import { dimensiones } from '@/lib/data'
+import { losasAMetros, type BloqueOLote, type Dimension } from '@/lib/types'
+import {
+  createBloque,
+  createProducto,
+  deleteBloque,
+  getBloques,
+  updateBloque,
+} from '@/lib/resources-api'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import { Plus, Search, Eye, Edit, Trash2 } from 'lucide-react'
@@ -44,6 +51,7 @@ export default function BloquesPage() {
   })
   const [formData, setFormData] = useState({
     tipo: 'Bloque' as 'Bloque' | 'Lote',
+    dimensionBase: '60x40' as Dimension,
     metrosComprados: 0,
     costo: 0,
     costoTransporte: 0,
@@ -115,7 +123,18 @@ export default function BloquesPage() {
   const proveedores = useMemo(() => new Set(bloques.map((bloque) => bloque.proveedor)).size, [bloques])
 
   const totalMetrosComprados = useMemo(
-    () => bloques.reduce((sum, bloque) => sum + bloque.metrosComprados, 0),
+    () =>
+      bloques
+        .filter((bloque) => bloque.tipo === 'Bloque')
+        .reduce((sum, bloque) => sum + bloque.metrosComprados, 0),
+    [bloques],
+  )
+
+  const totalLosasLotes = useMemo(
+    () =>
+      bloques
+        .filter((bloque) => bloque.tipo === 'Lote')
+        .reduce((sum, bloque) => sum + bloque.metrosComprados, 0),
     [bloques],
   )
 
@@ -152,11 +171,15 @@ export default function BloquesPage() {
         </div>
       </AdminPanelCard>
 
-      <AdminPanelCard title="Volumen comprado" meta="m3 totales registrados">
+      <AdminPanelCard title="Volumen comprado" meta="bloques y lotes">
         <div className="space-y-2 text-sm text-slate-700">
           <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
-            <span>Total m3</span>
+            <span>Total bloques (m3)</span>
             <span className="font-semibold">{totalMetrosComprados.toLocaleString()}</span>
+          </div>
+          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+            <span>Total lotes (losas)</span>
+            <span className="font-semibold">{Math.trunc(totalLosasLotes).toLocaleString()}</span>
           </div>
         </div>
       </AdminPanelCard>
@@ -173,7 +196,9 @@ export default function BloquesPage() {
                   <p className="text-[11px] text-slate-500">{bloque.fechaIngreso}</p>
                 </div>
                 <Badge variant="outline" className="text-[11px]">
-                  {bloque.metrosComprados.toLocaleString()} m3
+                  {bloque.tipo === 'Lote'
+                    ? `${Math.trunc(bloque.metrosComprados).toLocaleString()} losas`
+                    : `${bloque.metrosComprados.toLocaleString()} m3`}
                 </Badge>
               </div>
             ))
@@ -196,6 +221,7 @@ export default function BloquesPage() {
       try {
         const updated = await updateBloque(editingBloque.id, {
           tipo: formData.tipo,
+          dimensionBase: formData.dimensionBase,
           metrosComprados: formData.metrosComprados,
           costo: formData.costo,
           costoTransporte: formData.costoTransporte,
@@ -220,7 +246,7 @@ export default function BloquesPage() {
     try {
       const newBloque = await createBloque({
         tipo: formData.tipo,
-        dimensionBase: '60x40',
+        dimensionBase: formData.dimensionBase,
         costo: formData.costo,
         costoTransporte: formData.costoTransporte,
         metrosComprados: formData.metrosComprados,
@@ -232,6 +258,41 @@ export default function BloquesPage() {
         gananciaReal: 0,
         estado: 'activo',
       })
+
+      if (formData.tipo === 'Lote') {
+        const cantidadLosas = Math.max(0, Math.trunc(formData.metrosComprados))
+        if (cantidadLosas > 0) {
+          const metrosCuadrados = Number(
+            losasAMetros(cantidadLosas, formData.dimensionBase).toFixed(2),
+          )
+          const costoTotal = formData.costo + formData.costoTransporte
+          const precioM2 = metrosCuadrados > 0 ? Number((costoTotal / metrosCuadrados).toFixed(2)) : 0
+          const codigoOrigen = getBloqueCodigo(newBloque)
+
+          try {
+            await createProducto({
+              nombre: `Piso ${codigoOrigen} ${formData.dimensionBase} Picado`,
+              tipo: 'Piso',
+              estado: 'Picado',
+              ubicacion: 'almacen',
+              dimension: formData.dimensionBase,
+              origenId: newBloque.id,
+              origenNombre: codigoOrigen,
+              cantidadLosas,
+              metrosCuadrados,
+              precioM2,
+              imagen: '',
+            })
+          } catch (error) {
+            setActionError(
+              `Lote ${codigoOrigen} registrado, pero no se pudo crear su entrada en inventario: ${
+                error instanceof Error ? error.message : 'error desconocido'
+              }`,
+            )
+          }
+        }
+      }
+
       setBloques((prev) => [newBloque, ...prev])
       resetForm()
     } catch (error) {
@@ -246,6 +307,7 @@ export default function BloquesPage() {
     setEditingBloque(bloque)
     setFormData({
       tipo: bloque.tipo,
+      dimensionBase: bloque.dimensionBase,
       metrosComprados: bloque.metrosComprados,
       costo: bloque.costo,
       costoTransporte: bloque.costoTransporte,
@@ -287,6 +349,7 @@ export default function BloquesPage() {
     setEditingBloque(null)
     setFormData({
       tipo: 'Bloque',
+      dimensionBase: '60x40',
       metrosComprados: 0,
       costo: 0,
       costoTransporte: 0,
@@ -376,7 +439,13 @@ export default function BloquesPage() {
                   <Label>Tipo</Label>
                   <Select
                     value={formData.tipo}
-                    onValueChange={(value: 'Bloque' | 'Lote') => setFormData({ ...formData, tipo: value })}
+                    onValueChange={(value: 'Bloque' | 'Lote') =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        tipo: value,
+                        dimensionBase: value === 'Lote' ? prev.dimensionBase : '60x40',
+                      }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -388,13 +457,36 @@ export default function BloquesPage() {
                   </Select>
                 </div>
 
+                {formData.tipo === 'Lote' ? (
+                  <div className="space-y-2">
+                    <Label>Medida base</Label>
+                    <Select
+                      value={formData.dimensionBase}
+                      onValueChange={(value: Dimension) =>
+                        setFormData({ ...formData, dimensionBase: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dimensiones.map((dimensionValue) => (
+                          <SelectItem key={dimensionValue} value={dimensionValue}>
+                            {dimensionValue}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Dimension (m3)</Label>
+                    <Label>{formData.tipo === 'Lote' ? 'Cantidad losas' : 'Dimension (m3)'}</Label>
                     <Input
                       type="number"
                       min="0"
-                      step="0.01"
+                      step={formData.tipo === 'Lote' ? '1' : '0.01'}
                       placeholder="0"
                       value={
                         editingBloque || numericTouched.metrosComprados || formData.metrosComprados > 0
@@ -503,7 +595,7 @@ export default function BloquesPage() {
                   <div className="space-y-3 lg:min-w-[980px]">
                     <div className="hidden rounded-[16px] border border-slate-200/70 bg-slate-50/70 px-4 py-2 lg:grid lg:grid-cols-[minmax(0,1.4fr)_90px_140px_110px_minmax(0,1.4fr)]">
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Codigo</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">m3</span>
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Cantidad</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Costo total</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Estado</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Acciones</span>
@@ -519,7 +611,9 @@ export default function BloquesPage() {
                             </div>
 
                             <div className="text-sm font-semibold text-slate-800">
-                              {bloque.metrosComprados.toLocaleString()} m3
+                              {bloque.tipo === 'Lote'
+                                ? `${Math.trunc(bloque.metrosComprados).toLocaleString()} losas`
+                                : `${bloque.metrosComprados.toLocaleString()} m3`}
                             </div>
 
                             <div className="flex items-center justify-between text-sm lg:block lg:text-right">
@@ -560,6 +654,12 @@ export default function BloquesPage() {
                       <p className="text-muted-foreground">Tipo</p>
                       <p className="font-medium">{selectedBloque.tipo}</p>
                     </div>
+                    {selectedBloque.tipo === 'Lote' ? (
+                      <div>
+                        <p className="text-muted-foreground">Medida base</p>
+                        <p className="font-medium">{selectedBloque.dimensionBase}</p>
+                      </div>
+                    ) : null}
                     <div>
                       <p className="text-muted-foreground">Estado</p>
                       <Badge variant={selectedBloque.estado === 'activo' ? 'default' : 'outline'}>
@@ -571,8 +671,14 @@ export default function BloquesPage() {
                       <p className="font-medium">{selectedBloque.fechaIngreso}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Dimension (m3)</p>
-                      <p className="font-medium">{selectedBloque.metrosComprados.toLocaleString()} m3</p>
+                      <p className="text-muted-foreground">
+                        {selectedBloque.tipo === 'Lote' ? 'Cantidad losas' : 'Dimension (m3)'}
+                      </p>
+                      <p className="font-medium">
+                        {selectedBloque.tipo === 'Lote'
+                          ? `${Math.trunc(selectedBloque.metrosComprados).toLocaleString()} losas`
+                          : `${selectedBloque.metrosComprados.toLocaleString()} m3`}
+                      </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Proveedor</p>

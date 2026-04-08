@@ -111,10 +111,44 @@ export const useVentasPageState = () => {
     }
   }
 
+  const resolveProductoDetalle = (detalleFormulario: FormDetalleProducto): Producto | undefined => {
+    const hasAnySelector = Boolean(
+      detalleFormulario.tipo ||
+      detalleFormulario.origenId ||
+      detalleFormulario.dimension ||
+      detalleFormulario.estado,
+    )
+
+    if (
+      detalleFormulario.tipo &&
+      detalleFormulario.origenId &&
+      detalleFormulario.dimension &&
+      detalleFormulario.estado
+    ) {
+      return productos.find(
+        (item) =>
+          item.tipo === detalleFormulario.tipo &&
+          item.origenId === detalleFormulario.origenId &&
+          item.dimension === detalleFormulario.dimension &&
+          item.estado === detalleFormulario.estado,
+      )
+    }
+
+    if (hasAnySelector) {
+      return undefined
+    }
+
+    if (detalleFormulario.productoId) {
+      return productos.find((item) => item.id === detalleFormulario.productoId)
+    }
+
+    return undefined
+  }
+
   const buildDetalleVenta = (
     detalleFormulario: FormDetalleProducto,
   ): VentaDetalleProducto | null => {
-    const producto = productos.find((item) => item.id === detalleFormulario.productoId)
+    const producto = resolveProductoDetalle(detalleFormulario)
     if (!producto) return null
 
     const { cantidadUnidades, metrosCuadrados } = resolveDetalleCantidad(detalleFormulario, producto)
@@ -232,14 +266,44 @@ export const useVentasPageState = () => {
       detallesProductos: prev.detallesProductos.map((detalle) => {
         if (detalle.id !== detalleId) return detalle
 
-        const nextDetalle = { ...detalle, ...patch }
-        if (patch.productoId !== undefined) {
-          const producto = productos.find((item) => item.id === patch.productoId)
-          if (producto?.tipo === 'Plancha') {
-            nextDetalle.metrosCuadrados = 0
-          } else {
-            nextDetalle.cantidadUnidades = 0
-          }
+        const nextDetalle: FormDetalleProducto = { ...detalle, ...patch }
+
+        const tipoChanged = patch.tipo !== undefined && patch.tipo !== detalle.tipo
+        const origenChanged = patch.origenId !== undefined && patch.origenId !== detalle.origenId
+        const dimensionChanged =
+          patch.dimension !== undefined && patch.dimension !== detalle.dimension
+        const estadoChanged = patch.estado !== undefined && patch.estado !== detalle.estado
+        const selectionChanged = tipoChanged || origenChanged || dimensionChanged || estadoChanged
+
+        if (tipoChanged) {
+          nextDetalle.origenId = ''
+          nextDetalle.dimension = ''
+          nextDetalle.estado = ''
+        }
+
+        if (origenChanged) {
+          nextDetalle.dimension = ''
+          nextDetalle.estado = ''
+        }
+
+        if (dimensionChanged) {
+          nextDetalle.estado = ''
+        }
+
+        const producto = resolveProductoDetalle(nextDetalle)
+        const resolvedProductoId = producto?.id ?? ''
+        const productoChanged = resolvedProductoId !== detalle.productoId
+        nextDetalle.productoId = resolvedProductoId
+
+        if (selectionChanged || productoChanged) {
+          nextDetalle.metrosCuadrados = 0
+          nextDetalle.cantidadUnidades = 0
+        }
+
+        if (producto?.tipo === 'Plancha') {
+          nextDetalle.metrosCuadrados = 0
+        } else if (producto) {
+          nextDetalle.cantidadUnidades = 0
         }
 
         return nextDetalle

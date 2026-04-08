@@ -1,18 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import { ScrollToTop } from '@/components/landing/scroll-to-top'
-
-const QuickCart = dynamic(
-  () => import('@/components/landing/quick-cart').then((module) => module.QuickCart),
-  {
-    loading: () => (
-      <div className="rounded-[24px] border border-black/5 bg-white/80 p-6 text-sm text-[#6b5f55]">
-        Cargando carrito...
-      </div>
-    ),
-  },
-)
 
 const galleryItems = [
   {
@@ -185,7 +173,7 @@ export default function HomePage() {
 
           <section id="contacto" className="relative scroll-mt-28">
             <div className="mx-auto max-w-6xl px-6 py-16">
-              <div className="grid gap-10 rounded-[32px] border border-black/5 bg-white/80 p-8 shadow-[0_40px_120px_-90px_rgba(44,32,20,0.55)] lg:grid-cols-[0.9fr_1.1fr]">
+              <div className="rounded-[32px] border border-black/5 bg-white/80 p-8 shadow-[0_40px_120px_-90px_rgba(44,32,20,0.55)]">
                 <div className="space-y-6">
                   <p className="text-[11px] uppercase tracking-[0.45em] text-[#8a7056]">Compra</p>
                   <h2 className="font-serif text-3xl tracking-[0.08em] text-[#2b241f] sm:text-4xl">
@@ -213,8 +201,6 @@ export default function HomePage() {
                     Respuesta en horario laboral
                   </span>
                 </div>
-
-                <QuickCart />
               </div>
 
               <footer className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-black/5 pt-6 text-[11px] uppercase tracking-[0.3em] text-[#8a7056] sm:flex-row">
