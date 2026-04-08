@@ -219,7 +219,6 @@ export default function InventarioPage() {
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
   const [approveDialogOpen, setApproveDialogOpen] = useState(false)
   const [approveDialogTargetId, setApproveDialogTargetId] = useState<string | null>(null)
-  const [approveDialogObservaciones, setApproveDialogObservaciones] = useState('')
   const [approveDialogError, setApproveDialogError] = useState<string | null>(null)
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
   const [rejectDialogTargetId, setRejectDialogTargetId] = useState<string | null>(null)
@@ -493,7 +492,6 @@ export default function InventarioPage() {
     if (isApproveDialogLoading) return
     setApproveDialogOpen(false)
     setApproveDialogTargetId(null)
-    setApproveDialogObservaciones('')
     setApproveDialogError(null)
   }
 
@@ -525,7 +523,6 @@ export default function InventarioPage() {
   const handleApproveMovimiento = (movimientoId: string) => {
     if (!canApproveMovimientos) return
     setApproveDialogTargetId(movimientoId)
-    setApproveDialogObservaciones('')
     setApproveDialogError(null)
     setApproveDialogOpen(true)
   }
@@ -537,10 +534,7 @@ export default function InventarioPage() {
     setMovimientoActionLoadingById((prev) => ({ ...prev, [approveDialogTargetId]: true }))
 
     try {
-      const observaciones = approveDialogObservaciones.trim()
-      const updated = await approveInventarioMovimiento(approveDialogTargetId, {
-        observaciones: observaciones ? observaciones : undefined,
-      })
+      const updated = await approveInventarioMovimiento(approveDialogTargetId, {})
       setMovimientos((prev) =>
         prev.map((movimiento) => (movimiento.id === updated.id ? updated : movimiento)),
       )
@@ -1090,7 +1084,7 @@ export default function InventarioPage() {
             <DialogHeader>
               <DialogTitle>Aprobar movimiento de almacen</DialogTitle>
               <DialogDescription>
-                Puedes agregar observaciones opcionales antes de aprobar.
+                Esta accion aprobara la solicitud seleccionada.
               </DialogDescription>
             </DialogHeader>
 
@@ -1100,16 +1094,6 @@ export default function InventarioPage() {
                   {approveDialogTarget.id} - {approveDialogTarget.tipo.toUpperCase()} / {approveDialogTarget.origen}
                 </p>
               ) : null}
-              <Textarea
-                value={approveDialogObservaciones}
-                onChange={(event) => {
-                  setApproveDialogObservaciones(event.target.value)
-                  if (approveDialogError) setApproveDialogError(null)
-                }}
-                rows={4}
-                placeholder="Observaciones (opcional)."
-                disabled={isApproveDialogLoading}
-              />
               {approveDialogError ? (
                 <p className="text-xs text-destructive">{approveDialogError}</p>
               ) : null}

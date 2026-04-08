@@ -165,8 +165,11 @@ export const useProduccionPageState = () => {
     [trabajadores],
   )
   const equiposActivos = useMemo(() => equipos.filter((equipo) => equipo.estado === 'activo'), [equipos])
-  const origenesActivos = useMemo(
-    () => bloquesYLotes.filter((bloque) => bloque.estado === 'activo'),
+  const origenesActivosParaPicar = useMemo(
+    () =>
+      bloquesYLotes.filter(
+        (bloque) => bloque.estado === 'activo' && bloque.tipo === 'Bloque',
+      ),
     [bloquesYLotes],
   )
   const stockProcesoDisponible = useMemo(
@@ -219,13 +222,13 @@ export const useProduccionPageState = () => {
       Array.from(new Map(items.map((item) => [item.id, item])).values())
 
     return {
-      picar: origenesActivos,
+      picar: origenesActivosParaPicar,
       escuadrar: dedupe(procesoEscuadrar),
       devastar: dedupe(procesoDevastar),
       resinar: dedupe(procesoResinar),
       pulir: dedupe(procesoPulir),
     }
-  }, [bloquesYLotes, origenesActivos, stockProcesoDisponible])
+  }, [bloquesYLotes, origenesActivosParaPicar, stockProcesoDisponible])
 
   const stockProcesoPorClave = useMemo(() => {
     const map = new Map<string, number>()
@@ -973,22 +976,13 @@ export const useProduccionPageState = () => {
     }
   }
 
-  const approveProduccionAlmacenRegistro = async (
-    produccionId: string,
-    motivo: string,
-  ): Promise<boolean> => {
-    const motivoNormalizado = motivo.trim()
-    if (motivoNormalizado.length < 5) {
-      setApprovalError('Debes indicar un motivo de entrada al almacen de al menos 5 caracteres.')
-      return false
-    }
-
+  const approveProduccionAlmacenRegistro = async (produccionId: string): Promise<boolean> => {
     setApprovalError(null)
     setAlmacenApprovalLoadingById((prev) => ({ ...prev, [produccionId]: true }))
 
     try {
       const updated = await approveProduccionAlmacen(produccionId, {
-        motivo: motivoNormalizado,
+        motivo: 'Aprobacion confirmada en modal',
       })
 
       replaceProduccion((prev) =>

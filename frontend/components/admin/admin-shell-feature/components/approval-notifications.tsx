@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Bell, RefreshCw } from 'lucide-react'
+import { Bell, LogOut, RefreshCw, User } from 'lucide-react'
 import { Button } from '@/components/admin/admin-button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -45,6 +45,7 @@ type ApprovalNotification = {
 
 type ApprovalNotificationsProps = {
   sessionUser: AdminUser | null
+  onLogout: () => void
 }
 
 const resolveAprobacion = (value: EstadoAprobacion | undefined): EstadoAprobacion => {
@@ -89,17 +90,13 @@ async function loadPendingInventarioMovimientos(
   return items
 }
 
-export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProps) => {
+export const ApprovalNotifications = ({ sessionUser, onLogout }: ApprovalNotificationsProps) => {
   const pathname = usePathname()
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [almacenDialogOpen, setAlmacenDialogOpen] = useState(false)
-  const [almacenDialogTarget, setAlmacenDialogTarget] = useState<ApprovalNotification | null>(null)
-  const [almacenDialogMotivo, setAlmacenDialogMotivo] = useState('')
-  const [almacenDialogError, setAlmacenDialogError] = useState<string | null>(null)
-  const [inventarioApproveDialogOpen, setInventarioApproveDialogOpen] = useState(false)
-  const [inventarioApproveTarget, setInventarioApproveTarget] = useState<ApprovalNotification | null>(null)
-  const [inventarioApproveObservaciones, setInventarioApproveObservaciones] = useState('')
-  const [inventarioApproveError, setInventarioApproveError] = useState<string | null>(null)
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false)
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false)
+  const [approveDialogTarget, setApproveDialogTarget] = useState<ApprovalNotification | null>(null)
+  const [approveDialogError, setApproveDialogError] = useState<string | null>(null)
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
   const [rejectDialogTarget, setRejectDialogTarget] = useState<ApprovalNotification | null>(null)
   const [rejectDialogMotivo, setRejectDialogMotivo] = useState('')
@@ -292,23 +289,13 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
     [loadNotifications],
   )
 
-  const closeAlmacenDialog = useCallback(() => {
-    const isBusy = almacenDialogTarget ? !!actionLoadingById[almacenDialogTarget.id] : false
+  const closeApproveDialog = useCallback(() => {
+    const isBusy = approveDialogTarget ? !!actionLoadingById[approveDialogTarget.id] : false
     if (isBusy) return
-    setAlmacenDialogOpen(false)
-    setAlmacenDialogTarget(null)
-    setAlmacenDialogMotivo('')
-    setAlmacenDialogError(null)
-  }, [actionLoadingById, almacenDialogTarget])
-
-  const closeInventarioApproveDialog = useCallback(() => {
-    const isBusy = inventarioApproveTarget ? !!actionLoadingById[inventarioApproveTarget.id] : false
-    if (isBusy) return
-    setInventarioApproveDialogOpen(false)
-    setInventarioApproveTarget(null)
-    setInventarioApproveObservaciones('')
-    setInventarioApproveError(null)
-  }, [actionLoadingById, inventarioApproveTarget])
+    setApproveDialogOpen(false)
+    setApproveDialogTarget(null)
+    setApproveDialogError(null)
+  }, [actionLoadingById, approveDialogTarget])
 
   const closeRejectDialog = useCallback(() => {
     const isBusy = rejectDialogTarget ? !!actionLoadingById[rejectDialogTarget.id] : false
@@ -319,47 +306,28 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
     setRejectDialogError(null)
   }, [actionLoadingById, rejectDialogTarget])
 
-  const confirmAlmacenApproval = useCallback(async () => {
-    if (!almacenDialogTarget) return
+  const confirmApproval = useCallback(async () => {
+    if (!approveDialogTarget) return
 
-    const motivo = almacenDialogMotivo.trim()
-    if (motivo.length < 5) {
-      setAlmacenDialogError('Debes indicar un motivo de al menos 5 caracteres.')
-      return
-    }
+    const ok = await runAction(approveDialogTarget.id, async () => {
+      if (approveDialogTarget.type === 'produccion_almacen') {
+        await approveProduccionAlmacen(approveDialogTarget.referenceId, {
+          motivo: 'Aprobacion confirmada en modal',
+        })
+        return
+      }
 
-    const ok = await runAction(almacenDialogTarget.id, async () => {
-      await approveProduccionAlmacen(almacenDialogTarget.referenceId, { motivo })
+      if (approveDialogTarget.type === 'inventario_movimiento') {
+        await approveInventarioMovimiento(approveDialogTarget.referenceId, {})
+      }
     })
 
     if (ok) {
-      closeAlmacenDialog()
+      closeApproveDialog()
     } else {
-      setAlmacenDialogError('No se pudo aprobar la entrada de almacen.')
+      setApproveDialogError('No se pudo aprobar la solicitud.')
     }
-  }, [almacenDialogMotivo, almacenDialogTarget, closeAlmacenDialog, runAction])
-
-  const confirmInventarioApprove = useCallback(async () => {
-    if (!inventarioApproveTarget) return
-
-    const observaciones = inventarioApproveObservaciones.trim()
-    const ok = await runAction(inventarioApproveTarget.id, async () => {
-      await approveInventarioMovimiento(inventarioApproveTarget.referenceId, {
-        observaciones: observaciones ? observaciones : undefined,
-      })
-    })
-
-    if (ok) {
-      closeInventarioApproveDialog()
-    } else {
-      setInventarioApproveError('No se pudo aprobar el movimiento de almacen.')
-    }
-  }, [
-    closeInventarioApproveDialog,
-    inventarioApproveObservaciones,
-    inventarioApproveTarget,
-    runAction,
-  ])
+  }, [approveDialogTarget, closeApproveDialog, runAction])
 
   const confirmReject = useCallback(async () => {
     if (!rejectDialogTarget) return
@@ -404,18 +372,9 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
       return
     }
 
-    if (item.type === 'produccion_almacen') {
-      setAlmacenDialogTarget(item)
-      setAlmacenDialogMotivo('')
-      setAlmacenDialogError(null)
-      setAlmacenDialogOpen(true)
-      return
-    }
-
-    setInventarioApproveTarget(item)
-    setInventarioApproveObservaciones('')
-    setInventarioApproveError(null)
-    setInventarioApproveDialogOpen(true)
+    setApproveDialogTarget(item)
+    setApproveDialogError(null)
+    setApproveDialogOpen(true)
   }
 
   const handleReject = (item: ApprovalNotification) => {
@@ -439,25 +398,92 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
 
   return (
     <div>
-      <Button
-        type="button"
-        size="icon-lg"
-        variant="outline"
-        className="relative ml-auto flex bg-white/70"
-        onClick={() => {
-          setDialogOpen(true)
-          void loadNotifications()
-        }}
-        aria-label="Notificaciones"
-      >
-        <span className="relative inline-flex items-center justify-center leading-none">
-          <Bell className="h-6 w-6 text-slate-800" strokeWidth={2.4} />
-          <Badge className={badgeClassName}>
-            {totalPendientes}
-          </Badge>
-        </span>
-        <span className="sr-only">Notificaciones</span>
-      </Button>
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          type="button"
+          size="icon-lg"
+          variant="outline"
+          className="relative flex bg-white/70"
+          onClick={() => setAccountDialogOpen(true)}
+          disabled={!sessionUser}
+          aria-label="Detalles de cuenta"
+          title="Detalles de cuenta"
+        >
+          <User className="h-5 w-5 text-slate-800" strokeWidth={2.2} />
+          <span className="sr-only">Detalles de cuenta</span>
+        </Button>
+        <Button
+          type="button"
+          size="icon-lg"
+          variant="outline"
+          className="relative flex bg-white/70"
+          onClick={onLogout}
+          aria-label="Cerrar sesion"
+          title="Cerrar sesion"
+        >
+          <LogOut className="h-5 w-5 text-slate-800" strokeWidth={2.2} />
+          <span className="sr-only">Cerrar sesion</span>
+        </Button>
+        <Button
+          type="button"
+          size="icon-lg"
+          variant="outline"
+          className="relative flex bg-white/70"
+          onClick={() => {
+            setDialogOpen(true)
+            void loadNotifications()
+          }}
+          aria-label="Notificaciones"
+        >
+          <span className="relative inline-flex items-center justify-center leading-none">
+            <Bell className="h-6 w-6 text-slate-800" strokeWidth={2.4} />
+            <Badge className={badgeClassName}>
+              {totalPendientes}
+            </Badge>
+          </span>
+          <span className="sr-only">Notificaciones</span>
+        </Button>
+      </div>
+
+      <Dialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Detalles de cuenta</DialogTitle>
+            <DialogDescription>
+              Informacion del usuario autenticado en esta sesion.
+            </DialogDescription>
+          </DialogHeader>
+          {sessionUser ? (
+            <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-white/70 p-4 text-sm">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Nombre</p>
+                <p className="mt-1 font-semibold text-slate-900">{sessionUser.name}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Correo</p>
+                <p className="mt-1 text-slate-800">{sessionUser.email}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Rol</p>
+                  <p className="mt-1 text-slate-800">{sessionUser.role}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Taller</p>
+                  <p className="mt-1 text-slate-800">{sessionUser.workshopId ?? 'Global'}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-600">No hay una sesion activa.</p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAccountDialogOpen(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-3xl">
@@ -554,37 +580,29 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
       </Dialog>
 
       <Dialog
-        open={almacenDialogOpen}
+        open={approveDialogOpen}
         onOpenChange={(open) => {
-          if (!open) closeAlmacenDialog()
+          if (!open) closeApproveDialog()
         }}
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Entrada a almacen</DialogTitle>
+            <DialogTitle>
+              {approveDialogTarget?.type === 'produccion_almacen'
+                ? 'Confirmar entrada a almacen'
+                : 'Confirmar movimiento de almacen'}
+            </DialogTitle>
             <DialogDescription>
-              Escribe el motivo para aprobar esta entrada de produccion.
+              Esta accion aprobara la solicitud seleccionada.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-2">
-            {almacenDialogTarget ? (
-              <p className="text-xs text-slate-600">{almacenDialogTarget.detail}</p>
+            {approveDialogTarget ? (
+              <p className="text-xs text-slate-600">{approveDialogTarget.detail}</p>
             ) : null}
-            <Textarea
-              value={almacenDialogMotivo}
-              onChange={(event) => {
-                setAlmacenDialogMotivo(event.target.value)
-                if (almacenDialogError) setAlmacenDialogError(null)
-              }}
-              rows={4}
-              placeholder="Ejemplo: Entrada verificada por almacen y aprobada."
-              disabled={
-                almacenDialogTarget ? !!actionLoadingById[almacenDialogTarget.id] : false
-              }
-            />
-            {almacenDialogError ? (
-              <p className="text-xs text-destructive">{almacenDialogError}</p>
+            {approveDialogError ? (
+              <p className="text-xs text-destructive">{approveDialogError}</p>
             ) : null}
           </div>
 
@@ -592,78 +610,21 @@ export const ApprovalNotifications = ({ sessionUser }: ApprovalNotificationsProp
             <Button
               type="button"
               variant="outline"
-              onClick={closeAlmacenDialog}
-              disabled={almacenDialogTarget ? !!actionLoadingById[almacenDialogTarget.id] : false}
+              onClick={closeApproveDialog}
+              disabled={approveDialogTarget ? !!actionLoadingById[approveDialogTarget.id] : false}
             >
               Cancelar
             </Button>
             <Button
               type="button"
               onClick={() => {
-                void confirmAlmacenApproval()
+                void confirmApproval()
               }}
-              disabled={almacenDialogTarget ? !!actionLoadingById[almacenDialogTarget.id] : false}
+              disabled={approveDialogTarget ? !!actionLoadingById[approveDialogTarget.id] : false}
             >
-              {almacenDialogTarget && actionLoadingById[almacenDialogTarget.id]
+              {approveDialogTarget && actionLoadingById[approveDialogTarget.id]
                 ? 'Procesando...'
-                : 'Aprobar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={inventarioApproveDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) closeInventarioApproveDialog()
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Aprobar movimiento de almacen</DialogTitle>
-            <DialogDescription>
-              Puedes agregar observaciones opcionales para esta aprobacion.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-2">
-            {inventarioApproveTarget ? (
-              <p className="text-xs text-slate-600">{inventarioApproveTarget.detail}</p>
-            ) : null}
-            <Textarea
-              value={inventarioApproveObservaciones}
-              onChange={(event) => {
-                setInventarioApproveObservaciones(event.target.value)
-                if (inventarioApproveError) setInventarioApproveError(null)
-              }}
-              rows={4}
-              placeholder="Observaciones (opcional)."
-              disabled={inventarioApproveTarget ? !!actionLoadingById[inventarioApproveTarget.id] : false}
-            />
-            {inventarioApproveError ? (
-              <p className="text-xs text-destructive">{inventarioApproveError}</p>
-            ) : null}
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={closeInventarioApproveDialog}
-              disabled={inventarioApproveTarget ? !!actionLoadingById[inventarioApproveTarget.id] : false}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                void confirmInventarioApprove()
-              }}
-              disabled={inventarioApproveTarget ? !!actionLoadingById[inventarioApproveTarget.id] : false}
-            >
-              {inventarioApproveTarget && actionLoadingById[inventarioApproveTarget.id]
-                ? 'Procesando...'
-                : 'Aprobar'}
+                : 'Confirmar'}
             </Button>
           </DialogFooter>
         </DialogContent>
