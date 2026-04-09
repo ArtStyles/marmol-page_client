@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useConfiguracion } from '@/hooks/use-configuracion'
@@ -406,7 +406,7 @@ export const useVentasPageState = () => {
     const cantidadM2 = detallesVenta.reduce((sum, detalle) => sum + detalle.metrosCuadrados, 0)
     const subtotal = detallesVenta.reduce((sum, detalle) => sum + detalle.subtotal, 0)
     if (cantidadM2 <= 0) {
-      setFormError('La venta debe tener m2 mayores a 0.')
+      setFormError('La venta debe tener m² mayores a 0.')
       return
     }
 

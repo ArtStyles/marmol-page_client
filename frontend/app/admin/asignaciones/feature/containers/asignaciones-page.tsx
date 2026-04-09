@@ -64,9 +64,9 @@ export default function AsignacionesPage() {
       <AdminPanelCard title="Resumen automatico" meta={fechaReferencia}>
         <div className="space-y-3 text-sm text-slate-700">
           <div className="flex items-center justify-between">
-            <span>m2 fecha referencia</span>
+            <span>m² fecha referencia</span>
             <span className="font-semibold">
-              {asignacionesReferencia.reduce((sum, item) => sum + item.totalM2, 0).toFixed(2)} m2
+              {asignacionesReferencia.reduce((sum, item) => sum + item.totalM2, 0).toFixed(2)} m²
             </span>
           </div>
           <div className="flex items-center justify-between">
@@ -96,7 +96,7 @@ export default function AsignacionesPage() {
             >
               <span>{actionLabels[accion]}</span>
               <span className={cn('text-xs font-semibold text-slate-900', accion === 'pulir' && 'text-emerald-700')}>
-                {formatLosas(resumenAcciones[accion].losas)} losas eq / {resumenAcciones[accion].m2.toFixed(2)} m2
+                {formatLosas(resumenAcciones[accion].losas)} losas eq / {resumenAcciones[accion].m2.toFixed(2)} m²
               </span>
             </div>
           ))}
@@ -112,7 +112,7 @@ export default function AsignacionesPage() {
               <div key={item.nombre} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
                 <div>
                   <p className="text-xs font-semibold text-slate-900">{item.nombre}</p>
-                  <p className="text-[11px] text-slate-500">{item.m2.toFixed(2)} m2</p>
+                  <p className="text-[11px] text-slate-500">{item.m2.toFixed(2)} m²</p>
                 </div>
                 <span className="text-xs font-semibold text-emerald-700">{formatMoney(item.pago)}</span>
               </div>
@@ -205,7 +205,7 @@ export default function AsignacionesPage() {
                                 {actionLabels[accion]}
                               </p>
                               <p className="text-sm font-semibold">
-                                {formatLosas(worker.resumenAcciones[accion].losas)} / {worker.resumenAcciones[accion].m2.toFixed(2)} m2
+                                {formatLosas(worker.resumenAcciones[accion].losas)} / {worker.resumenAcciones[accion].m2.toFixed(2)} m²
                               </p>
                             </div>
                           ))}
@@ -241,7 +241,7 @@ export default function AsignacionesPage() {
                                     <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Accion</span>
                                     <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Equipo</span>
                                     <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">Losas eq</span>
-                                    <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">M2 eq</span>
+                                    <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">M² eq</span>
                                     <span className="text-[10px] uppercase tracking-[0.22em] text-right text-slate-500">Ganancia est.</span>
                                   </div>
 

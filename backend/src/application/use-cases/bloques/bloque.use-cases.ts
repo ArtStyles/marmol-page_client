@@ -1,6 +1,14 @@
-import type { BloqueRepositoryPort } from '../../../domain/ports/index.js'
+import type {
+  BloqueRepositoryPort,
+  InventarioMovimientoRepositoryPort,
+} from '../../../domain/ports/index.js'
 import type { BloqueOLote } from '../../../domain/entities/index.js'
 import type { CreateBloqueDto, UpdateBloqueDto, BloqueResponseDto } from '../../dtos/index.js'
+
+interface BloqueActor {
+  userId: string
+  userName: string
+}
 
 export class GetBloquesUseCase {
   constructor(private readonly repository: BloqueRepositoryPort) {}
@@ -19,16 +27,68 @@ export class GetBloqueByIdUseCase {
 }
 
 export class CreateBloqueUseCase {
-  constructor(private readonly repository: BloqueRepositoryPort) {}
+  constructor(
+    private readonly repository: BloqueRepositoryPort,
+    private readonly inventarioMovimientoRepository: InventarioMovimientoRepositoryPort,
+  ) {}
 
-  async execute(dto: CreateBloqueDto): Promise<BloqueResponseDto> {
+  async execute(dto: CreateBloqueDto, actor?: BloqueActor): Promise<BloqueResponseDto> {
     const existentes = await this.repository.findAll()
     const codigo = buildCodigoMateriaPrima(dto.tipo, existentes)
 
-    return this.repository.create({
+    const created = await this.repository.create({
       ...dto,
       nombre: codigo,
     })
+
+    if (created.tipo !== 'Lote') {
+      return created
+    }
+
+    const cantidadLosas = Math.max(0, Math.trunc(created.metrosComprados))
+    if (cantidadLosas <= 0) {
+      return created
+    }
+
+    const metrosCuadrados = round2(cantidadLosas * dimensionToArea(created.dimensionBase))
+    const now = new Date().toISOString()
+    const actorId = actor?.userId ?? 'system'
+    const actorName = actor?.userName ?? 'system'
+
+    try {
+      await this.inventarioMovimientoRepository.create({
+        fechaSolicitud: now,
+        fechaResolucion: now,
+        tipo: 'entrada',
+        origen: 'ajuste',
+        estado: 'aprobado',
+        referenciaId: created.id,
+        motivo: `Entrada inicial por registro de lote ${created.nombre}`,
+        observaciones: `Materia prima registrada desde proveedor ${created.proveedor}.`,
+        solicitadoPorId: actorId,
+        solicitadoPorNombre: actorName,
+        aprobadoPorId: actorId,
+        aprobadoPorNombre: actorName,
+        detalles: [
+          {
+            id: `imd-lote-${created.id}`,
+            productoNombre: `Piso ${created.nombre} ${created.dimensionBase} Picado`,
+            tipo: 'Piso',
+            estado: 'Picado',
+            dimension: created.dimensionBase,
+            origenId: created.id,
+            origenNombre: created.nombre,
+            cantidadLosas,
+            metrosCuadrados,
+          },
+        ],
+      })
+    } catch (error) {
+      await this.repository.delete(created.id)
+      throw error
+    }
+
+    return created
   }
 }
 
@@ -85,4 +145,14 @@ function buildCodigoMateriaPrima(
   }, 0)
 
   return `${prefijo}-${String(max + 1).padStart(3, '0')}`
+}
+
+function dimensionToArea(dimension: BloqueOLote['dimensionBase']): number {
+  if (dimension === '40x40') return 1 / 6
+  if (dimension === '60x40') return 1 / 4
+  return 1 / 3
+}
+
+function round2(value: number): number {
+  return Number(value.toFixed(2))
 }

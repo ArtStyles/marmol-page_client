@@ -145,7 +145,7 @@ export function ProduccionRegistrosList({
                               </div>
                               <div className="flex flex-wrap items-center justify-end gap-3 text-sm">
                                 <span className="font-medium text-slate-700">Losas: {totalLosasGrupo}</span>
-                                <span className="font-semibold text-emerald-700">M2: {totalM2Grupo.toFixed(2)}</span>
+                                <span className="font-semibold text-emerald-700">M²: {totalM2Grupo.toFixed(2)}</span>
                               </div>
                             </div>
                           </AccordionTrigger>
@@ -326,7 +326,7 @@ export function ProduccionRegistrosList({
                                                     </span>
                                                   </span>
                                                   <span className="font-medium text-emerald-700">
-                                                    M2: {dimensionItem.totalM2.toFixed(2)}
+                                                    M²: {dimensionItem.totalM2.toFixed(2)}
                                                   </span>
                                                   {accion.accion !== 'picar' ? (
                                                     <span className="font-medium text-rose-700">

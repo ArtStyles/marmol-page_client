@@ -565,7 +565,7 @@ export default function ProduccionPage() {
               {retornoProductoSeleccionado ? (
                 <p className="text-xs text-slate-600">
                   Disponible en proceso: {retornoProductoSeleccionado.cantidadLosas} losas (
-                  {retornoProductoSeleccionado.metrosCuadrados.toFixed(2)} m2)
+                  {retornoProductoSeleccionado.metrosCuadrados.toFixed(2)} m²)
                 </p>
               ) : null}
 
@@ -793,7 +793,7 @@ export default function ProduccionPage() {
                 <p>
                   Total entrada:{' '}
                   <span className="font-semibold">
-                    {entryDeleteTarget.totalLosas} losas / {entryDeleteTarget.totalM2.toFixed(2)} m2
+                    {entryDeleteTarget.totalLosas} losas / {entryDeleteTarget.totalM2.toFixed(2)} m²
                   </span>
                 </p>
               </div>

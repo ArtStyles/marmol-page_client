@@ -36,8 +36,8 @@ export function ProduccionRightPanel({
       <AdminPanelCard title="Resumen diario" meta={fechaResumen}>
         <div className="space-y-3 text-sm text-slate-700">
           <div className="flex items-center justify-between">
-            <span>m2 fecha</span>
-            <span className="font-semibold">{totalM2Resumen.toFixed(2)} m2</span>
+            <span>m² fecha</span>
+            <span className="font-semibold">{totalM2Resumen.toFixed(2)} m²</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Losas fecha</span>
@@ -62,7 +62,7 @@ export function ProduccionRightPanel({
             >
               <span>{actionLabels[accion]}</span>
               <span className={cn('text-xs font-semibold text-slate-900', accion === 'pulir' && 'text-emerald-700')}>
-                {resumenAcciones[accion].toFixed(2)} m2
+                {resumenAcciones[accion].toFixed(2)} m²
               </span>
             </div>
           ))}
@@ -74,13 +74,13 @@ export function ProduccionRightPanel({
           <div className="flex items-center justify-between">
             <span>Merma total</span>
             <span className="font-semibold text-rose-700">
-              {resumenPartidas.mermaLosas} losas / {resumenPartidas.mermaM2.toFixed(2)} m2
+              {resumenPartidas.mermaLosas} losas / {resumenPartidas.mermaM2.toFixed(2)} m²
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span>Partidas reutilizables</span>
             <span className="font-semibold text-sky-700">
-              {resumenPartidas.reutilizableLosas} losas / {resumenPartidas.reutilizableM2.toFixed(2)} m2
+              {resumenPartidas.reutilizableLosas} losas / {resumenPartidas.reutilizableM2.toFixed(2)} m²
             </span>
           </div>
           <p className="text-[11px] text-slate-500">
@@ -103,7 +103,7 @@ export function ProduccionRightPanel({
                   <p className="text-xs font-semibold text-slate-900">{item.origenNombre}</p>
                   <p className="text-[11px] text-slate-500">{item.totalLosas} losas</p>
                 </div>
-                <span className="text-xs font-semibold text-emerald-700">{item.totalM2.toFixed(2)} m2</span>
+                <span className="text-xs font-semibold text-emerald-700">{item.totalM2.toFixed(2)} m²</span>
               </div>
             ))
           )}

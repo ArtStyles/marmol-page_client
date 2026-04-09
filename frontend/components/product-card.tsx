@@ -50,7 +50,7 @@ export function ProductCard({ product, onViewDetails }: ProductCardProps) {
           </span>
           <span className="font-serif text-xl font-bold text-primary">
             ${product.precioM2}
-            <span className="text-xs font-normal text-muted-foreground">/m2</span>
+            <span className="text-xs font-normal text-muted-foreground">/m²</span>
           </span>
         </div>
       </CardContent>

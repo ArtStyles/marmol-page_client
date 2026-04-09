@@ -173,7 +173,7 @@ export default function CatalogoAdminPage() {
                   )}
                 </div>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  {item.dimension} · ${item.precioM2}/m2
+                  {item.dimension} · ${item.precioM2}/m²
                 </p>
               </div>
             ))
@@ -299,7 +299,7 @@ export default function CatalogoAdminPage() {
     { key: 'dimension', header: 'Dimension' },
     {
       key: 'precioM2',
-      header: 'Precio/m2',
+      header: 'Precio/m²',
       render: (item) => `$${item.precioM2}`,
     },
     {
@@ -456,7 +456,7 @@ export default function CatalogoAdminPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Precio por m2</Label>
+                  <Label>Precio por m²</Label>
                   <Input
                     type="number"
                     min="0"

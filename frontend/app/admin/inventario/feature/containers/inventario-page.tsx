@@ -90,7 +90,7 @@ const inventoryChartConfig = {
     color: 'hsl(222, 47%, 11%)',
   },
   m2: {
-    label: 'm2',
+    label: 'm²',
     color: 'hsl(160, 84%, 39%)',
   },
 } satisfies ChartConfig
@@ -104,7 +104,7 @@ const rankingLosasConfig = {
 
 const rankingM2Config = {
   m2: {
-    label: 'm2',
+    label: 'm²',
     color: 'hsl(160, 84%, 39%)',
   },
 } satisfies ChartConfig
@@ -290,10 +290,10 @@ export default function InventarioPage() {
   const showBothMetrics = showLosas && showM2
   const generalMetricTitle =
     metricView === 'both'
-      ? 'Losas y m2 por estado operativo'
+      ? 'Losas y m² por estado operativo'
       : metricView === 'losas'
         ? 'Losas por estado operativo'
-        : 'm2 por estado operativo'
+        : 'm² por estado operativo'
 
   const filteredProductos = useMemo(() => {
     return productos.filter((producto) => {
@@ -699,7 +699,7 @@ export default function InventarioPage() {
               </div>
               <div className="mt-1 flex items-center justify-between text-xs">
                 <span>{row.losas.toLocaleString()} losas</span>
-                <span>{row.m2.toFixed(2)} m2</span>
+                <span>{row.m2.toFixed(2)} m²</span>
               </div>
             </div>
           ))}
@@ -711,13 +711,13 @@ export default function InventarioPage() {
           <div className="flex items-center justify-between">
             <span>Merma total</span>
             <span className="font-semibold text-rose-700">
-              {resumenPartidas.mermaLosas.toLocaleString()} / {resumenPartidas.mermaM2.toFixed(2)} m2
+              {resumenPartidas.mermaLosas.toLocaleString()} / {resumenPartidas.mermaM2.toFixed(2)} m²
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span>Reutilizable</span>
             <span className="font-semibold text-sky-700">
-              {resumenPartidas.reutilizableLosas.toLocaleString()} / {resumenPartidas.reutilizableM2.toFixed(2)} m2
+              {resumenPartidas.reutilizableLosas.toLocaleString()} / {resumenPartidas.reutilizableM2.toFixed(2)} m²
             </span>
           </div>
           <p className="text-[11px] text-slate-500">
@@ -759,7 +759,7 @@ export default function InventarioPage() {
       )}
 
       {showM2 && (
-        <AdminPanelCard title="Top bloques" meta="Por m2">
+        <AdminPanelCard title="Top bloques" meta="Por m²">
           {topM2ByOrigen.length === 0 ? (
             <p className="text-xs text-slate-500">Sin datos para mostrar.</p>
           ) : (
@@ -779,7 +779,7 @@ export default function InventarioPage() {
                   cursor={false}
                   content={
                     <ChartTooltipContent
-                      formatter={(value) => `${Number(value).toFixed(2)} m2`}
+                      formatter={(value) => `${Number(value).toFixed(2)} m²`}
                     />
                   }
                 />
@@ -997,7 +997,7 @@ export default function InventarioPage() {
                                   Fecha: {formatDateTime(movimiento.fechaSolicitud)} - Motivo: {movimiento.motivo}
                                 </p>
                                 <p className="mt-1 text-xs text-slate-500">
-                                  {totalLosas.toLocaleString()} losas - {totalM2.toFixed(2)} m2 - {movimiento.detalles.length} detalle(s)
+                                  {totalLosas.toLocaleString()} losas - {totalM2.toFixed(2)} m² - {movimiento.detalles.length} detalle(s)
                                 </p>
                                 {detalleResumen ? (
                                   <p className="mt-1 text-[11px] text-slate-500">{detalleResumen}</p>
@@ -1247,7 +1247,7 @@ export default function InventarioPage() {
               {procesoProductoSeleccionado && (
                 <p className="text-xs text-slate-600">
                   Disponible: {procesoProductoSeleccionado.cantidadLosas} losas (
-                  {procesoProductoSeleccionado.metrosCuadrados.toFixed(2)} m2)
+                  {procesoProductoSeleccionado.metrosCuadrados.toFixed(2)} m²)
                 </p>
               )}
 
@@ -1338,7 +1338,7 @@ export default function InventarioPage() {
                   Losas
                 </ToggleGroupItem>
                 <ToggleGroupItem value="m2" className="px-3 text-xs">
-                  m2
+                  m²
                 </ToggleGroupItem>
                 <ToggleGroupItem value="both" className="px-3 text-xs">
                   Ambos
@@ -1367,15 +1367,16 @@ export default function InventarioPage() {
                   <ChartTooltipContent
                     formatter={(value, name) => {
                       const numeric = Number(value ?? 0)
-                      const isM2 = String(name).toLowerCase().includes('m2')
-                      return isM2 ? `${numeric.toFixed(2)} m2` : `${Math.round(numeric).toLocaleString()} losas`
+                      const normalizedName = String(name).toLowerCase()
+                      const isM2 = normalizedName.includes('m2') || normalizedName.includes('m²')
+                      return isM2 ? `${numeric.toFixed(2)} m²` : `${Math.round(numeric).toLocaleString()} losas`
                     }}
                   />
                 }
               />
               {showBothMetrics && <ChartLegend content={<ChartLegendContent />} />}
               {showLosas && <Bar yAxisId="losas" dataKey="losas" name="Losas" fill="var(--color-losas)" radius={[8, 8, 0, 0]} />}
-              {showM2 && <Bar yAxisId="m2" dataKey="m2" name="m2" fill="var(--color-m2)" radius={[8, 8, 0, 0]} />}
+              {showM2 && <Bar yAxisId="m2" dataKey="m2" name="m²" fill="var(--color-m2)" radius={[8, 8, 0, 0]} />}
             </BarChart>
           </ChartContainer>
         </div>
@@ -1392,7 +1393,7 @@ export default function InventarioPage() {
               </p>
             </div>
             <p className="text-xs text-slate-500">
-              Vista en {showLosas ? 'losas' : 'm2'} segun selector activo
+              Vista en {showLosas ? 'losas' : 'm²'} segun selector activo
             </p>
           </div>
 
@@ -1415,7 +1416,7 @@ export default function InventarioPage() {
                           const numeric = Number(value ?? 0)
                           return showLosas
                             ? `${Math.round(numeric).toLocaleString()} losas`
-                            : `${numeric.toFixed(2)} m2`
+                            : `${numeric.toFixed(2)} m²`
                         }}
                       />
                     }
@@ -1438,7 +1439,7 @@ export default function InventarioPage() {
                       >
                         <p className="text-sm font-semibold text-slate-900">{group.origenNombre}</p>
                         <p className="mt-1 text-[11px] text-rose-700">
-                          {group.mermaLosas} losas / {group.mermaM2.toFixed(2)} m2
+                          {group.mermaLosas} losas / {group.mermaM2.toFixed(2)} m²
                         </p>
                       </div>
                     ))
@@ -1457,7 +1458,7 @@ export default function InventarioPage() {
                       >
                         <p className="text-sm font-semibold text-slate-900">{group.origenNombre}</p>
                         <p className="mt-1 text-[11px] text-sky-700">
-                          {group.reutilizableLosas} losas / {group.reutilizableM2.toFixed(2)} m2
+                          {group.reutilizableLosas} losas / {group.reutilizableM2.toFixed(2)} m²
                         </p>
                       </div>
                     ))
@@ -1511,14 +1512,15 @@ export default function InventarioPage() {
                             <ChartTooltipContent
                               formatter={(value, name) => {
                                 const numeric = Number(value ?? 0)
-                                const isM2 = String(name).toLowerCase().includes('m2')
-                                return isM2 ? `${numeric.toFixed(2)} m2` : `${Math.round(numeric).toLocaleString()} losas`
+                                const normalizedName = String(name).toLowerCase()
+                                const isM2 = normalizedName.includes('m2') || normalizedName.includes('m²')
+                                return isM2 ? `${numeric.toFixed(2)} m²` : `${Math.round(numeric).toLocaleString()} losas`
                               }}
                             />
                           }
                         />
                         {showLosas && <Bar yAxisId="losas" dataKey="losas" name="Losas" fill="var(--color-losas)" radius={[6, 6, 0, 0]} />}
-                        {showM2 && <Bar yAxisId="m2" dataKey="m2" name="m2" fill="var(--color-m2)" radius={[6, 6, 0, 0]} />}
+                        {showM2 && <Bar yAxisId="m2" dataKey="m2" name="m²" fill="var(--color-m2)" radius={[6, 6, 0, 0]} />}
                       </BarChart>
                     </ChartContainer>
 
@@ -1526,7 +1528,7 @@ export default function InventarioPage() {
                       {[
                         `${group.items.length} items`,
                         showLosas ? `${group.totalLosas.toLocaleString()} losas` : null,
-                        showM2 ? `${group.totalM2.toFixed(2)} m2` : null,
+                        showM2 ? `${group.totalM2.toFixed(2)} m²` : null,
                       ]
                         .filter(Boolean)
                         .join(' - ')}

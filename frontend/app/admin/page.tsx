@@ -230,7 +230,7 @@ export default function AdminDashboard() {
       href: adminPath('/admin/produccion'),
       title: 'Produccion diaria',
       description: `${produccionHoy.length} registros activos`,
-      value: `${totalM2Hoy.toFixed(1)} m2`,
+      value: `${totalM2Hoy.toFixed(1)} m²`,
       footer: hasProduccionData ? `Datos ${fechaUltima}` : 'Sin datos cargados',
       accent: 'linear-gradient(135deg, #e7f4ff 0%, #ffffff 65%)',
       icon: Factory,
@@ -239,7 +239,7 @@ export default function AdminDashboard() {
       href: adminPath('/admin/inventario'),
       title: 'Inventario disponible',
       description: `${totalLosasInventario} losas en stock`,
-      value: `${totalM2Inventario.toFixed(1)} m2`,
+      value: `${totalM2Inventario.toFixed(1)} m²`,
       footer: `${productos.length} referencias`,
       accent: 'linear-gradient(135deg, #eef7f1 0%, #ffffff 65%)',
       icon: Package,
@@ -286,11 +286,11 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center justify-between">
             <span>Produccion hoy</span>
-            <span className="font-semibold">{totalM2Hoy.toFixed(1)} m2</span>
+            <span className="font-semibold">{totalM2Hoy.toFixed(1)} m²</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Mermas totales</span>
-            <span className="font-semibold">{totalMermas.toFixed(2)} m2</span>
+            <span className="font-semibold">{totalMermas.toFixed(2)} m²</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Equipos activos</span>
@@ -312,7 +312,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
                   <span>{item.fecha}</span>
-                  <span>{item.totalLosas} losas / {item.totalM2.toFixed(2)} m2</span>
+                  <span>{item.totalLosas} losas / {item.totalM2.toFixed(2)} m²</span>
                 </div>
               </div>
             ))
@@ -359,7 +359,7 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-900">{totalMermas.toFixed(2)} m2</p>
+            <p className="text-sm font-semibold text-slate-900">{totalMermas.toFixed(2)} m²</p>
             <p className="text-xs text-slate-500">perdidos este mes</p>
           </div>
         </div>
@@ -408,7 +408,7 @@ export default function AdminDashboard() {
               <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Inventario</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-900">{totalLosasInventario} losas</p>
-                <p className="text-xs text-slate-500">{totalM2Inventario.toFixed(1)} m2 disponibles</p>
+                <p className="text-xs text-slate-500">{totalM2Inventario.toFixed(1)} m² disponibles</p>
               </div>
               <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Ventas</p>
@@ -417,7 +417,7 @@ export default function AdminDashboard() {
               </div>
               <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Produccion</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">{totalM2Hoy.toFixed(1)} m2</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{totalM2Hoy.toFixed(1)} m²</p>
                 <p className="text-xs text-slate-500">{produccionHoy.length} registros</p>
               </div>
             </div>
@@ -444,7 +444,7 @@ export default function AdminDashboard() {
                           </div>
                         </TooltipTrigger>
                         <TooltipContent side="top" sideOffset={8} className="px-2 py-1 text-[11px]">
-                          <p className="font-medium text-current">{item.metros.toFixed(1)} m2</p>
+                          <p className="font-medium text-current">{item.metros.toFixed(1)} m²</p>
                         </TooltipContent>
                       </Tooltip>
                     ))}

@@ -172,7 +172,7 @@ export const updateConfiguracionUseCase = new UpdateConfiguracionUseCase(configu
 
 export const getBloquesUseCase = new GetBloquesUseCase(bloqueRepo)
 export const getBloqueByIdUseCase = new GetBloqueByIdUseCase(bloqueRepo)
-export const createBloqueUseCase = new CreateBloqueUseCase(bloqueRepo)
+export const createBloqueUseCase = new CreateBloqueUseCase(bloqueRepo, inventarioMovimientoRepo)
 export const updateBloqueUseCase = new UpdateBloqueUseCase(bloqueRepo)
 export const deleteBloqueUseCase = new DeleteBloqueUseCase(bloqueRepo)
 

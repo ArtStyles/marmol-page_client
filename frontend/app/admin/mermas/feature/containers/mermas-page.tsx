@@ -557,7 +557,8 @@ export default function MermasPage() {
   const formatMetricValue = (value: number) =>
     metricView === 'losas'
       ? `${formatLosas(value)} losas`
-      : `${Number(value).toFixed(2)} m2`
+      : `${Number(value).toFixed(2)} m²`
+  const metricViewLabel = metricView === 'm2' ? 'm²' : 'losas'
 
   const rightPanel = (
     <div className="space-y-4">
@@ -566,19 +567,19 @@ export default function MermasPage() {
           <div className="flex items-center justify-between">
             <span>Merma total</span>
             <span className="font-semibold text-rose-700">
-              {formatLosas(totals.mermaLosas)} / {totals.mermaM2.toFixed(2)} m2
+              {formatLosas(totals.mermaLosas)} / {totals.mermaM2.toFixed(2)} m²
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span>Reutilizable</span>
             <span className="font-semibold text-sky-700">
-              {formatLosas(totals.reutilizableLosas)} / {totals.reutilizableM2.toFixed(2)} m2
+              {formatLosas(totals.reutilizableLosas)} / {totals.reutilizableM2.toFixed(2)} m²
             </span>
           </div>
         </div>
       </AdminPanelCard>
 
-      <AdminPanelCard title="Distribucion" meta={`Vista en ${metricView}`}>
+      <AdminPanelCard title="Distribucion" meta={`Vista en ${metricViewLabel}`}>
         <div className="space-y-2 text-[12px] text-slate-700">
           {distributionData.map((item) => (
             <div key={item.key} className="flex items-center justify-between">
@@ -794,7 +795,7 @@ export default function MermasPage() {
                   <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm">
                     <div className="flex items-center justify-between text-slate-700">
                       <span>Conversion automatica</span>
-                      <span className="font-semibold text-slate-900">{metrosCuadradosForm.toFixed(2)} m2</span>
+                      <span className="font-semibold text-slate-900">{metrosCuadradosForm.toFixed(2)} m²</span>
                     </div>
                   </div>
 
@@ -898,7 +899,7 @@ export default function MermasPage() {
               className="bg-white/80"
             >
               <ToggleGroupItem value="losas" className="px-3 text-xs">Losas</ToggleGroupItem>
-              <ToggleGroupItem value="m2" className="px-3 text-xs">m2</ToggleGroupItem>
+              <ToggleGroupItem value="m2" className="px-3 text-xs">m²</ToggleGroupItem>
             </ToggleGroup>
           </div>
         </div>
@@ -911,7 +912,7 @@ export default function MermasPage() {
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <BarChart3 className="h-4 w-4" />
-              Vista en {metricView}
+              Vista en {metricViewLabel}
             </div>
           </div>
 

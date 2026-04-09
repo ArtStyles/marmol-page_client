@@ -43,7 +43,7 @@ export const WorkshopCard = ({ workshop, onSelect, onToggleStatus, onDelete }: W
           <Factory className="h-3.5 w-3.5" />
           Produccion mes
         </span>
-        <span className="font-semibold text-slate-900">{workshop.produccionMesM2.toFixed(0)} m2</span>
+        <span className="font-semibold text-slate-900">{workshop.produccionMesM2.toFixed(0)} m²</span>
       </div>
       <div className="flex items-center justify-between rounded-2xl bg-white/80 px-3 py-2">
         <span className="flex items-center gap-2">

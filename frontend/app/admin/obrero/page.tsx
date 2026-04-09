@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
@@ -173,8 +173,8 @@ export default function ObreroPage() {
             <span className="font-semibold">{produccionPendiente.length}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span>M2 pendientes</span>
-            <span className="font-semibold">{m2Pendiente.toFixed(2)} m2</span>
+            <span>M² pendientes</span>
+            <span className="font-semibold">{m2Pendiente.toFixed(2)} m²</span>
           </div>
         </div>
       </AdminPanelCard>
@@ -203,8 +203,8 @@ export default function ObreroPage() {
             <span className="font-semibold">{totalLosasTrabajadas}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span>M2 trabajados</span>
-            <span className="font-semibold">{totalM2Trabajados.toFixed(2)} m2</span>
+            <span>M² trabajados</span>
+            <span className="font-semibold">{totalM2Trabajados.toFixed(2)} m²</span>
           </div>
         </div>
       </AdminPanelCard>

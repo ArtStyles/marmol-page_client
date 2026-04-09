@@ -1,6 +1,13 @@
 import type { Request, Response } from 'express'
 import * as container from '../../container.js'
 
+function resolveActor(req: Request): { userId: string; userName: string } {
+  return {
+    userId: req.auth?.userId ?? 'system',
+    userName: req.auth?.email ?? 'system',
+  }
+}
+
 export async function getBloques(_req: Request, res: Response) {
   const data = await container.getBloquesUseCase.execute()
   res.json(data)
@@ -14,7 +21,7 @@ export async function getBloqueById(req: Request, res: Response) {
 }
 
 export async function createBloque(req: Request, res: Response) {
-  const data = await container.createBloqueUseCase.execute(req.body)
+  const data = await container.createBloqueUseCase.execute(req.body, resolveActor(req))
   res.status(201).json(data)
 }
 

@@ -111,7 +111,7 @@ export function QuickCart() {
       'Compra desde el sitio',
       ...cartItems.map(
         ({ item, m2, subtotal }) =>
-          `${item.nombre} | ${m2} m2 x $${item.precioM2}/m2 = $${subtotal.toFixed(0)}`,
+          `${item.nombre} | ${m2} m² x $${item.precioM2}/m² = $${subtotal.toFixed(0)}`,
       ),
       `Total estimado: $${total.toFixed(0)}`,
     ]
@@ -125,7 +125,7 @@ export function QuickCart() {
         <p className="text-[11px] uppercase tracking-[0.45em] text-[#8a7056]">Seleccion</p>
         <h3 className="mt-3 text-lg font-semibold text-[#2b241f]">Piezas destacadas</h3>
         <p className="mt-2 text-sm text-[#5f554c]">
-          Agrega m2 estimados y completa la compra por WhatsApp.
+          Agrega m² estimados y completa la compra por WhatsApp.
         </p>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
@@ -157,7 +157,7 @@ export function QuickCart() {
                   </p>
                   <div className="mt-auto flex items-center justify-between">
                     <span className="text-sm font-semibold text-[#2b241f]">
-                      ${item.precioM2}/m2
+                      ${item.precioM2}/m²
                     </span>
                     <button
                       type="button"
@@ -187,7 +187,7 @@ export function QuickCart() {
         <div className="mt-4 space-y-4">
           {cartItems.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-black/10 bg-[#f7f4ef] p-4 text-sm text-[#6b5f55]">
-              Aun no agregas piezas. Selecciona una y agrega los m2 estimados.
+              Aun no agregas piezas. Selecciona una y agrega los m² estimados.
             </p>
           ) : (
             cartItems.map(({ item, m2, subtotal }) => (
@@ -204,7 +204,7 @@ export function QuickCart() {
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-2">
                     <span className="text-[10px] uppercase tracking-[0.3em] text-[#8a7056]">
-                      m2
+                      m²
                     </span>
                     <input
                       type="number"

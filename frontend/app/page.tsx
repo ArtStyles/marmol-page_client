@@ -180,7 +180,7 @@ export default function HomePage() {
                     Compra directa por WhatsApp.
                   </h2>
                   <p className="text-sm text-[#5f554c]">
-                    Selecciona tus piezas, agrega los m2 necesarios y finaliza la compra directo en
+                    Selecciona tus piezas, agrega los m² necesarios y finaliza la compra directo en
                     WhatsApp.
                   </p>
                   <div className="space-y-3 text-sm text-[#2b241f]">

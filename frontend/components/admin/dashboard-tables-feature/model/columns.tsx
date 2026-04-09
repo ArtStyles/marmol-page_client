@@ -20,7 +20,7 @@ export const produccionColumns: Column<ProduccionDiaria>[] = [
   {
     key: 'totalM2',
     header: 'Produccion',
-    render: (p) => `${p.totalM2.toFixed(2)} m2`,
+    render: (p) => `${p.totalM2.toFixed(2)} m²`,
   },
 ]
 
@@ -30,7 +30,7 @@ export const mermasColumns: Column<Merma>[] = [
   {
     key: 'metrosCuadrados',
     header: 'Merma',
-    render: (m) => <span className="font-medium text-destructive">{m.metrosCuadrados.toFixed(2)} m2</span>,
+    render: (m) => <span className="font-medium text-destructive">{m.metrosCuadrados.toFixed(2)} m²</span>,
   },
   { key: 'motivo', header: 'Motivo' },
 ]

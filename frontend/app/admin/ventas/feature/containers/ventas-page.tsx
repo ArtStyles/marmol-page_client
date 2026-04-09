@@ -89,8 +89,8 @@ export default function VentasPage() {
             <span className="font-semibold">{formatMoney(totalRevenue)}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span>m2 vendidos</span>
-            <span className="font-semibold">{totalM2Vendidos.toFixed(1)} m2</span>
+            <span>m² vendidos</span>
+            <span className="font-semibold">{totalM2Vendidos.toFixed(1)} m²</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Losas equivalentes</span>
@@ -107,13 +107,13 @@ export default function VentasPage() {
         </div>
       </AdminPanelCard>
 
-      <AdminPanelCard title="m2 por dimension" meta="Ventas completadas">
+      <AdminPanelCard title="m² por dimension" meta="Ventas completadas">
         <div className="space-y-2 text-sm text-slate-700">
           {dimensionOptions.map((dimension) => (
             <div key={dimension} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
               <span>{dimension}</span>
               <span className="text-right">
-                <span className="block font-semibold text-slate-900">{totalM2PorDimension[dimension].toFixed(2)} m2</span>
+                <span className="block font-semibold text-slate-900">{totalM2PorDimension[dimension].toFixed(2)} m²</span>
                 <span className="block text-[11px] text-slate-500">{totalLosasEquivalentesPorDimension[dimension].toFixed(1)} losas eq</span>
               </span>
             </div>
@@ -326,7 +326,7 @@ export default function VentasPage() {
 
                           <div className="mt-3 grid gap-3 sm:grid-cols-2">
                             <div className="space-y-2">
-                              <Label>{isPlancha ? 'Unidades' : 'M2 vendidos'}</Label>
+                              <Label>{isPlancha ? 'Unidades' : 'M² vendidos'}</Label>
                               {isPlancha ? (
                                 <Input
                                   type="number"
@@ -352,7 +352,7 @@ export default function VentasPage() {
                               )}
                             </div>
                             <div className="space-y-2">
-                              <Label>{isPlancha ? 'Precio unidad' : 'Precio m2'}</Label>
+                              <Label>{isPlancha ? 'Precio unidad' : 'Precio m²'}</Label>
                               <Input
                                 value={
                                   productoSeleccionado
@@ -374,7 +374,7 @@ export default function VentasPage() {
                                   : productoSeleccionado.dimension
                                 : '-'}
                             </p>
-                            {isPlancha ? <p>Total m2 eq: {metrosDetalle.toFixed(2)} m2</p> : null}
+                            {isPlancha ? <p>Total m² eq: {metrosDetalle.toFixed(2)} m²</p> : null}
                             <p>Subtotal item: {productoSeleccionado ? formatMoney(subtotalItem) : '-'}</p>
                           </div>
                         </div>
@@ -445,11 +445,11 @@ export default function VentasPage() {
                               <>
                                 {detalle.origenNombre}: {detalle.cantidadUnidades} und x{' '}
                                 {formatMoney(detalle.precioM2 * getDimensionAreaM2(detalle.dimension))}
-                                {' '}({detalle.metrosCuadrados.toFixed(2)} m2 eq)
+                                {' '}({detalle.metrosCuadrados.toFixed(2)} m² eq)
                               </>
                             ) : (
                               <>
-                                {detalle.origenNombre} - {detalle.dimension}: {detalle.metrosCuadrados.toFixed(2)} m2 x{' '}
+                                {detalle.origenNombre} - {detalle.dimension}: {detalle.metrosCuadrados.toFixed(2)} m² x{' '}
                                 {formatMoney(detalle.precioM2)}
                                 {' '}({metrosToLosasEquivalentes(detalle.metrosCuadrados, detalle.dimension).toFixed(2)} losas eq)
                               </>
@@ -464,7 +464,7 @@ export default function VentasPage() {
                           <div key={dimension} className="flex items-center justify-between">
                             <span>{dimension}</span>
                             <span className="text-right font-semibold text-slate-800">
-                              <span className="block">{metrosPorDimensionForm[dimension].toFixed(2)} m2</span>
+                              <span className="block">{metrosPorDimensionForm[dimension].toFixed(2)} m²</span>
                               <span className="block text-[10px] font-normal text-slate-500">
                                 {losasEquivalentesPorDimensionForm[dimension].toFixed(2)} losas eq
                               </span>
@@ -637,8 +637,8 @@ export default function VentasPage() {
                       <p className="font-medium">{selectedVenta.fecha}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Total m2</p>
-                      <p className="font-medium">{selectedVenta.cantidadM2.toFixed(2)} m2</p>
+                      <p className="text-muted-foreground">Total m²</p>
+                      <p className="font-medium">{selectedVenta.cantidadM2.toFixed(2)} m²</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Losas equivalentes</p>
@@ -676,11 +676,11 @@ export default function VentasPage() {
                                   <>
                                     {detalle.cantidadUnidades} und x{' '}
                                     {formatMoney(detalle.precioM2 * getDimensionAreaM2(detalle.dimension))}{' '}
-                                    ({detalle.metrosCuadrados.toFixed(2)} m2 eq)
+                                    ({detalle.metrosCuadrados.toFixed(2)} m² eq)
                                   </>
                                 ) : (
                                   <>
-                                    {detalle.metrosCuadrados.toFixed(2)} m2 |{' '}
+                                    {detalle.metrosCuadrados.toFixed(2)} m² |{' '}
                                     {metrosToLosasEquivalentes(detalle.metrosCuadrados, detalle.dimension).toFixed(2)} losas eq
                                   </>
                                 )}
@@ -702,7 +702,7 @@ export default function VentasPage() {
                           <div key={dimension} className="flex items-center justify-between">
                             <span className="text-slate-600">{dimension}</span>
                             <span className="text-right font-semibold text-slate-900">
-                              <span className="block">{getMetrosVenta(selectedVenta)[dimension].toFixed(2)} m2</span>
+                              <span className="block">{getMetrosVenta(selectedVenta)[dimension].toFixed(2)} m²</span>
                               <span className="block text-[10px] font-normal text-slate-500">
                                 {getLosasEquivalentesPorDimensionVenta(selectedVenta)[dimension].toFixed(2)} losas eq
                               </span>

@@ -205,7 +205,7 @@ export default function FinanzasPage() {
     {
       label: 'Costo del bloque',
       value: costoBloque,
-      helper: `Costo prom. ${formatMoney(costoMaterialM2)} por m2`,
+      helper: `Costo prom. ${formatMoney(costoMaterialM2)} por m²`,
       gradient: 'from-amber-400 to-amber-500',
     },
     {
@@ -310,7 +310,7 @@ export default function FinanzasPage() {
             <span className="font-semibold">{formatMoney(ticketPromedio)}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span>Ingreso por m2</span>
+            <span>Ingreso por m²</span>
             <span className="font-semibold">{formatMoney(ingresoPorM2)}</span>
           </div>
           <div className="flex items-center justify-between">
@@ -460,8 +460,8 @@ export default function FinanzasPage() {
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Costo del bloque</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(costoBloque)}</p>
             <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-              <span>{metrosReferenciaCosteo.toFixed(1)} m2 referencia</span>
-              <span>{totalMetrosVendidos.toFixed(1)} m2 vendidos</span>
+              <span>{metrosReferenciaCosteo.toFixed(1)} m² referencia</span>
+              <span>{totalMetrosVendidos.toFixed(1)} m² vendidos</span>
             </div>
             <p className="mt-2 text-xs text-slate-500">
               Merma estimada {formatMoney(costoMerma)} ({formatPercent(mermaRatio)})
@@ -584,7 +584,7 @@ export default function FinanzasPage() {
                 <span className="font-semibold text-slate-900">{formatMoney(ticketPromedio)}</span>
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-white/80 px-3 py-2 text-sm text-slate-700">
-                <span>Ingreso por m2</span>
+                <span>Ingreso por m²</span>
                 <span className="font-semibold text-slate-900">{formatMoney(ingresoPorM2)}</span>
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-white/80 px-3 py-2 text-sm text-slate-700">
@@ -600,12 +600,12 @@ export default function FinanzasPage() {
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Eficiencia de materiales</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatPercent(1 - mermaRatio)}</p>
             <p className="text-xs text-slate-500">
-              {totalMermas.toFixed(2)} m2 perdidos de {metrosReferenciaCosteo.toFixed(1)} m2 referencia
+              {totalMermas.toFixed(2)} m² perdidos de {metrosReferenciaCosteo.toFixed(1)} m² referencia
             </p>
           </div>
 
           <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
-            <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Costo promedio m2</p>
+            <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Costo promedio m²</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(costoMaterialM2)}</p>
             <p className="text-xs text-slate-500">
               Inventario total {formatMoney(totalCostoBloques)} en materia prima
@@ -613,11 +613,11 @@ export default function FinanzasPage() {
           </div>
 
           <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
-            <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Mano de obra por m2</p>
+            <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Mano de obra por m²</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">
               {formatMoney(produccionTotalM2 ? manoObraObreros / produccionTotalM2 : 0)}
             </p>
-            <p className="text-xs text-slate-500">{produccionTotalM2.toFixed(1)} m2 producidos en el periodo</p>
+            <p className="text-xs text-slate-500">{produccionTotalM2.toFixed(1)} m² producidos en el periodo</p>
           </div>
         </div>
       </div>

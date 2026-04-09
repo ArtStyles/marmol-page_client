@@ -847,11 +847,11 @@ export default function TrabajadoresPage() {
                         <p className="text-2xl font-bold text-emerald-700">
                           {accionesResumen.pulir.toFixed(2)}
                         </p>
-                        <p className="text-xs text-muted-foreground">m2 pulidos</p>
+                        <p className="text-xs text-muted-foreground">m² pulidos</p>
                       </div>
                       <div className="rounded-lg bg-slate-50 p-3">
                         <p className="text-2xl font-bold text-slate-700">{totalM2.toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">m2 totales</p>
+                        <p className="text-xs text-muted-foreground">m² totales</p>
                       </div>
                       <div className="rounded-lg bg-white/80 p-3">
                         <p className="text-2xl font-bold text-slate-900">
@@ -922,27 +922,27 @@ export default function TrabajadoresPage() {
                               <div className="flex flex-wrap gap-2 text-xs text-slate-600">
                                 {item.m2.picar > 0 && (
                                   <span className="rounded-full border border-slate-200 bg-white/70 px-2 py-0.5">
-                                    Picar {item.m2.picar.toFixed(2)} m2
+                                    Picar {item.m2.picar.toFixed(2)} m²
                                   </span>
                                 )}
                                 {item.m2.pulir > 0 && (
                                   <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
-                                    Pulir {item.m2.pulir.toFixed(2)} m2
+                                    Pulir {item.m2.pulir.toFixed(2)} m²
                                   </span>
                                 )}
                                 {item.m2.escuadrar > 0 && (
                                   <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700">
-                                    Escuadrar {item.m2.escuadrar.toFixed(2)} m2
+                                    Escuadrar {item.m2.escuadrar.toFixed(2)} m²
                                   </span>
                                 )}
                                 {item.m2.devastar > 0 && (
                                   <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-violet-700">
-                                    Devastar {item.m2.devastar.toFixed(2)} m2
+                                    Devastar {item.m2.devastar.toFixed(2)} m²
                                   </span>
                                 )}
                                 {item.m2.resinar > 0 && (
                                   <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-cyan-700">
-                                    Resinar {item.m2.resinar.toFixed(2)} m2
+                                    Resinar {item.m2.resinar.toFixed(2)} m²
                                   </span>
                                 )}
                               </div>

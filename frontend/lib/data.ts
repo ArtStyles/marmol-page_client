@@ -744,7 +744,7 @@ export const logsSistema: SystemLog[] = [
     usuario: 'produccion@marmol.local',
     accion: 'Merma registrada',
     modulo: 'Mermas',
-    descripcion: 'Merma por partida al pulir (0.33 m2)',
+    descripcion: 'Merma por partida al pulir (0.33 m²)',
     nivel: 'alerta'
   },
   {
