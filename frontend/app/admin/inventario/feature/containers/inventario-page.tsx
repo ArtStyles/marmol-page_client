@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Button } from '@/components/admin/admin-button'
 import { Badge } from '@/components/ui/badge'
@@ -30,13 +30,16 @@ import { useInventarioStore } from '@/hooks/use-inventario'
 import {
   approveInventarioMovimiento,
   createSalidaProcesoInventario,
+  getBloques,
   getInventarioMovimientosPage,
   rejectInventarioMovimiento,
 } from '@/lib/resources-api'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { useProduccionStore } from '@/hooks/use-produccion'
 import { dimensiones, estadosInventario, tiposProducto } from '@/lib/data'
+import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import {
+  type BloqueOLote,
   losasAMetros,
   type Dimension,
   type InventarioMovimiento,
@@ -183,6 +186,13 @@ function isMetricView(value: string): value is MetricView {
   return value === 'both' || value === 'losas' || value === 'm2'
 }
 
+function buildProductoProcesoOptionLabel(
+  origenCodigo: string,
+  producto: Pick<Producto, 'estado' | 'cantidadLosas'>,
+): string {
+  return [origenCodigo, producto.estado, `${producto.cantidadLosas} losas`].join(' · ')
+}
+
 function formatDateTime(value: string | undefined): string {
   if (!value) return '--'
   const parsed = new Date(value)
@@ -248,6 +258,7 @@ function resolveMovimientoBadgeDisplay(
 export default function InventarioPage() {
   const { productos } = useInventarioStore()
   const { produccion } = useProduccionStore()
+  const [bloquesYLotes, setBloquesYLotes] = useState<BloqueOLote[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [tipoFilter, setTipoFilter] = useState<string>('all')
   const [estadoFilter, setEstadoFilter] = useState<string>('all')
@@ -325,10 +336,83 @@ export default function InventarioPage() {
     }
   }, [])
 
+  useEffect(() => {
+    let alive = true
+
+    const loadBloquesYLotes = async () => {
+      try {
+        const items = await getBloques()
+        if (!alive) return
+        setBloquesYLotes(items)
+      } catch {
+        if (!alive) return
+        setBloquesYLotes([])
+      }
+    }
+
+    void loadBloquesYLotes()
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
   const canApproveMovimientos = currentUser ? hasPermission(currentUser, 'inventario:approve') : false
   const canSolicitarSalidaProceso = currentUser
     ? hasPermission(currentUser, 'inventario:write')
     : false
+
+  const codigosOrigenPorId = useMemo(() => {
+    const map = new Map<string, string>()
+    bloquesYLotes.forEach((bloque) => {
+      const codigo = getBloqueCodigo(bloque).trim().toUpperCase()
+      if (!codigo) return
+
+      map.set(bloque.id.trim(), codigo)
+      map.set((bloque.nombre ?? '').trim().toLowerCase(), codigo)
+      map.set((bloque.codigo ?? '').trim().toLowerCase(), codigo)
+    })
+    return map
+  }, [bloquesYLotes])
+
+  const resolveLegacyCodigo = useCallback((value: string): string | null => {
+    const normalized = value.trim().toUpperCase()
+    if (!normalized) return null
+    if (/^[AL]-\d{3}$/.test(normalized)) return normalized
+
+    const bloqueMatch = normalized.match(/^BL(\d+)$/)
+    if (bloqueMatch) return `A-${bloqueMatch[1].padStart(3, '0')}`
+
+    const loteMatch = normalized.match(/^LT(\d+)$/)
+    if (loteMatch) return `L-${loteMatch[1].padStart(3, '0')}`
+
+    const bloqueNombreMatch = normalized.match(/^BLOQUE\s+(\d+)$/)
+    if (bloqueNombreMatch) return `A-${bloqueNombreMatch[1].padStart(3, '0')}`
+
+    const loteNombreMatch = normalized.match(/^LOTE\s+(\d+)$/)
+    if (loteNombreMatch) return `L-${loteNombreMatch[1].padStart(3, '0')}`
+
+    return null
+  }, [])
+
+  const resolveOrigenCodigo = useCallback(
+    (origenId: string, origenNombre: string): string => {
+      const byId = codigosOrigenPorId.get(origenId.trim()) || codigosOrigenPorId.get(origenId.trim().toLowerCase())
+      if (byId) return byId
+
+      const byNombre = codigosOrigenPorId.get(origenNombre.trim().toLowerCase())
+      if (byNombre) return byNombre
+
+      const legacyFromId = resolveLegacyCodigo(origenId)
+      if (legacyFromId) return legacyFromId
+
+      const legacyFromNombre = resolveLegacyCodigo(origenNombre)
+      if (legacyFromNombre) return legacyFromNombre
+
+      return 'SIN-CODIGO'
+    },
+    [codigosOrigenPorId, resolveLegacyCodigo],
+  )
 
   const showLosas = metricView !== 'm2'
   const showM2 = metricView !== 'losas'
@@ -1284,7 +1368,10 @@ export default function InventarioPage() {
                     ) : (
                       productosAlmacenParaProceso.map((producto) => (
                         <SelectItem key={producto.id} value={producto.id}>
-                          {producto.nombre} · {producto.estado} · {producto.cantidadLosas} losas
+                          {buildProductoProcesoOptionLabel(
+                            resolveOrigenCodigo(producto.origenId, producto.origenNombre),
+                            producto,
+                          )}
                         </SelectItem>
                       ))
                     )}
