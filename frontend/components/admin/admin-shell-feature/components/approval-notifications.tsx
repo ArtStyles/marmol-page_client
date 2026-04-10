@@ -5,6 +5,16 @@ import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Bell, LogOut, RefreshCw, User } from 'lucide-react'
 import { Button } from '@/components/admin/admin-button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
@@ -93,6 +103,7 @@ async function loadPendingInventarioMovimientos(
 export const ApprovalNotifications = ({ sessionUser, onLogout }: ApprovalNotificationsProps) => {
   const pathname = usePathname()
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
   const [accountDialogOpen, setAccountDialogOpen] = useState(false)
   const [approveDialogOpen, setApproveDialogOpen] = useState(false)
   const [approveDialogTarget, setApproveDialogTarget] = useState<ApprovalNotification | null>(null)
@@ -417,18 +428,6 @@ export const ApprovalNotifications = ({ sessionUser, onLogout }: ApprovalNotific
           size="icon-lg"
           variant="outline"
           className="relative flex bg-white/70"
-          onClick={onLogout}
-          aria-label="Cerrar sesion"
-          title="Cerrar sesion"
-        >
-          <LogOut className="h-5 w-5 text-slate-800" strokeWidth={2.2} />
-          <span className="sr-only">Cerrar sesion</span>
-        </Button>
-        <Button
-          type="button"
-          size="icon-lg"
-          variant="outline"
-          className="relative flex bg-white/70"
           onClick={() => {
             setDialogOpen(true)
             void loadNotifications()
@@ -443,7 +442,41 @@ export const ApprovalNotifications = ({ sessionUser, onLogout }: ApprovalNotific
           </span>
           <span className="sr-only">Notificaciones</span>
         </Button>
+        <Button
+          type="button"
+          size="icon-lg"
+          tone="danger"
+          variant="outline"
+          className="relative flex"
+          onClick={() => setLogoutDialogOpen(true)}
+          disabled={!sessionUser}
+          aria-label="Cerrar sesion"
+          title="Cerrar sesion"
+        >
+          <LogOut className="h-5 w-5 text-red-700" strokeWidth={2.2} />
+          <span className="sr-only">Cerrar sesion</span>
+        </Button>
       </div>
+
+      <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar cierre de sesion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta accion cerrara tu sesion actual y te llevara al inicio de sesion.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-200"
+              onClick={onLogout}
+            >
+              Cerrar sesion
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen}>
         <DialogContent className="sm:max-w-md">
