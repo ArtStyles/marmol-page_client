@@ -111,6 +111,14 @@ function round2(value: number): number {
   return Number(value.toFixed(2))
 }
 
+function resolveMetrosParaMovimiento(producto: { cantidadLosas: number; metrosCuadrados: number; dimension: '40x40' | '60x40' | '80x40' }, cantidadLosas: number): number {
+  if (producto.cantidadLosas > 0 && producto.metrosCuadrados > 0) {
+    const proporcion = cantidadLosas / producto.cantidadLosas
+    return round2(proporcion * producto.metrosCuadrados)
+  }
+  return round2(cantidadLosas * dimensionToArea(producto.dimension))
+}
+
 export class CreateSalidaProcesoInventarioUseCase {
   constructor(
     private readonly repository: InventarioMovimientoRepositoryPort,
@@ -152,16 +160,9 @@ export class CreateSalidaProcesoInventarioUseCase {
       )
     }
 
-    const motivo = dto.motivo.trim()
-    if (motivo.length < 5) {
-      throw new DomainError(
-        'Debe indicar un motivo valido para la salida a proceso.',
-        400,
-        'PROCESO_MOTIVO_REQUERIDO',
-      )
-    }
+    const motivo = dto.motivo?.trim() || `Salida a proceso: ${dto.accionObjetivo}`
 
-    const metrosCuadrados = round2(cantidadLosas * dimensionToArea(producto.dimension))
+    const metrosCuadrados = resolveMetrosParaMovimiento(producto, cantidadLosas)
     const detalle = {
       id: `imd-pr-${producto.id}-${Date.now()}`,
       productoId: producto.id,
@@ -235,7 +236,7 @@ export class CreateRetornoProcesoInventarioUseCase {
       )
     }
 
-    const metrosCuadrados = round2(cantidadLosas * dimensionToArea(producto.dimension))
+    const metrosCuadrados = resolveMetrosParaMovimiento(producto, cantidadLosas)
     const detalle = {
       id: `imd-ra-${producto.id}-${Date.now()}`,
       productoId: producto.id,
@@ -256,7 +257,7 @@ export class CreateRetornoProcesoInventarioUseCase {
     const now = new Date().toISOString()
     return this.repository.create({
       fechaSolicitud: now,
-      tipo: 'salida',
+      tipo: 'entrada',
       origen: 'proceso',
       estado: 'pendiente',
       motivo,
@@ -296,19 +297,19 @@ export class ApproveInventarioMovimientoUseCase {
       )
     }
 
-    if (movimiento.tipo === 'entrada') {
+    if (movimiento.origen === 'proceso') {
+      await applyInventarioSalida(movimiento.detalles, this.productoRepository)
+      await applyInventarioEntrada(
+        movimiento.detalles.map((detalle) => ({
+          ...detalle,
+          ubicacionDestino: detalle.ubicacionDestino ?? 'proceso',
+        })),
+        this.productoRepository,
+      )
+    } else if (movimiento.tipo === 'entrada') {
       await applyInventarioEntrada(movimiento.detalles, this.productoRepository)
     } else {
       await applyInventarioSalida(movimiento.detalles, this.productoRepository)
-      if (movimiento.origen === 'proceso') {
-        await applyInventarioEntrada(
-          movimiento.detalles.map((detalle) => ({
-            ...detalle,
-            ubicacionDestino: detalle.ubicacionDestino ?? 'proceso',
-          })),
-          this.productoRepository,
-        )
-      }
     }
 
     const updated = await this.repository.update(id, {
@@ -432,6 +433,12 @@ export class RejectInventarioMovimientoUseCase {
         500,
         'MOVIMIENTO_UPDATE_FAILED',
       )
+    }
+
+    // Rechazar movimientos de proceso no debe alterar stock ni estado operativo
+    // de productos fuera de almacen; solo cambia el estado del movimiento.
+    if (updated.origen === 'proceso') {
+      return updated
     }
 
     await this.syncReferenciaRechazada(updated.referenciaId, updated.origen, dto.motivoRechazo.trim())

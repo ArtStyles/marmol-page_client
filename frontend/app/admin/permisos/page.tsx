@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { Save, ShieldPlus, Trash2 } from 'lucide-react'
 
@@ -29,6 +30,8 @@ type GroupFormState = {
   description: string
   permissionCodes: Set<string>
 }
+
+type PermisosTab = 'grupos' | 'usuarios'
 
 function toTitleCase(value: string): string {
   return value
@@ -65,6 +68,7 @@ export default function PermisosPage() {
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<PermisosTab>('grupos')
 
   const [groupForm, setGroupForm] = useState<GroupFormState>({
     name: '',
@@ -374,8 +378,17 @@ export default function PermisosPage() {
             Cargando permisos...
           </div>
         ) : (
-          <div className="grid gap-5 xl:grid-cols-2">
-            <Card className="border-white/60 bg-white/80 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.4)]">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as PermisosTab)} className="space-y-4">
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-2xl border border-white/60 bg-white/70 p-2">
+              <TabsTrigger value="grupos" className="h-10 flex-none rounded-xl px-4">
+                Grupos de permisos
+              </TabsTrigger>
+              <TabsTrigger value="usuarios" className="h-10 flex-none rounded-xl px-4">
+                Asignacion por usuario
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="grupos">
+              <Card className="border-white/60 bg-white/80 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.4)]">
               <CardHeader className="space-y-1">
                 <CardTitle className="text-lg">Grupos de permisos</CardTitle>
                 <p className="text-xs text-slate-500">
@@ -499,7 +512,10 @@ export default function PermisosPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-white/60 bg-white/80 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.4)]">
+            </TabsContent>
+
+            <TabsContent value="usuarios">
+              <Card className="border-white/60 bg-white/80 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.4)]">
               <CardHeader className="space-y-1">
                 <CardTitle className="text-lg">Asignacion por usuario</CardTitle>
                 <p className="text-xs text-slate-500">
@@ -628,8 +644,9 @@ export default function PermisosPage() {
                   </div>
                 )}
               </CardContent>
-            </Card>
-          </div>
+              </Card>
+            </TabsContent>
+          </Tabs>
         )}
       </div>
     </AdminShell>

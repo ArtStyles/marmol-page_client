@@ -13,6 +13,17 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -20,6 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import {
   dimensionOptions,
   formatMoney,
@@ -79,6 +91,31 @@ export default function VentasPage() {
     handleSubmit,
     resetForm,
   } = useVentasPageState()
+
+  const getEstadoVentaMeta = (estado: string) => {
+    if (estado === 'completada') {
+      return {
+        label: 'Aprobada',
+        className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      }
+    }
+    if (estado === 'pendiente_aprobacion_almacen') {
+      return {
+        label: 'Pendiente salida almacen',
+        className: 'border-amber-200 bg-amber-50 text-amber-700',
+      }
+    }
+    if (estado === 'cancelada') {
+      return {
+        label: 'Cancelada',
+        className: 'border-rose-200 bg-rose-50 text-rose-700',
+      }
+    }
+    return {
+      label: 'Pendiente',
+      className: 'border-slate-200 bg-slate-100 text-slate-700',
+    }
+  }
 
   const rightPanel = (
     <div className="space-y-4">
@@ -162,7 +199,7 @@ export default function VentasPage() {
               <DialogHeader>
                 <DialogTitle>Registrar nueva venta</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={(event) => event.preventDefault()} className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Detalle de productos</Label>
@@ -235,7 +272,7 @@ export default function VentasPage() {
                             </Button>
                           </div>
 
-                          <div className="grid gap-3 sm:grid-cols-4">
+                          <div className={`grid gap-3 ${detalle.tipo === 'Plancha' ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
                             <div className="min-w-0 space-y-2">
                               <Label>Tipo</Label>
                               <Select
@@ -279,27 +316,29 @@ export default function VentasPage() {
                               </Select>
                             </div>
 
-                            <div className="min-w-0 space-y-2">
-                              <Label>Dimension</Label>
-                              <Select
-                                value={detalle.dimension}
-                                onValueChange={(value) =>
-                                  updateDetalleFormulario(detalle.id, { dimension: value as typeof detalle.dimension })
-                                }
-                                disabled={!detalle.tipo || !detalle.origenId}
-                              >
-                                <SelectTrigger className="w-full min-w-0">
-                                  <SelectValue placeholder="Seleccionar" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {dimensionesDisponibles.map((dimension) => (
-                                    <SelectItem key={`${detalle.id}-${dimension}`} value={dimension}>
-                                      {dimension}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
+                            {detalle.tipo !== 'Plancha' ? (
+                              <div className="min-w-0 space-y-2">
+                                <Label>Dimension</Label>
+                                <Select
+                                  value={detalle.dimension}
+                                  onValueChange={(value) =>
+                                    updateDetalleFormulario(detalle.id, { dimension: value as typeof detalle.dimension })
+                                  }
+                                  disabled={!detalle.tipo || !detalle.origenId}
+                                >
+                                  <SelectTrigger className="w-full min-w-0">
+                                    <SelectValue placeholder="Seleccionar" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {dimensionesDisponibles.map((dimension) => (
+                                      <SelectItem key={`${detalle.id}-${dimension}`} value={dimension}>
+                                        {dimension}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            ) : null}
 
                             <div className="min-w-0 space-y-2">
                               <Label>Estado</Label>
@@ -425,15 +464,6 @@ export default function VentasPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Motivo de salida de almacen</Label>
-                  <Input
-                    value={formData.motivoMovimientoAlmacen}
-                    onChange={(event) => handleClienteFieldChange('motivoMovimientoAlmacen', event.target.value)}
-                    placeholder="Ej: salida por venta cliente Hotel X"
-                    required
-                  />
-                </div>
                 {detallesCalculados.length > 0 && (
                   <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
                     <h4 className="font-medium text-slate-900">Resumen de venta</h4>
@@ -497,9 +527,31 @@ export default function VentasPage() {
                   <Button type="button" variant="outline" onClick={() => resetForm()} className="flex-1 bg-transparent">
                     Cancelar
                   </Button>
-                  <Button type="submit" className="flex-1" disabled={detallesCalculados.length === 0 || totalM2Form <= 0 || formData.motivoMovimientoAlmacen.trim().length < 5}>
-                    Registrar venta
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button type="button" className="flex-1" disabled={detallesCalculados.length === 0 || totalM2Form <= 0}>
+                        Registrar venta
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Confirmar registro de venta</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta accion enviara la venta para aprobacion de almacen.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => {
+                            void handleSubmit()
+                          }}
+                        >
+                          Confirmar registro
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </form>
             </DialogContent>
@@ -555,9 +607,10 @@ export default function VentasPage() {
                         </div>
                       </div>
 
-                      <div className="hidden lg:grid lg:grid-cols-[90px_minmax(0,1.4fr)_120px_160px] border-b border-slate-200/70 bg-slate-50/70 px-4 py-2">
+                      <div className="hidden lg:grid lg:grid-cols-[90px_minmax(0,1.4fr)_200px_120px_160px] border-b border-slate-200/70 bg-slate-50/70 px-4 py-2">
                         <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Venta</span>
                         <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Cliente / Bloques</span>
+                        <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Estado</span>
                         <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Total</span>
                         <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Acciones</span>
                       </div>
@@ -566,10 +619,11 @@ export default function VentasPage() {
                         {ventasFecha.map((venta) => {
                           const detallesVenta = getVentaDetalles(venta)
                           const bloquesUnicos = Array.from(new Set(detallesVenta.map((detalle) => detalle.origenNombre)))
+                          const estadoVenta = getEstadoVentaMeta(venta.estado)
 
                           return (
                             <div key={venta.id} className="px-4 py-3">
-                              <div className="grid gap-2 lg:grid-cols-[90px_minmax(0,1.4fr)_120px_160px] lg:items-center">
+                              <div className="grid gap-2 lg:grid-cols-[90px_minmax(0,1.4fr)_200px_120px_160px] lg:items-center">
                                 <div className="text-sm font-semibold text-slate-900">{venta.id}</div>
 
                                 <div>
@@ -578,6 +632,13 @@ export default function VentasPage() {
                                   <p className="text-[11px] text-slate-500">
                                     Bloques: {bloquesUnicos.length > 0 ? bloquesUnicos.join(', ') : 'Sin bloque'}
                                   </p>
+                                </div>
+
+                                <div className="flex items-center justify-between text-sm lg:block">
+                                  <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Estado</span>
+                                  <Badge variant="outline" className={estadoVenta.className}>
+                                    {estadoVenta.label}
+                                  </Badge>
                                 </div>
 
                                 <div className="flex items-center justify-between text-sm lg:block lg:text-right">

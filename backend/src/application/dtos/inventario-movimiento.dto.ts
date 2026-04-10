@@ -28,7 +28,7 @@ export interface CreateSalidaProcesoInventarioDto {
   accionObjetivo: 'escuadrar' | 'devastar' | 'resinar' | 'pulir'
   productoId: string
   cantidadLosas: number
-  motivo: string
+  motivo?: string
 }
 
 export interface CreateRetornoProcesoInventarioDto {

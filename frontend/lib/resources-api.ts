@@ -287,7 +287,6 @@ export const createSalidaProcesoInventario = (input: {
   accionObjetivo: 'escuadrar' | 'devastar' | 'resinar' | 'pulir'
   productoId: string
   cantidadLosas: number
-  motivo: string
 }): Promise<InventarioMovimiento> =>
   apiRequest<InventarioMovimiento>('/inventario-movimientos/proceso-salida', {
     method: 'POST',

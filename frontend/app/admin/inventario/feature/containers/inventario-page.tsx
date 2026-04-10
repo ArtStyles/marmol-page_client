@@ -199,6 +199,52 @@ function formatDateTime(value: string | undefined): string {
   }).format(parsed)
 }
 
+function resolveMovimientoBadgeDisplay(
+  movimiento: InventarioMovimiento,
+): { tipo: InventarioMovimiento['tipo']; origen: string } {
+  if (movimiento.origen !== 'proceso') {
+    return {
+      tipo: movimiento.tipo,
+      origen: movimiento.origen,
+    }
+  }
+
+  const destinos = new Set(
+    movimiento.detalles
+      .map((detalle) => detalle.ubicacionDestino)
+      .filter((ubicacion): ubicacion is UbicacionInventario => Boolean(ubicacion)),
+  )
+  const origenes = new Set(
+    movimiento.detalles
+      .map((detalle) => detalle.ubicacionOrigen)
+      .filter((ubicacion): ubicacion is UbicacionInventario => Boolean(ubicacion)),
+  )
+
+  const esRetornoAAlmacen =
+    destinos.size === 1 &&
+    destinos.has('almacen') &&
+    (origenes.size === 0 || (origenes.size === 1 && origenes.has('proceso')))
+  if (esRetornoAAlmacen) {
+    return {
+      tipo: 'entrada',
+      origen: 'almacen',
+    }
+  }
+
+  const esSalidaAProceso = destinos.size === 1 && destinos.has('proceso')
+  if (esSalidaAProceso) {
+    return {
+      tipo: 'salida',
+      origen: 'proceso',
+    }
+  }
+
+  return {
+    tipo: movimiento.tipo,
+    origen: movimiento.origen,
+  }
+}
+
 export default function InventarioPage() {
   const { productos } = useInventarioStore()
   const { produccion } = useProduccionStore()
@@ -229,7 +275,6 @@ export default function InventarioPage() {
   const [procesoProductoId, setProcesoProductoId] = useState('')
   const [procesoCantidadLosas, setProcesoCantidadLosas] = useState(0)
   const [procesoCantidadTouched, setProcesoCantidadTouched] = useState(false)
-  const [procesoMotivo, setProcesoMotivo] = useState('')
   const [procesoDialogError, setProcesoDialogError] = useState<string | null>(null)
   const [procesoDialogSubmitting, setProcesoDialogSubmitting] = useState(false)
 
@@ -477,6 +522,12 @@ export default function InventarioPage() {
     () => movimientos.find((movimiento) => movimiento.id === rejectDialogTargetId) ?? null,
     [movimientos, rejectDialogTargetId],
   )
+  const approveDialogTargetBadge = approveDialogTarget
+    ? resolveMovimientoBadgeDisplay(approveDialogTarget)
+    : null
+  const rejectDialogTargetBadge = rejectDialogTarget
+    ? resolveMovimientoBadgeDisplay(rejectDialogTarget)
+    : null
   const isApproveDialogLoading = approveDialogTargetId
     ? !!movimientoActionLoadingById[approveDialogTargetId]
     : false
@@ -510,7 +561,6 @@ export default function InventarioPage() {
     setProcesoProductoId('')
     setProcesoCantidadLosas(0)
     setProcesoCantidadTouched(false)
-    setProcesoMotivo('')
     setProcesoDialogOpen(true)
   }
 
@@ -609,12 +659,6 @@ export default function InventarioPage() {
       return
     }
 
-    const motivo = procesoMotivo.trim()
-    if (motivo.length < 5) {
-      setProcesoDialogError('El motivo debe tener al menos 5 caracteres.')
-      return
-    }
-
     setProcesoDialogError(null)
     setMovimientosError(null)
     setProcesoDialogSubmitting(true)
@@ -623,7 +667,6 @@ export default function InventarioPage() {
         accionObjetivo: procesoAccionObjetivo,
         productoId: procesoProductoSeleccionado.id,
         cantidadLosas,
-        motivo,
       })
       setMovimientos((prev) => [movimiento, ...prev.filter((item) => item.id !== movimiento.id)])
       closeProcesoDialog()
@@ -962,6 +1005,7 @@ export default function InventarioPage() {
                         const totalLosas = movimiento.detalles.reduce((sum, detalle) => sum + detalle.cantidadLosas, 0)
                         const totalM2 = movimiento.detalles.reduce((sum, detalle) => sum + detalle.metrosCuadrados, 0)
                         const isActionLoading = !!movimientoActionLoadingById[movimiento.id]
+                        const movimientoBadge = resolveMovimientoBadgeDisplay(movimiento)
                         const detalleResumen = movimiento.detalles
                           .slice(0, 2)
                           .map((detalle) => {
@@ -984,10 +1028,10 @@ export default function InventarioPage() {
                                     variant="outline"
                                     className={cn(
                                       'border-slate-200 bg-slate-50 text-slate-700',
-                                      movimientoTipoBadgeClass[movimiento.tipo],
+                                      movimientoTipoBadgeClass[movimientoBadge.tipo],
                                     )}
                                   >
-                                    {movimiento.tipo.toUpperCase()} / {movimiento.origen}
+                                    {movimientoBadge.tipo.toUpperCase()} / {movimientoBadge.origen}
                                   </Badge>
                                   <Badge variant="outline" className={cn('text-[11px]', movimientoEstadoBadgeClass[movimiento.estado])}>
                                     {movimientoEstadoLabel[movimiento.estado]}
@@ -1091,7 +1135,9 @@ export default function InventarioPage() {
             <div className="space-y-2">
               {approveDialogTarget ? (
                 <p className="text-xs text-slate-600">
-                  {approveDialogTarget.id} - {approveDialogTarget.tipo.toUpperCase()} / {approveDialogTarget.origen}
+                  {approveDialogTarget.id} -{' '}
+                  {(approveDialogTargetBadge?.tipo ?? approveDialogTarget.tipo).toUpperCase()} /{' '}
+                  {approveDialogTargetBadge?.origen ?? approveDialogTarget.origen}
                 </p>
               ) : null}
               {approveDialogError ? (
@@ -1138,7 +1184,9 @@ export default function InventarioPage() {
             <div className="space-y-2">
               {rejectDialogTarget ? (
                 <p className="text-xs text-slate-600">
-                  {rejectDialogTarget.id} - {rejectDialogTarget.tipo.toUpperCase()} / {rejectDialogTarget.origen}
+                  {rejectDialogTarget.id} -{' '}
+                  {(rejectDialogTargetBadge?.tipo ?? rejectDialogTarget.tipo).toUpperCase()} /{' '}
+                  {rejectDialogTargetBadge?.origen ?? rejectDialogTarget.origen}
                 </p>
               ) : null}
               <Textarea
@@ -1264,20 +1312,6 @@ export default function InventarioPage() {
                     setProcesoCantidadLosas(value === '' ? 0 : Math.trunc(Number(value)))
                     if (procesoDialogError) setProcesoDialogError(null)
                   }}
-                  disabled={procesoDialogSubmitting}
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label>Motivo</Label>
-                <Textarea
-                  value={procesoMotivo}
-                  onChange={(event) => {
-                    setProcesoMotivo(event.target.value)
-                    if (procesoDialogError) setProcesoDialogError(null)
-                  }}
-                  placeholder="Motivo de salida a proceso (mínimo 5 caracteres)."
-                  rows={3}
                   disabled={procesoDialogSubmitting}
                 />
               </div>

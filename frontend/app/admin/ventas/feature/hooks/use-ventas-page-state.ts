@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useInventarioStore } from '@/hooks/use-inventario'
 import { createVenta, getVentas } from '@/lib/resources-api'
-import type { Dimension, Producto, Venta, VentaDetalleProducto } from '@/lib/types'
+import { PLANCHA_DIMENSION, type Dimension, type Producto, type Venta, type VentaDetalleProducto } from '@/lib/types'
 import {
   createDetalleFormulario,
   createEmptyMetros,
@@ -18,7 +18,7 @@ import {
 } from '../lib/ventas-helpers'
 import type { FormDetalleProducto } from '../model/types'
 
-type ClienteField = 'clienteNombre' | 'clienteEmail' | 'clienteTelefono' | 'motivoMovimientoAlmacen'
+type ClienteField = 'clienteNombre' | 'clienteEmail' | 'clienteTelefono'
 
 function round2(value: number): number {
   return Number(value.toFixed(2))
@@ -48,7 +48,6 @@ export const useVentasPageState = () => {
     clienteNombre: '',
     clienteEmail: '',
     clienteTelefono: '',
-    motivoMovimientoAlmacen: '',
     detallesProductos: [createDetalleFormulario(1)] as FormDetalleProducto[],
   })
 
@@ -277,12 +276,12 @@ export const useVentasPageState = () => {
 
         if (tipoChanged) {
           nextDetalle.origenId = ''
-          nextDetalle.dimension = ''
+          nextDetalle.dimension = nextDetalle.tipo === 'Plancha' ? PLANCHA_DIMENSION : ''
           nextDetalle.estado = ''
         }
 
         if (origenChanged) {
-          nextDetalle.dimension = ''
+          nextDetalle.dimension = nextDetalle.tipo === 'Plancha' ? PLANCHA_DIMENSION : ''
           nextDetalle.estado = ''
         }
 
@@ -367,8 +366,7 @@ export const useVentasPageState = () => {
     }
   }
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault()
+  const handleSubmit = async () => {
     setFormError(null)
 
     const tieneProductoSinCantidad = formData.detallesProductos.some((detalle) => {
@@ -415,11 +413,7 @@ export const useVentasPageState = () => {
       return acc
     }, createEmptyMetros())
 
-    const motivoMovimientoAlmacen = formData.motivoMovimientoAlmacen.trim()
-    if (motivoMovimientoAlmacen.length < 5) {
-      setFormError('Debes indicar un motivo de salida de almacen (minimo 5 caracteres).')
-      return
-    }
+    const motivoMovimientoAlmacen = 'Salida por venta registrada desde modulo de ventas'
     const primerDetalle = detallesVenta[0]
     if (!primerDetalle) {
       setFormError('Agrega al menos un producto para registrar la venta.')
@@ -470,7 +464,6 @@ export const useVentasPageState = () => {
       clienteNombre: '',
       clienteEmail: '',
       clienteTelefono: '',
-      motivoMovimientoAlmacen: '',
       detallesProductos: [createDetalleFormulario(1)],
     })
     setDetalleCounter(2)

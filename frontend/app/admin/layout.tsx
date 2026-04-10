@@ -354,18 +354,16 @@ export default function AdminLayout({
                     {error}
                   </p>
                 )}
-                <Button
-                  type="submit"
-                  className="h-11 w-full bg-slate-900 text-white hover:bg-slate-800"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Ingresando...' : 'Entrar al panel'}
-                </Button>
+                <div className="flex justify-center pt-1">
+                  <Button
+                    type="submit"
+                    className="h-10 min-w-40 px-8 bg-slate-900 text-white hover:bg-slate-800"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Ingresando...' : 'Aceptar'}
+                  </Button>
+                </div>
               </form>
-
-              <Button asChild variant="ghost" className="w-full text-slate-700 hover:bg-slate-100/70">
-                <Link href="/">Volver al sitio</Link>
-              </Button>
             </CardContent>
           </Card>
         </div>

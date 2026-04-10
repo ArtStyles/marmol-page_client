@@ -367,7 +367,7 @@ export const createSalidaProcesoInventarioSchema = z.object({
   accionObjetivo: z.enum(['escuadrar', 'devastar', 'resinar', 'pulir']),
   productoId: z.string().min(1),
   cantidadLosas: z.number().int().positive(),
-  motivo: z.string().min(5),
+  motivo: z.string().trim().optional(),
 })
 
 export const createRetornoProcesoInventarioSchema = z.object({
