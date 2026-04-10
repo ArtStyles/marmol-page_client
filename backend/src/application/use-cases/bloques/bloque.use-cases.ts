@@ -1,8 +1,9 @@
 import type {
   BloqueRepositoryPort,
+  GastoRepositoryPort,
   InventarioMovimientoRepositoryPort,
 } from '../../../domain/ports/index.js'
-import type { BloqueOLote } from '../../../domain/entities/index.js'
+import type { BloqueOLote, Gasto } from '../../../domain/entities/index.js'
 import type { CreateBloqueDto, UpdateBloqueDto, BloqueResponseDto } from '../../dtos/index.js'
 
 interface BloqueActor {
@@ -30,6 +31,7 @@ export class CreateBloqueUseCase {
   constructor(
     private readonly repository: BloqueRepositoryPort,
     private readonly inventarioMovimientoRepository: InventarioMovimientoRepositoryPort,
+    private readonly gastoRepository: GastoRepositoryPort,
   ) {}
 
   async execute(dto: CreateBloqueDto, actor?: BloqueActor): Promise<BloqueResponseDto> {
@@ -41,49 +43,61 @@ export class CreateBloqueUseCase {
       nombre: codigo,
     })
 
-    if (created.tipo !== 'Lote') {
-      return created
-    }
-
-    const cantidadLosas = Math.max(0, Math.trunc(created.metrosComprados))
-    if (cantidadLosas <= 0) {
-      return created
-    }
-
-    const metrosCuadrados = round2(cantidadLosas * dimensionToArea(created.dimensionBase))
-    const now = new Date().toISOString()
-    const actorId = actor?.userId ?? 'system'
-    const actorName = actor?.userName ?? 'system'
+    let movimientoIdCreado: string | null = null
+    const gastosCreados: string[] = []
 
     try {
-      await this.inventarioMovimientoRepository.create({
-        fechaSolicitud: now,
-        fechaResolucion: now,
-        tipo: 'entrada',
-        origen: 'ajuste',
-        estado: 'aprobado',
-        referenciaId: created.id,
-        motivo: `Entrada inicial por registro de lote ${created.nombre}`,
-        observaciones: `Materia prima registrada desde proveedor ${created.proveedor}.`,
-        solicitadoPorId: actorId,
-        solicitadoPorNombre: actorName,
-        aprobadoPorId: actorId,
-        aprobadoPorNombre: actorName,
-        detalles: [
-          {
-            id: `imd-lote-${created.id}`,
-            productoNombre: `Piso ${created.nombre} ${created.dimensionBase} Picado`,
-            tipo: 'Piso',
-            estado: 'Picado',
-            dimension: created.dimensionBase,
-            origenId: created.id,
-            origenNombre: created.nombre,
-            cantidadLosas,
-            metrosCuadrados,
-          },
-        ],
-      })
+      if (created.tipo === 'Lote') {
+        const cantidadLosas = Math.max(0, Math.trunc(created.metrosComprados))
+        if (cantidadLosas > 0) {
+          const metrosCuadrados = round2(cantidadLosas * dimensionToArea(created.dimensionBase))
+          const now = new Date().toISOString()
+          const actorId = actor?.userId ?? 'system'
+          const actorName = actor?.userName ?? 'system'
+
+          const movimiento = await this.inventarioMovimientoRepository.create({
+            fechaSolicitud: now,
+            fechaResolucion: now,
+            tipo: 'entrada',
+            origen: 'ajuste',
+            estado: 'aprobado',
+            referenciaId: created.id,
+            motivo: `Entrada inicial por registro de lote ${created.nombre}`,
+            observaciones: `Materia prima registrada desde proveedor ${created.proveedor}.`,
+            solicitadoPorId: actorId,
+            solicitadoPorNombre: actorName,
+            aprobadoPorId: actorId,
+            aprobadoPorNombre: actorName,
+            detalles: [
+              {
+                id: `imd-lote-${created.id}`,
+                productoNombre: `Piso ${created.nombre} ${created.dimensionBase} Picado`,
+                tipo: 'Piso',
+                estado: 'Picado',
+                dimension: created.dimensionBase,
+                origenId: created.id,
+                origenNombre: created.nombre,
+                cantidadLosas,
+                metrosCuadrados,
+              },
+            ],
+          })
+          movimientoIdCreado = movimiento.id
+        }
+      }
+
+      const gastosCompra = buildGastosCompraMateriaPrima(created, actor)
+      for (const gasto of gastosCompra) {
+        const gastoCreado = await this.gastoRepository.create(gasto)
+        gastosCreados.push(gastoCreado.id)
+      }
     } catch (error) {
+      if (movimientoIdCreado) {
+        await this.inventarioMovimientoRepository.delete(movimientoIdCreado).catch(() => undefined)
+      }
+      for (const gastoId of gastosCreados) {
+        await this.gastoRepository.delete(gastoId).catch(() => undefined)
+      }
       await this.repository.delete(created.id)
       throw error
     }
@@ -155,4 +169,42 @@ function dimensionToArea(dimension: BloqueOLote['dimensionBase']): number {
 
 function round2(value: number): number {
   return Number(value.toFixed(2))
+}
+
+function buildGastosCompraMateriaPrima(
+  bloque: BloqueOLote,
+  actor?: BloqueActor,
+): Array<Omit<Gasto, 'id'>> {
+  const fecha = bloque.fechaIngreso
+  const encargado = actor?.userName?.trim() || 'system'
+  const proveedor = bloque.proveedor.trim()
+  const etiqueta = `${bloque.tipo.toLowerCase()} ${bloque.nombre}`
+  const referenciaProveedor =
+    proveedor.length > 0 ? `proveedor ${proveedor}` : 'proveedor no especificado'
+
+  const gastos: Array<Omit<Gasto, 'id'>> = []
+
+  if (bloque.costo > 0) {
+    gastos.push({
+      fecha,
+      costo: bloque.costo,
+      tipo: 'Materia prima',
+      flujo: 'Inventario',
+      descripcion: `Compra de ${etiqueta} (${referenciaProveedor}).`,
+      encargado,
+    })
+  }
+
+  if (bloque.costoTransporte > 0) {
+    gastos.push({
+      fecha,
+      costo: bloque.costoTransporte,
+      tipo: 'Transporte',
+      flujo: 'Inventario',
+      descripcion: `Transporte de ${etiqueta} (${referenciaProveedor}).`,
+      encargado,
+    })
+  }
+
+  return gastos
 }
