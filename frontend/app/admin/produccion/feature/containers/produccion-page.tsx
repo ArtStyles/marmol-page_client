@@ -554,7 +554,11 @@ export default function ProduccionPage() {
                     ) : (
                       productosProcesoParaRetorno.map((producto) => (
                         <SelectItem key={producto.id} value={producto.id}>
-                          {producto.nombre} - {producto.estado} - {producto.cantidadLosas} losas
+                          {[
+                            resolveOrigenCodigo(producto.origenId, producto.origenNombre),
+                            producto.estado,
+                            `${producto.cantidadLosas} losas`,
+                          ].join(' - ')}
                         </SelectItem>
                       ))
                     )}
