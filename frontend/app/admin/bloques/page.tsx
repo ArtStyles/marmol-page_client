@@ -18,7 +18,7 @@ import {
 } from '@/lib/resources-api'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { getBloqueCodigo } from '@/lib/bloque-codigo'
-import { Plus, Search, Eye, Edit, Trash2 } from 'lucide-react'
+import { Plus, Search, Eye, Edit, Trash2, CircleOff, RotateCcw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -33,6 +33,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 export default function BloquesPage() {
   const [bloques, setBloques] = useState<BloqueOLote[]>([])
@@ -40,9 +50,13 @@ export default function BloquesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedBloque, setSelectedBloque] = useState<BloqueOLote | null>(null)
   const [editingBloque, setEditingBloque] = useState<BloqueOLote | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<BloqueOLote | null>(null)
+  const [statusTarget, setStatusTarget] = useState<BloqueOLote | null>(null)
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [numericTouched, setNumericTouched] = useState({
     metrosComprados: false,
@@ -321,20 +335,34 @@ export default function BloquesPage() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = async (bloque: BloqueOLote) => {
+  const openDeleteConfirm = (bloque: BloqueOLote) => {
     if (!canModify(bloque.fechaIngreso)) return
-    if (confirm('Eliminar este bloque/lote?')) {
-      try {
-        await deleteBloque(bloque.id)
-        setBloques((prev) => prev.filter((item) => item.id !== bloque.id))
-      } catch (error) {
-        setActionError(error instanceof Error ? error.message : 'No se pudo eliminar el bloque/lote.')
-      }
+    setDeleteTarget(bloque)
+  }
+
+  const confirmDelete = async (bloque: BloqueOLote) => {
+    setIsDeleting(true)
+    setActionError(null)
+    try {
+      await deleteBloque(bloque.id)
+      setBloques((prev) => prev.filter((item) => item.id !== bloque.id))
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'No se pudo eliminar el bloque/lote.')
+    } finally {
+      setIsDeleting(false)
+      setDeleteTarget(null)
     }
   }
 
-  const toggleEstado = async (bloque: BloqueOLote) => {
+  const openEstadoConfirm = (bloque: BloqueOLote) => {
     if (!canModify(bloque.fechaIngreso)) return
+    setStatusTarget(bloque)
+  }
+
+  const confirmToggleEstado = async (bloque: BloqueOLote) => {
+    if (!canModify(bloque.fechaIngreso)) return
+    setIsUpdatingStatus(true)
+    setActionError(null)
     try {
       const updated = await updateBloque(bloque.id, {
         estado: bloque.estado === 'activo' ? 'agotado' : 'activo',
@@ -342,6 +370,9 @@ export default function BloquesPage() {
       setBloques((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'No se pudo actualizar el estado.')
+    } finally {
+      setIsUpdatingStatus(false)
+      setStatusTarget(null)
     }
   }
 
@@ -374,7 +405,7 @@ export default function BloquesPage() {
     const blockedTitle = 'Solo administrador despues del dia'
 
     return (
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="grid w-fit grid-cols-2 gap-1 justify-self-start lg:justify-self-end">
         <Button size="icon" variant="ghost" onClick={() => setSelectedBloque(bloque)} title="Ver detalle">
           <Eye className="h-4 w-4" />
         </Button>
@@ -390,20 +421,24 @@ export default function BloquesPage() {
         <Button
           size="icon"
           variant="ghost"
-          onClick={() => handleDelete(bloque)}
+          onClick={() => openDeleteConfirm(bloque)}
           disabled={!allowed}
           title={allowed ? 'Eliminar' : blockedTitle}
         >
           <Trash2 className="h-4 w-4 text-destructive" />
         </Button>
         <Button
-          size="sm"
-          variant="outline"
-          onClick={() => toggleEstado(bloque)}
+          size="icon"
+          variant="ghost"
+          onClick={() => openEstadoConfirm(bloque)}
           disabled={!allowed}
           title={allowed ? (bloque.estado === 'activo' ? 'Agotar' : 'Reactivar') : blockedTitle}
         >
-          {bloque.estado === 'activo' ? 'Agotar' : 'Reactivar'}
+          {bloque.estado === 'activo' ? (
+            <CircleOff className="h-4 w-4 text-amber-600" />
+          ) : (
+            <RotateCcw className="h-4 w-4 text-emerald-600" />
+          )}
         </Button>
       </div>
     )
@@ -593,10 +628,10 @@ export default function BloquesPage() {
               <div className="space-y-3">
                 <div className="overflow-x-auto">
                   <div className="space-y-3 lg:min-w-[980px]">
-                    <div className="hidden rounded-[16px] border border-slate-200/70 bg-slate-50/70 px-4 py-2 lg:grid lg:grid-cols-[minmax(0,1.4fr)_90px_140px_110px_minmax(0,1.4fr)]">
+                    <div className="hidden rounded-[16px] border border-slate-200/70 bg-slate-50/70 px-4 py-2 lg:grid lg:grid-cols-[minmax(0,1.15fr)_90px_150px_120px_150px] lg:gap-x-4">
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Codigo</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Cantidad</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Costo total</span>
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Costo total</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Estado</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Acciones</span>
                     </div>
@@ -604,7 +639,7 @@ export default function BloquesPage() {
                     <div className="divide-y divide-slate-200/60 overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
                       {filteredBloques.map((bloque) => (
                         <div key={bloque.id} className="px-4 py-3">
-                          <div className="grid gap-2 lg:grid-cols-[minmax(0,1.4fr)_90px_140px_110px_minmax(0,1.4fr)] lg:items-center">
+                          <div className="grid gap-2 lg:grid-cols-[minmax(0,1.15fr)_90px_150px_120px_150px] lg:items-center lg:gap-x-4">
                             <div>
                               <p className="text-sm font-semibold text-slate-900">{getBloqueCodigo(bloque)}</p>
                               <p className="text-[11px] text-slate-500">Ingreso {bloque.fechaIngreso}</p>
@@ -616,7 +651,7 @@ export default function BloquesPage() {
                                 : `${bloque.metrosComprados.toLocaleString()} m3`}
                             </div>
 
-                            <div className="flex items-center justify-between text-sm lg:block lg:text-right">
+                            <div className="flex items-center justify-between text-sm lg:block">
                               <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Costo total</span>
                               <span className="font-semibold text-slate-900">
                                 ${(bloque.costo + bloque.costoTransporte).toLocaleString()}
@@ -636,6 +671,93 @@ export default function BloquesPage() {
             )}
           </CardContent>
         </Card>
+
+        <AlertDialog
+          open={!!deleteTarget}
+          onOpenChange={(open) => {
+            if (!open && !isDeleting) setDeleteTarget(null)
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eliminar bloque/lote</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta accion eliminara el registro definitivamente y no se puede deshacer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            {deleteTarget ? (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <p>
+                  Codigo: <span className="font-semibold">{getBloqueCodigo(deleteTarget)}</span>
+                </p>
+                <p>
+                  Estado actual: <span className="font-semibold">{deleteTarget.estado}</span>
+                </p>
+              </div>
+            ) : null}
+
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-rose-600 hover:bg-rose-700"
+                disabled={!deleteTarget || isDeleting}
+                onClick={(event) => {
+                  event.preventDefault()
+                  if (deleteTarget) void confirmDelete(deleteTarget)
+                }}
+              >
+                {isDeleting ? 'Eliminando...' : 'Eliminar'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={!!statusTarget}
+          onOpenChange={(open) => {
+            if (!open && !isUpdatingStatus) setStatusTarget(null)
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {statusTarget?.estado === 'activo' ? 'Agotar bloque/lote' : 'Reactivar bloque/lote'}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta accion cambiara el estado del registro seleccionado.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            {statusTarget ? (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <p>
+                  Codigo: <span className="font-semibold">{getBloqueCodigo(statusTarget)}</span>
+                </p>
+                <p>
+                  Estado actual: <span className="font-semibold">{statusTarget.estado}</span>
+                </p>
+              </div>
+            ) : null}
+
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isUpdatingStatus}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={!statusTarget || isUpdatingStatus}
+                onClick={(event) => {
+                  event.preventDefault()
+                  if (statusTarget) void confirmToggleEstado(statusTarget)
+                }}
+              >
+                {isUpdatingStatus
+                  ? 'Guardando...'
+                  : statusTarget?.estado === 'activo'
+                    ? 'Confirmar agotado'
+                    : 'Confirmar reactivacion'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <Dialog open={!!selectedBloque} onOpenChange={() => setSelectedBloque(null)}>
           <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
