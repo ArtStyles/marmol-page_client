@@ -313,12 +313,12 @@ export const trabajadores: Trabajador[] = [
 ]
 
 export const equipos: Equipo[] = [
-  { id: 'EQ001', nombre: 'Cortadora Norte 01', tipo: 'Cortadora', codigoInterno: 'COR-01', estado: 'activo', notas: 'Disco nuevo instalado' },
-  { id: 'EQ002', nombre: 'Cortadora Norte 02', tipo: 'Cortadora', codigoInterno: 'COR-02', estado: 'mantenimiento', notas: 'Revision de motor programada' },
-  { id: 'EQ003', nombre: 'Pulidora Central 01', tipo: 'Pulidora', codigoInterno: 'PUL-01', estado: 'activo', notas: 'Operacion estable' },
-  { id: 'EQ004', nombre: 'Pulidora Central 02', tipo: 'Pulidora', codigoInterno: 'PUL-02', estado: 'activo', notas: 'Disponible para turno tarde' },
-  { id: 'EQ005', nombre: 'Escuadradora Este 01', tipo: 'Escuadradora', codigoInterno: 'ESC-01', estado: 'activo', notas: 'Alineada y calibrada' },
-  { id: 'EQ006', nombre: 'Escuadradora Este 02', tipo: 'Escuadradora', codigoInterno: 'ESC-02', estado: 'inactivo', notas: 'Pendiente de repuesto' },
+  { id: 'EQ001', tipo: 'Cortadora', codigoInterno: 'COR-001', estado: 'activo', notas: 'Disco nuevo instalado' },
+  { id: 'EQ002', tipo: 'Cortadora', codigoInterno: 'COR-002', estado: 'mantenimiento', notas: 'Revision de motor programada' },
+  { id: 'EQ003', tipo: 'Pulidora', codigoInterno: 'PUL-001', estado: 'activo', notas: 'Operacion estable' },
+  { id: 'EQ004', tipo: 'Pulidora', codigoInterno: 'PUL-002', estado: 'activo', notas: 'Disponible para turno tarde' },
+  { id: 'EQ005', tipo: 'Escuadradora', codigoInterno: 'ESC-001', estado: 'activo', notas: 'Alineada y calibrada' },
+  { id: 'EQ006', tipo: 'Escuadradora', codigoInterno: 'ESC-002', estado: 'inactivo', notas: 'Pendiente de repuesto' },
 ]
 
 export const produccionDiaria: ProduccionDiaria[] = [
@@ -337,8 +337,8 @@ export const produccionDiaria: ProduccionDiaria[] = [
     totalLosas: 35,
     totalM2: 8.75,
     detallesAcciones: [
-      { id: 'PGA001', accion: 'picar', trabajadorId: 'T001', trabajadorNombre: 'Carlos Mendoza', equipoId: 'EQ001', equipoNombre: 'Cortadora Norte 01', cantidadLosas: 15, metrosCuadrados: 3.75 },
-      { id: 'PGA002', accion: 'pulir', trabajadorId: 'T002', trabajadorNombre: 'Roberto Sánchez', equipoId: 'EQ003', equipoNombre: 'Pulidora Central 01', cantidadLosas: 20, metrosCuadrados: 5.0 },
+      { id: 'PGA001', accion: 'picar', trabajadorId: 'T001', trabajadorNombre: 'Carlos Mendoza', equipoId: 'EQ001', equipoNombre: 'COR-001', cantidadLosas: 15, metrosCuadrados: 3.75 },
+      { id: 'PGA002', accion: 'pulir', trabajadorId: 'T002', trabajadorNombre: 'Roberto Sánchez', equipoId: 'EQ003', equipoNombre: 'PUL-001', cantidadLosas: 20, metrosCuadrados: 5.0 },
     ],
   },
   {
@@ -356,7 +356,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
     totalLosas: 25,
     totalM2: 4.17,
     detallesAcciones: [
-      { id: 'PGA003', accion: 'escuadrar', trabajadorId: 'T003', trabajadorNombre: 'Miguel Ángel Torres', equipoId: 'EQ005', equipoNombre: 'Escuadradora Este 01', cantidadLosas: 25, metrosCuadrados: 4.17 },
+      { id: 'PGA003', accion: 'escuadrar', trabajadorId: 'T003', trabajadorNombre: 'Miguel Ángel Torres', equipoId: 'EQ005', equipoNombre: 'ESC-001', cantidadLosas: 25, metrosCuadrados: 4.17 },
     ],
   },
   {
@@ -374,8 +374,8 @@ export const produccionDiaria: ProduccionDiaria[] = [
     totalLosas: 65,
     totalM2: 16.25,
     detallesAcciones: [
-      { id: 'PGA004', accion: 'pulir', trabajadorId: 'T004', trabajadorNombre: 'Fernando Ruiz', equipoId: 'EQ004', equipoNombre: 'Pulidora Central 02', cantidadLosas: 35, metrosCuadrados: 8.75 },
-      { id: 'PGA005', accion: 'escuadrar', trabajadorId: 'T001', trabajadorNombre: 'Carlos Mendoza', equipoId: 'EQ005', equipoNombre: 'Escuadradora Este 01', cantidadLosas: 30, metrosCuadrados: 7.5 },
+      { id: 'PGA004', accion: 'pulir', trabajadorId: 'T004', trabajadorNombre: 'Fernando Ruiz', equipoId: 'EQ004', equipoNombre: 'PUL-002', cantidadLosas: 35, metrosCuadrados: 8.75 },
+      { id: 'PGA005', accion: 'escuadrar', trabajadorId: 'T001', trabajadorNombre: 'Carlos Mendoza', equipoId: 'EQ005', equipoNombre: 'ESC-001', cantidadLosas: 30, metrosCuadrados: 7.5 },
     ],
   },
   {

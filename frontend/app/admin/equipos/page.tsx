@@ -23,9 +23,9 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import type { Equipo, TipoEquipo } from '@/lib/types'
-import { createEquipo, getEquipos } from '@/lib/resources-api'
+import { createEquipo, deleteEquipo, getEquipos, updateEquipo } from '@/lib/resources-api'
 import { cn } from '@/lib/utils'
-import { Plus, Search, Wrench } from 'lucide-react'
+import { Pencil, Plus, Search, Trash2, Wrench } from 'lucide-react'
 
 const tipoOptions: TipoEquipo[] = ['Cortadora', 'Pulidora', 'Escuadradora']
 
@@ -36,17 +36,13 @@ const estadoStyles: Record<Equipo['estado'], string> = {
 }
 
 type FormData = {
-  nombre: string
   tipo: TipoEquipo
-  codigoInterno: string
   estado: Equipo['estado']
   notas: string
 }
 
 const emptyForm: FormData = {
-  nombre: '',
   tipo: 'Cortadora',
-  codigoInterno: '',
   estado: 'activo',
   notas: '',
 }
@@ -56,11 +52,17 @@ export default function EquiposPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [tipoFiltro, setTipoFiltro] = useState<'todos' | TipoEquipo>('todos')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [formError, setFormError] = useState('')
+  const [editError, setEditError] = useState('')
   const [formData, setFormData] = useState<FormData>(emptyForm)
+  const [editingEquipo, setEditingEquipo] = useState<Equipo | null>(null)
+  const [editFormData, setEditFormData] = useState<FormData>(emptyForm)
 
   useEffect(() => {
     let alive = true
@@ -94,7 +96,6 @@ export default function EquiposPage() {
       const matchTipo = tipoFiltro === 'todos' || equipo.tipo === tipoFiltro
       const matchQuery =
         query.length === 0 ||
-        equipo.nombre.toLowerCase().includes(query) ||
         equipo.codigoInterno.toLowerCase().includes(query) ||
         equipo.notas.toLowerCase().includes(query)
 
@@ -128,29 +129,15 @@ export default function EquiposPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
 
-    const nombre = formData.nombre.trim()
-    const codigoInterno = formData.codigoInterno.trim().toUpperCase()
     const notas = formData.notas.trim()
-
-    if (!nombre || !codigoInterno) {
-      setFormError('Completa nombre y codigo interno.')
-      return
-    }
-
-    if (equipos.some((equipo) => equipo.codigoInterno.toLowerCase() === codigoInterno.toLowerCase())) {
-      setFormError('El codigo interno ya existe.')
-      return
-    }
 
     setFormError('')
     setIsSaving(true)
     try {
       const newEquipo = await createEquipo({
-        nombre,
         tipo: formData.tipo,
-        codigoInterno,
         estado: formData.estado,
-        notas: notas || 'Sin notas',
+        notas,
       })
       setEquipos((prev) => [newEquipo, ...prev])
       resetForm()
@@ -158,6 +145,65 @@ export default function EquiposPage() {
       setFormError(error instanceof Error ? error.message : 'No se pudo guardar el equipo.')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const openEditDialog = (equipo: Equipo) => {
+    setEditingEquipo(equipo)
+    setEditFormData({
+      tipo: equipo.tipo,
+      estado: equipo.estado,
+      notas: equipo.notas,
+    })
+    setEditError('')
+    setIsEditDialogOpen(true)
+  }
+
+  const closeEditDialog = () => {
+    if (isUpdating) return
+    setIsEditDialogOpen(false)
+    setEditError('')
+    setEditingEquipo(null)
+    setEditFormData(emptyForm)
+  }
+
+  const handleUpdateSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!editingEquipo) return
+
+    setEditError('')
+    setIsUpdating(true)
+    try {
+      const updated = await updateEquipo(editingEquipo.id, {
+        tipo: editFormData.tipo,
+        estado: editFormData.estado,
+        notas: editFormData.notas.trim(),
+      })
+
+      setEquipos((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      closeEditDialog()
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : 'No se pudo actualizar el equipo.')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  const handleDelete = async (equipo: Equipo) => {
+    const confirmed = window.confirm(
+      `¿Eliminar el equipo ${equipo.codigoInterno}? Esta accion no se puede deshacer.`,
+    )
+    if (!confirmed) return
+
+    setLoadError(null)
+    setDeletingId(equipo.id)
+    try {
+      await deleteEquipo(equipo.id)
+      setEquipos((prev) => prev.filter((item) => item.id !== equipo.id))
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'No se pudo eliminar el equipo.')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -228,14 +274,9 @@ export default function EquiposPage() {
                 <DialogTitle>Registrar equipo</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Nombre</Label>
-                  <Input
-                    value={formData.nombre}
-                    onChange={(event) => setFormData((prev) => ({ ...prev, nombre: event.target.value }))}
-                    placeholder="Ej: Pulidora Central 03"
-                  />
-                </div>
+                <p className="rounded-lg border border-slate-200/80 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  El codigo del equipo se genera automaticamente segun el tipo.
+                </p>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -278,15 +319,6 @@ export default function EquiposPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Codigo interno</Label>
-                  <Input
-                    value={formData.codigoInterno}
-                    onChange={(event) => setFormData((prev) => ({ ...prev, codigoInterno: event.target.value }))}
-                    placeholder="Ej: PUL-03"
-                  />
-                </div>
-
-                <div className="space-y-2">
                   <Label>Notas</Label>
                   <Textarea
                     value={formData.notas}
@@ -309,6 +341,95 @@ export default function EquiposPage() {
               </form>
             </DialogContent>
           </Dialog>
+
+          <Dialog
+            open={isEditDialogOpen}
+            onOpenChange={(open) => {
+              if (!open) closeEditDialog()
+            }}
+          >
+            <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Editar equipo</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleUpdateSubmit} className="space-y-4">
+                <div className="rounded-lg border border-slate-200/80 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  Codigo: <span className="font-semibold">{editingEquipo?.codigoInterno ?? '-'}</span>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Tipo de equipo</Label>
+                    <Select
+                      value={editFormData.tipo}
+                      onValueChange={(value: TipoEquipo) =>
+                        setEditFormData((prev) => ({ ...prev, tipo: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tipoOptions.map((tipo) => (
+                          <SelectItem key={tipo} value={tipo}>
+                            {tipo}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Estado</Label>
+                    <Select
+                      value={editFormData.estado}
+                      onValueChange={(value: Equipo['estado']) =>
+                        setEditFormData((prev) => ({ ...prev, estado: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="activo">Activo</SelectItem>
+                        <SelectItem value="mantenimiento">Mantenimiento</SelectItem>
+                        <SelectItem value="inactivo">Inactivo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Notas</Label>
+                  <Textarea
+                    value={editFormData.notas}
+                    onChange={(event) =>
+                      setEditFormData((prev) => ({ ...prev, notas: event.target.value }))
+                    }
+                    placeholder="Observaciones del equipo"
+                    className="min-h-[88px]"
+                  />
+                </div>
+
+                {editError && <p className="text-sm text-destructive">{editError}</p>}
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={closeEditDialog}
+                    className="flex-1 bg-transparent"
+                    disabled={isUpdating}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" className="flex-1" disabled={isUpdating}>
+                    {isUpdating ? 'Guardando...' : 'Guardar cambios'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
@@ -318,7 +439,7 @@ export default function EquiposPage() {
               <div className="relative w-full sm:max-w-sm">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por nombre, codigo o nota..."
+                  placeholder="Buscar por codigo o nota..."
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   className="pl-9"
@@ -348,13 +469,13 @@ export default function EquiposPage() {
           <CardContent className="p-0">
             <div className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
               <div className="overflow-x-auto">
-                <div className="min-w-[920px]">
-                  <div className="grid grid-cols-[minmax(220px,1.2fr)_140px_140px_140px_minmax(220px,1fr)] gap-3 border-b border-slate-200/70 bg-slate-50/70 px-4 py-2 text-[10px] uppercase tracking-[0.28em] text-slate-500">
-                    <span>Equipo</span>
-                    <span>Tipo</span>
+                <div className="w-full">
+                  <div className="grid grid-cols-[minmax(128px,1.1fr)_92px_96px_minmax(110px,1fr)_72px] gap-x-1 border-b border-slate-200/70 bg-slate-50/70 px-2 py-2 text-[10px] uppercase tracking-[0.22em] text-slate-500">
                     <span>Codigo</span>
+                    <span>Tipo</span>
                     <span>Estado</span>
                     <span>Notas</span>
+                    <span className="text-right">Acciones</span>
                   </div>
                   <div className="divide-y divide-slate-200/60">
                     {loading ? (
@@ -367,24 +488,45 @@ export default function EquiposPage() {
                       equiposFiltrados.map((equipo) => (
                         <div
                           key={equipo.id}
-                          className="grid grid-cols-[minmax(220px,1.2fr)_140px_140px_140px_minmax(220px,1fr)] items-center gap-3 px-4 py-3"
+                          className="grid grid-cols-[minmax(128px,1.1fr)_92px_96px_minmax(110px,1fr)_72px] items-center gap-x-1 px-2 py-3"
                         >
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
                             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
                               <Wrench className="h-4 w-4" />
                             </span>
                             <div>
-                              <p className="text-sm font-semibold text-slate-900">{equipo.nombre}</p>
+                              <p className="text-sm font-semibold text-slate-900">{equipo.codigoInterno}</p>
                               <p className="text-[11px] text-slate-500">{equipo.id}</p>
                             </div>
                           </div>
 
                           <p className="text-sm text-slate-700">{equipo.tipo}</p>
-                          <p className="text-sm font-medium text-slate-800">{equipo.codigoInterno}</p>
                           <Badge variant="outline" className={cn('w-fit', estadoStyles[equipo.estado])}>
                             {equipo.estado}
                           </Badge>
-                          <p className="text-sm text-slate-600">{equipo.notas}</p>
+                          <p className="truncate text-sm text-slate-600">{equipo.notas}</p>
+                          <div className="flex items-center justify-end gap-0.5">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-7 w-7 bg-transparent p-0"
+                              onClick={() => openEditDialog(equipo)}
+                              disabled={isUpdating || deletingId === equipo.id}
+                              title="Editar equipo"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-7 w-7 bg-transparent p-0 text-rose-700 hover:text-rose-800"
+                              onClick={() => void handleDelete(equipo)}
+                              disabled={isUpdating || deletingId === equipo.id}
+                              title="Eliminar equipo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
                       ))
                     )}

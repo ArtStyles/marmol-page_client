@@ -26,6 +26,7 @@ type Props = {
   canWriteProduccion: boolean
   fechasOrdenadas: string[]
   groupedByDate: Record<string, ProduccionDiaria[]>
+  resolveEquipoCodigo: (equipoId: string, equipoNombre: string) => string
   resolveOrigenCodigo: (origenId: string, origenNombre: string) => string
   onEditRegistro: (registro: ProduccionDiaria) => void
   onDeleteRegistro: (registro: ProduccionDiaria) => void
@@ -50,6 +51,7 @@ export function ProduccionRegistrosList({
   canWriteProduccion,
   fechasOrdenadas,
   groupedByDate,
+  resolveEquipoCodigo,
   resolveOrigenCodigo,
   onEditRegistro,
   onDeleteRegistro,
@@ -193,9 +195,12 @@ export function ProduccionRegistrosList({
                                       current.totalReutilizable += getDetalleReutilizableLosas(item.detalle)
                                       current.totalResina += item.detalle.cantidadResina ?? 0
 
-                                      if (item.detalle.equipoNombre?.trim()) {
-                                        current.equipos.add(item.detalle.equipoNombre.trim())
-                                      }
+                                      current.equipos.add(
+                                        resolveEquipoCodigo(
+                                          item.detalle.equipoId,
+                                          item.detalle.equipoNombre,
+                                        ),
+                                      )
 
                                       const trabajadores = getDetalleTrabajadores(item.detalle)
                                       if (trabajadores.length === 0) {
@@ -311,7 +316,7 @@ export function ProduccionRegistrosList({
                                                     Equipos:{' '}
                                                     {dimensionItem.equipos.length > 0
                                                       ? dimensionItem.equipos.join(', ')
-                                                      : 'Sin equipo'}
+                                                      : 'SIN-EQUIPO'}
                                                   </p>
                                                   <p className="truncate text-base text-slate-500">
                                                     Personal: {dimensionItem.personal.join(', ')}

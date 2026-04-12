@@ -48,7 +48,7 @@ export interface BloqueOLote {
   losasPerdidas: number
   metrosVendibles: number
   gananciaReal: number
-  estado: 'activo' | 'agotado'
+  estado: 'activo' | 'agotado' | 'vendido'
 }
 
 export interface Producto {
@@ -90,7 +90,6 @@ export interface TarifasTrabajador {
 
 export interface Equipo {
   id: string
-  nombre: string
   tipo: TipoEquipo
   codigoInterno: string
   estado: 'activo' | 'mantenimiento' | 'inactivo'

@@ -165,6 +165,15 @@ export const useProduccionPageState = () => {
     [trabajadores],
   )
   const equiposActivos = useMemo(() => equipos.filter((equipo) => equipo.estado === 'activo'), [equipos])
+  const codigosEquipoPorId = useMemo(() => {
+    const map = new Map<string, string>()
+    equiposActivos.forEach((equipo) => {
+      const codigo = equipo.codigoInterno.trim()
+      if (!codigo) return
+      map.set(equipo.id, codigo)
+    })
+    return map
+  }, [equiposActivos])
   const origenesActivosParaPicar = useMemo(
     () =>
       bloquesYLotes.filter(
@@ -297,6 +306,22 @@ export const useProduccionPageState = () => {
       return 'SIN-CODIGO'
     },
     [codigosOrigenPorId],
+  )
+
+  const resolveEquipoCodigo = useCallback(
+    (equipoId: string, equipoNombre: string): string => {
+      if (!equipoId || equipoId === 'EQUIPO-N/A' || equipoId === 'sin-equipo' || equipoId === 'legacy') {
+        return 'SIN-EQUIPO'
+      }
+
+      const codigo = codigosEquipoPorId.get(equipoId.trim())
+      if (codigo) return codigo
+
+      const fallback = equipoNombre.trim()
+      if (!fallback) return 'SIN-EQUIPO'
+      return fallback
+    },
+    [codigosEquipoPorId],
   )
 
   const normalizeUsageForPlancha = useCallback((uso: ActionUsageForm): ActionUsageForm => {
@@ -705,9 +730,9 @@ export const useProduccionPageState = () => {
           return
         }
 
-        const equipoDetalle: { id: string; nombre: string } = {
+        const equipoDetalle: { id: string; codigoInterno: string } = {
           id: 'EQUIPO-N/A',
-          nombre: 'Sin equipo',
+          codigoInterno: 'SIN-EQUIPO',
         }
 
         if (requiresEquipo) {
@@ -724,7 +749,7 @@ export const useProduccionPageState = () => {
           }
 
           equipoDetalle.id = equipo.id
-          equipoDetalle.nombre = equipo.nombre
+          equipoDetalle.codigoInterno = equipo.codigoInterno
         }
 
         const dimensionesCapturadas = usoNormalizado.dimensiones.filter(
@@ -867,7 +892,7 @@ export const useProduccionPageState = () => {
               nombre: trabajador.nombre,
             })),
             equipoId: equipoDetalle.id,
-            equipoNombre: equipoDetalle.nombre,
+            equipoNombre: equipoDetalle.codigoInterno,
             cantidadLosas: dimensionUso.cantidadLosas,
             metrosCuadrados: losasAMetros(dimensionUso.cantidadLosas, dimensionUsoReal),
             losasMermaTotal: mermaTotalLosas,
@@ -1091,6 +1116,7 @@ export const useProduccionPageState = () => {
     toggleUsageDimension,
     trabajadoresActivos,
     resolveOrigenCodigo,
+    resolveEquipoCodigo,
     setEntryActionError,
     updateProduccionRegistro,
     updateUsage,

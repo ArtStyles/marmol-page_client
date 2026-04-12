@@ -22,7 +22,7 @@ function rowToBloque(r: Record<string, unknown>): BloqueOLote {
     losasPerdidas: Number(r.losas_perdidas),
     metrosVendibles: Number(r.metros_vendibles),
     gananciaReal: Number(r.ganancia_real),
-    estado: r.estado as 'activo' | 'agotado',
+    estado: r.estado as 'activo' | 'agotado' | 'vendido',
   }
 }
 

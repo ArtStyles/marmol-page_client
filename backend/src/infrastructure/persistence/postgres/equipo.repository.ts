@@ -5,11 +5,14 @@ import { nextId } from './helpers.js'
 import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToEquipo(r: Record<string, unknown>): Equipo {
+  const codigoDesdeColumna =
+    typeof r.codigo_interno === 'string' ? r.codigo_interno.trim() : ''
+  const codigoDesdeNombre = typeof r.nombre === 'string' ? r.nombre.trim() : ''
+
   return {
     id: r.id as string,
-    nombre: r.nombre as string,
     tipo: r.tipo as Equipo['tipo'],
-    codigoInterno: r.codigo_interno as string,
+    codigoInterno: codigoDesdeColumna || codigoDesdeNombre,
     estado: r.estado as Equipo['estado'],
     notas: (r.notas as string) ?? '',
   }
@@ -42,7 +45,15 @@ export class PostgresEquipoRepository implements EquipoRepositoryPort {
     const id = await nextId(pool, 'EQ', 'equipos')
     await pool.query(
       `INSERT INTO equipos (id, workshop_id, nombre, tipo, codigo_interno, estado, notas) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [id, workshopId, data.nombre, data.tipo, data.codigoInterno, data.estado, data.notas ?? '']
+      [
+        id,
+        workshopId,
+        data.codigoInterno,
+        data.tipo,
+        data.codigoInterno,
+        data.estado,
+        data.notas ?? '',
+      ]
     )
     return this.findById(id) as Promise<Equipo>
   }
@@ -55,7 +66,15 @@ export class PostgresEquipoRepository implements EquipoRepositoryPort {
     const workshopId = getCurrentWorkshopId()
     await pool.query(
       `UPDATE equipos SET nombre=$2, tipo=$3, codigo_interno=$4, estado=$5, notas=$6 WHERE id=$1 AND workshop_id=$7`,
-      [id, merged.nombre, merged.tipo, merged.codigoInterno, merged.estado, merged.notas ?? '', workshopId]
+      [
+        id,
+        merged.codigoInterno,
+        merged.tipo,
+        merged.codigoInterno,
+        merged.estado,
+        merged.notas ?? '',
+        workshopId,
+      ]
     )
     return this.findById(id)
   }

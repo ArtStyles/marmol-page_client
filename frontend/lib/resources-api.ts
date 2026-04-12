@@ -125,7 +125,9 @@ export const deleteTrabajador = async (trabajadorId: string): Promise<boolean> =
 
 export const getEquipos = (): Promise<Equipo[]> => apiRequest<Equipo[]>('/equipos')
 
-export const createEquipo = (input: Omit<Equipo, 'id'>): Promise<Equipo> =>
+export const createEquipo = (
+  input: Omit<Equipo, 'id' | 'codigoInterno'>,
+): Promise<Equipo> =>
   apiRequest<Equipo>('/equipos', {
     method: 'POST',
     body: input,

@@ -57,7 +57,7 @@ export const createBloqueSchema = z.object({
   losasPerdidas: z.number(),
   metrosVendibles: z.number(),
   gananciaReal: z.number(),
-  estado: z.enum(['activo', 'agotado']),
+  estado: z.enum(['activo', 'agotado', 'vendido']),
 })
 
 export const updateBloqueSchema = createBloqueSchema.partial()
@@ -112,11 +112,9 @@ export const createTrabajadorSchema = z.object({
 export const updateTrabajadorSchema = createTrabajadorSchema.partial()
 
 export const createEquipoSchema = z.object({
-  nombre: z.string().min(1),
   tipo: tipoEquipoSchema,
-  codigoInterno: z.string(),
   estado: z.enum(['activo', 'mantenimiento', 'inactivo']),
-  notas: z.string(),
+  notas: z.string().optional(),
 })
 
 export const updateEquipoSchema = createEquipoSchema.partial()
@@ -269,7 +267,7 @@ export const updateConfiguracionSchema = z.object({
   reportesVentas: z.boolean().optional(),
 })
 
-// ----- ProducciÃ³n diaria -----
+// ----- ProducciÃƒÂ³n diaria -----
 const produccionDetalleAccionSchema = z.object({
   accion: accionLosaSchema,
   trabajadorId: z.string().optional(),
@@ -335,7 +333,7 @@ export const updateProduccionSchema = createProduccionSchema
   })
   .partial()
 
-// ----- ProducciÃ³n por trabajador -----
+// ----- ProducciÃƒÂ³n por trabajador -----
 export const createProduccionTrabajadorSchema = z.object({
   fecha: z.string(),
   trabajadorId: z.string(),

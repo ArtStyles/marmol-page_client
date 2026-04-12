@@ -1,4 +1,4 @@
-﻿import { DomainError } from '../../errors/domain.error.js'
+import { DomainError } from '../../errors/domain.error.js'
 import type {
   AprobarEntradaProduccionAlmacenDto,
   AprobarProduccionTallerDto,
@@ -434,7 +434,7 @@ async function actualizarBloquePorProduccion(
     losasProducidas: bloque.losasProducidas + dto.totalLosas,
     losasPerdidas: bloque.losasPerdidas + totalLosasPerdidas,
     metrosVendibles,
-    estado: metrosVendibles <= 0 ? 'agotado' : bloque.estado,
+    estado: bloque.estado === 'vendido' ? 'vendido' : metrosVendibles <= 0 ? 'agotado' : bloque.estado,
   })
 }
 

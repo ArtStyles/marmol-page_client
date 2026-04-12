@@ -662,38 +662,25 @@ export default function TrabajadoresPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <div className="lg:min-w-[1160px]">
-              <div className="hidden lg:grid lg:grid-cols-[minmax(0,1.8fr)_110px_190px_90px_120px_120px_120px_176px] border-b border-slate-200/70 bg-slate-50/70 px-4 py-2">
+                <div className="lg:min-w-[760px]">
+              <div className="hidden lg:grid lg:grid-cols-[minmax(0,1.8fr)_110px_190px_132px] border-b border-slate-200/70 bg-slate-50/70 px-4 py-2">
                 <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Trabajador</span>
                 <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Estado</span>
                 <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Compensación</span>
-                <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Losas</span>
-                <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Pagos</span>
-                <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Bonos</span>
-                <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Pendiente</span>
                 <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Acciones</span>
               </div>
 
               <div className="divide-y divide-slate-200/60">
                 {filteredTrabajadores.map((worker) => (
                   <div key={worker.id} className="px-4 py-3">
-                    <div className="grid gap-2 lg:grid-cols-[minmax(0,1.8fr)_110px_190px_90px_120px_120px_120px_176px] lg:items-center">
+                    <div className="grid gap-2 lg:grid-cols-[minmax(0,1.8fr)_110px_190px_132px] lg:items-center">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9">
-                            <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                              {getInitials(worker.nombre)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-slate-900">{worker.nombre}</p>
-                            <p className="truncate text-[11px] text-slate-600">{worker.rol}</p>
-                            <p className="truncate text-[11px] text-slate-500">{worker.email}</p>
-                            <p className="truncate text-[11px] text-slate-500">
-                              {worker.telefono}{worker.usuario ? ` | ${worker.usuario}` : ''}
-                            </p>
-                          </div>
-                        </div>
+                        <p className="truncate text-sm font-semibold text-slate-900">{worker.nombre}</p>
+                        <p className="truncate text-[11px] text-slate-600">{worker.rol}</p>
+                        <p className="truncate text-[11px] text-slate-500">{worker.email}</p>
+                        <p className="truncate text-[11px] text-slate-500">
+                          {worker.telefono}{worker.usuario ? ` | ${worker.usuario}` : ''}
+                        </p>
                       </div>
 
                       <div>
@@ -714,33 +701,7 @@ export default function TrabajadoresPage() {
                         <span className="text-xs font-medium text-slate-700">{getEsquemaCompensacion(worker)}</span>
                       </div>
 
-                      <div className="flex items-center justify-between text-sm lg:block lg:text-right">
-                        <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Losas</span>
-                        <span className="font-semibold text-slate-900">
-                          {worker.rol === 'Obrero' ? worker.losasProducidas : '-'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-sm lg:block lg:text-right">
-                        <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Pagos</span>
-                        <span className="font-semibold text-slate-900">${worker.pagosTotales.toLocaleString()}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-sm lg:block lg:text-right">
-                        <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Bonos</span>
-                        <span className={worker.bonosTotales > 0 ? 'font-semibold text-emerald-700' : 'text-slate-500'}>
-                          {worker.bonosTotales > 0 ? `+$${worker.bonosTotales.toLocaleString()}` : '-'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-sm lg:block lg:text-right">
-                        <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Pendiente</span>
-                        <span className={getPendienteTrabajador(worker) > 0 ? 'font-semibold text-amber-700' : 'font-semibold text-emerald-700'}>
-                          ${getPendienteTrabajador(worker).toLocaleString()}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="grid w-fit grid-cols-2 gap-1 justify-self-start lg:justify-self-end">
                         <Button size="icon" variant="ghost" onClick={() => setSelectedWorker(worker)}>
                           <Eye className="h-4 w-4" />
                         </Button>

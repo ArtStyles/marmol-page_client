@@ -57,6 +57,7 @@ export const buildAsignacionesFromProduccion = (
   registros: ProduccionDiaria[],
   tarifasGlobales: Record<AccionLosa, number>,
   trabajadoresPorId: Map<string, Trabajador>,
+  codigosEquipoPorId: Map<string, string>,
 ): AsignacionItem[] => {
   const items: AsignacionItem[] = []
 
@@ -68,6 +69,11 @@ export const buildAsignacionesFromProduccion = (
         const trabajadoresDetalle = getDetalleTrabajadores(detalle)
         const integrantesEquipo = Math.max(trabajadoresDetalle.length, 1)
         const losasEquipo = detalle.cantidadLosas
+        const codigoEquipo = resolveEquipoCodigo(
+          detalle.equipoId,
+          detalle.equipoNombre,
+          codigosEquipoPorId,
+        )
         const m2Equipo =
           detalle.metrosCuadrados > 0
             ? detalle.metrosCuadrados
@@ -89,7 +95,7 @@ export const buildAsignacionesFromProduccion = (
             dimension: registro.dimension,
             accion: detalle.accion,
             equipoId: detalle.equipoId,
-            equipoNombre: detalle.equipoNombre,
+            equipoNombre: codigoEquipo,
             integrantesEquipo,
             losasEquipo,
             m2Equipo,
@@ -126,7 +132,7 @@ export const buildAsignacionesFromProduccion = (
             dimension: registro.dimension,
             accion: detalle.accion,
             equipoId: detalle.equipoId,
-            equipoNombre: detalle.equipoNombre,
+            equipoNombre: codigoEquipo,
             integrantesEquipo,
             losasEquipo,
             m2Equipo,
@@ -166,7 +172,7 @@ export const buildAsignacionesFromProduccion = (
           dimension: registro.dimension,
           accion: entry.accion,
           equipoId: 'sin-equipo',
-          equipoNombre: 'Sin equipo',
+          equipoNombre: 'SIN-EQUIPO',
           integrantesEquipo: 1,
           losasEquipo: entry.cantidad,
           m2Equipo: totalM2,
@@ -188,6 +194,23 @@ export const buildAsignacionesFromProduccion = (
 
     return actionSortIndex(a.accion) - actionSortIndex(b.accion)
   })
+}
+
+function resolveEquipoCodigo(
+  equipoId: string,
+  equipoNombre: string,
+  codigosEquipoPorId: Map<string, string>,
+): string {
+  if (!equipoId || equipoId === 'EQUIPO-N/A' || equipoId === 'sin-equipo' || equipoId === 'legacy') {
+    return 'SIN-EQUIPO'
+  }
+
+  const codigo = codigosEquipoPorId.get(equipoId.trim())
+  if (codigo) return codigo
+
+  const fallback = equipoNombre.trim()
+  if (!fallback) return 'SIN-EQUIPO'
+  return fallback
 }
 
 export const formatLosas = (value: number): string =>

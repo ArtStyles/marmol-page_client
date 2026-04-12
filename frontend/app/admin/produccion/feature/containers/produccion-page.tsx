@@ -81,6 +81,7 @@ export default function ProduccionPage() {
     toggleUsageDimension,
     trabajadoresActivos,
     updateProduccionRegistro,
+    resolveEquipoCodigo,
     resolveOrigenCodigo,
     updateUsage,
     updateUsageDimension,
@@ -217,7 +218,7 @@ export default function ProduccionPage() {
   const buildUpdatedPicarDetalles = (
     registro: ProduccionDiaria,
     nuevaCantidadPicar: number,
-    equipoSeleccionado: { id: string; nombre: string },
+    equipoSeleccionado: { id: string; codigoInterno: string },
     trabajadoresSeleccionados: Array<{ id: string; nombre: string }>,
   ): ProduccionDetalleAccion[] | undefined => {
     const trabajadoresPayload = trabajadoresSeleccionados.map((trabajador) => ({
@@ -232,7 +233,7 @@ export default function ProduccionPage() {
       trabajadorNombre: trabajadorPrincipal?.nombre,
       trabajadores: trabajadoresPayload,
       equipoId: equipoSeleccionado.id,
-      equipoNombre: equipoSeleccionado.nombre,
+      equipoNombre: equipoSeleccionado.codigoInterno,
       cantidadLosas: nuevaCantidadPicar,
       metrosCuadrados: losasAMetros(nuevaCantidadPicar, registro.dimension),
       losasMermaTotal: 0,
@@ -276,7 +277,7 @@ export default function ProduccionPage() {
         trabajadorNombre: trabajadorPrincipal?.nombre,
         trabajadores: trabajadoresPayload,
         equipoId: equipoSeleccionado.id,
-        equipoNombre: equipoSeleccionado.nombre,
+        equipoNombre: equipoSeleccionado.codigoInterno,
         cantidadLosas,
         metrosCuadrados: losasAMetros(cantidadLosas, registro.dimension),
       })
@@ -679,7 +680,7 @@ export default function ProduccionPage() {
                     disabled={entryEditSubmitting}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar equipo" />
+                      <SelectValue placeholder="Seleccionar codigo" />
                     </SelectTrigger>
                     <SelectContent>
                       {equiposPicarActivos.length === 0 ? (
@@ -689,7 +690,7 @@ export default function ProduccionPage() {
                       ) : (
                         equiposPicarActivos.map((equipo) => (
                           <SelectItem key={equipo.id} value={equipo.id}>
-                            {equipo.nombre}
+                            {equipo.codigoInterno}
                           </SelectItem>
                         ))
                       )}
@@ -823,6 +824,7 @@ export default function ProduccionPage() {
           canWriteProduccion={canWriteProduccion}
           fechasOrdenadas={fechasOrdenadas}
           groupedByDate={groupedByDate}
+          resolveEquipoCodigo={resolveEquipoCodigo}
           resolveOrigenCodigo={resolveOrigenCodigo}
           onEditRegistro={openEntryEditDialog}
           onDeleteRegistro={openEntryDeleteDialog}

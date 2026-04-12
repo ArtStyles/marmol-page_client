@@ -1,7 +1,7 @@
 -- Schema para la base de datos "marmol"
 -- Ejecutar una vez en pgAdmin (o: psql -U usuario -d marmol -f schema.sql)
 
--- Configuración del sistema (una sola fila)
+-- ConfiguraciÃ³n del sistema (una sola fila)
 CREATE TABLE IF NOT EXISTS configuracion (
   id TEXT PRIMARY KEY DEFAULT 'default',
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS bloques (
   losas_perdidas INTEGER NOT NULL DEFAULT 0,
   metros_vendibles NUMERIC(10,2) NOT NULL DEFAULT 0,
   ganancia_real NUMERIC(14,2) NOT NULL DEFAULT 0,
-  estado TEXT NOT NULL CHECK (estado IN ('activo', 'agotado')),
+  estado TEXT NOT NULL CHECK (estado IN ('activo', 'agotado', 'vendido')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS equipos (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Producción diaria
+-- ProducciÃ³n diaria
 CREATE TABLE IF NOT EXISTS produccion (
   id TEXT PRIMARY KEY,
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS produccion (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Producción por trabajador
+-- ProducciÃ³n por trabajador
 CREATE TABLE IF NOT EXISTS produccion_trabajadores (
   id TEXT PRIMARY KEY,
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
@@ -380,6 +380,10 @@ ALTER TABLE produccion_trabajadores DROP CONSTRAINT IF EXISTS produccion_trabaja
 ALTER TABLE produccion_trabajadores
   ADD CONSTRAINT produccion_trabajadores_accion_check
   CHECK (accion IN ('picar', 'escuadrar', 'devastar', 'resinar', 'pulir'));
+ALTER TABLE bloques DROP CONSTRAINT IF EXISTS bloques_estado_check;
+ALTER TABLE bloques
+  ADD CONSTRAINT bloques_estado_check
+  CHECK (estado IN ('activo', 'agotado', 'vendido'));
 ALTER TABLE productos DROP CONSTRAINT IF EXISTS productos_estado_check;
 ALTER TABLE productos
   ADD CONSTRAINT productos_estado_check
@@ -402,6 +406,8 @@ CREATE INDEX IF NOT EXISTS idx_productos_workshop_ubicacion ON productos(worksho
 CREATE INDEX IF NOT EXISTS idx_catalogo_items_workshop_id ON catalogo_items(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_trabajadores_workshop_id ON trabajadores(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_equipos_workshop_id ON equipos(workshop_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_equipos_workshop_codigo_interno
+  ON equipos(workshop_id, codigo_interno);
 CREATE INDEX IF NOT EXISTS idx_produccion_workshop_id ON produccion(workshop_id);
 DROP INDEX IF EXISTS idx_produccion_unique_daily_combo;
 CREATE INDEX IF NOT EXISTS idx_produccion_daily_combo
@@ -600,7 +606,7 @@ WITH role_group_map AS (
       WHEN u.role = 'Gestor de Ventas' THEN 'grp_ventas'
       WHEN u.role = 'Jefe de Almacen' THEN 'grp_almacen'
       WHEN u.role = 'Jefe de Turno de Produccion' THEN 'grp_produccion'
-      WHEN u.role = 'Jefe de Turno de Producción' THEN 'grp_produccion'
+      WHEN u.role = 'Jefe de Turno de ProducciÃ³n' THEN 'grp_produccion'
       WHEN u.role = 'Obrero' THEN 'grp_obrero'
       ELSE NULL
     END AS group_id

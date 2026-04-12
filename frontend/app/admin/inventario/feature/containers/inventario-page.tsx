@@ -93,7 +93,7 @@ const inventoryChartConfig = {
     color: 'hsl(222, 47%, 11%)',
   },
   m2: {
-    label: 'm²',
+    label: 'mÂ²',
     color: 'hsl(160, 84%, 39%)',
   },
 } satisfies ChartConfig
@@ -107,7 +107,7 @@ const rankingLosasConfig = {
 
 const rankingM2Config = {
   m2: {
-    label: 'm²',
+    label: 'mÂ²',
     color: 'hsl(160, 84%, 39%)',
   },
 } satisfies ChartConfig
@@ -190,7 +190,7 @@ function buildProductoProcesoOptionLabel(
   origenCodigo: string,
   producto: Pick<Producto, 'estado' | 'cantidadLosas'>,
 ): string {
-  return [origenCodigo, producto.estado, `${producto.cantidadLosas} losas`].join(' · ')
+  return [origenCodigo, producto.estado, `${producto.cantidadLosas} losas`].join(' Â· ')
 }
 
 function formatDateTime(value: string | undefined): string {
@@ -362,6 +362,21 @@ export default function InventarioPage() {
     ? hasPermission(currentUser, 'inventario:write')
     : false
 
+  const bloquesPorId = useMemo(() => {
+    const map = new Map<string, BloqueOLote>()
+    bloquesYLotes.forEach((bloque) => {
+      map.set(bloque.id.trim(), bloque)
+    })
+    return map
+  }, [bloquesYLotes])
+
+  const origenesVendidos = useMemo(() => {
+    const ids = new Set<string>()
+    bloquesYLotes.forEach((bloque) => {
+      if (bloque.estado === 'vendido') ids.add(bloque.id.trim())
+    })
+    return ids
+  }, [bloquesYLotes])
   const codigosOrigenPorId = useMemo(() => {
     const map = new Map<string, string>()
     bloquesYLotes.forEach((bloque) => {
@@ -419,10 +434,10 @@ export default function InventarioPage() {
   const showBothMetrics = showLosas && showM2
   const generalMetricTitle =
     metricView === 'both'
-      ? 'Losas y m² por estado operativo'
+      ? 'Losas y mÂ² por estado operativo'
       : metricView === 'losas'
         ? 'Losas por estado operativo'
-        : 'm² por estado operativo'
+        : 'mÂ² por estado operativo'
 
   const filteredProductos = useMemo(() => {
     return productos.filter((producto) => {
@@ -444,9 +459,10 @@ export default function InventarioPage() {
     return productos
       .filter((producto) => producto.ubicacion === 'almacen')
       .filter((producto) => producto.estado === estadoRequerido)
+      .filter((producto) => !origenesVendidos.has(producto.origenId.trim()))
       .filter((producto) => producto.cantidadLosas > 0)
       .sort((a, b) => b.cantidadLosas - a.cantidadLosas)
-  }, [productos, procesoAccionObjetivo])
+  }, [productos, procesoAccionObjetivo, origenesVendidos])
 
   useEffect(() => {
     if (!procesoDialogOpen) return
@@ -826,7 +842,7 @@ export default function InventarioPage() {
               </div>
               <div className="mt-1 flex items-center justify-between text-xs">
                 <span>{row.losas.toLocaleString()} losas</span>
-                <span>{row.m2.toFixed(2)} m²</span>
+                <span>{row.m2.toFixed(2)} mÂ²</span>
               </div>
             </div>
           ))}
@@ -838,13 +854,13 @@ export default function InventarioPage() {
           <div className="flex items-center justify-between">
             <span>Merma total</span>
             <span className="font-semibold text-rose-700">
-              {resumenPartidas.mermaLosas.toLocaleString()} / {resumenPartidas.mermaM2.toFixed(2)} m²
+              {resumenPartidas.mermaLosas.toLocaleString()} / {resumenPartidas.mermaM2.toFixed(2)} mÂ²
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span>Reutilizable</span>
             <span className="font-semibold text-sky-700">
-              {resumenPartidas.reutilizableLosas.toLocaleString()} / {resumenPartidas.reutilizableM2.toFixed(2)} m²
+              {resumenPartidas.reutilizableLosas.toLocaleString()} / {resumenPartidas.reutilizableM2.toFixed(2)} mÂ²
             </span>
           </div>
           <p className="text-[11px] text-slate-500">
@@ -886,7 +902,7 @@ export default function InventarioPage() {
       )}
 
       {showM2 && (
-        <AdminPanelCard title="Top bloques" meta="Por m²">
+        <AdminPanelCard title="Top bloques" meta="Por mÂ²">
           {topM2ByOrigen.length === 0 ? (
             <p className="text-xs text-slate-500">Sin datos para mostrar.</p>
           ) : (
@@ -906,7 +922,7 @@ export default function InventarioPage() {
                   cursor={false}
                   content={
                     <ChartTooltipContent
-                      formatter={(value) => `${Number(value).toFixed(2)} m²`}
+                      formatter={(value) => `${Number(value).toFixed(2)} mÂ²`}
                     />
                   }
                 />
@@ -1125,7 +1141,7 @@ export default function InventarioPage() {
                                   Fecha: {formatDateTime(movimiento.fechaSolicitud)} - Motivo: {movimiento.motivo}
                                 </p>
                                 <p className="mt-1 text-xs text-slate-500">
-                                  {totalLosas.toLocaleString()} losas - {totalM2.toFixed(2)} m² - {movimiento.detalles.length} detalle(s)
+                                  {totalLosas.toLocaleString()} losas - {totalM2.toFixed(2)} mÂ² - {movimiento.detalles.length} detalle(s)
                                 </p>
                                 {detalleResumen ? (
                                   <p className="mt-1 text-[11px] text-slate-500">{detalleResumen}</p>
@@ -1321,13 +1337,13 @@ export default function InventarioPage() {
             <DialogHeader>
               <DialogTitle>Solicitar salida a proceso</DialogTitle>
               <DialogDescription>
-                Esta salida queda pendiente hasta aprobación de jefatura de almacén.
+                Esta salida queda pendiente hasta aprobaciÃ³n de jefatura de almacÃ©n.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3">
               <div className="space-y-1">
-                <Label>Acción objetivo</Label>
+                <Label>AcciÃ³n objetivo</Label>
                 <Select
                   value={procesoAccionObjetivo}
                   onValueChange={(value) => {
@@ -1351,7 +1367,7 @@ export default function InventarioPage() {
               </div>
 
               <div className="space-y-1">
-                <Label>Producto en almacén</Label>
+                <Label>Producto en almacÃ©n</Label>
                 <Select
                   value={procesoProductoId}
                   onValueChange={setProcesoProductoId}
@@ -1363,7 +1379,7 @@ export default function InventarioPage() {
                   <SelectContent>
                     {productosAlmacenParaProceso.length === 0 ? (
                       <SelectItem value="__empty__" disabled>
-                        Sin stock disponible para esta acción
+                        Sin stock disponible para esta acciÃ³n
                       </SelectItem>
                     ) : (
                       productosAlmacenParaProceso.map((producto) => (
@@ -1382,7 +1398,7 @@ export default function InventarioPage() {
               {procesoProductoSeleccionado && (
                 <p className="text-xs text-slate-600">
                   Disponible: {procesoProductoSeleccionado.cantidadLosas} losas (
-                  {procesoProductoSeleccionado.metrosCuadrados.toFixed(2)} m²)
+                  {procesoProductoSeleccionado.metrosCuadrados.toFixed(2)} mÂ²)
                 </p>
               )}
 
@@ -1459,7 +1475,7 @@ export default function InventarioPage() {
                   Losas
                 </ToggleGroupItem>
                 <ToggleGroupItem value="m2" className="px-3 text-xs">
-                  m²
+                  mÂ²
                 </ToggleGroupItem>
                 <ToggleGroupItem value="both" className="px-3 text-xs">
                   Ambos
@@ -1489,15 +1505,15 @@ export default function InventarioPage() {
                     formatter={(value, name) => {
                       const numeric = Number(value ?? 0)
                       const normalizedName = String(name).toLowerCase()
-                      const isM2 = normalizedName.includes('m2') || normalizedName.includes('m²')
-                      return isM2 ? `${numeric.toFixed(2)} m²` : `${Math.round(numeric).toLocaleString()} losas`
+                      const isM2 = normalizedName.includes('m2') || normalizedName.includes('mÂ²')
+                      return isM2 ? `${numeric.toFixed(2)} mÂ²` : `${Math.round(numeric).toLocaleString()} losas`
                     }}
                   />
                 }
               />
               {showBothMetrics && <ChartLegend content={<ChartLegendContent />} />}
               {showLosas && <Bar yAxisId="losas" dataKey="losas" name="Losas" fill="var(--color-losas)" radius={[8, 8, 0, 0]} />}
-              {showM2 && <Bar yAxisId="m2" dataKey="m2" name="m²" fill="var(--color-m2)" radius={[8, 8, 0, 0]} />}
+              {showM2 && <Bar yAxisId="m2" dataKey="m2" name="mÂ²" fill="var(--color-m2)" radius={[8, 8, 0, 0]} />}
             </BarChart>
           </ChartContainer>
         </div>
@@ -1514,7 +1530,7 @@ export default function InventarioPage() {
               </p>
             </div>
             <p className="text-xs text-slate-500">
-              Vista en {showLosas ? 'losas' : 'm²'} segun selector activo
+              Vista en {showLosas ? 'losas' : 'mÂ²'} segun selector activo
             </p>
           </div>
 
@@ -1537,7 +1553,7 @@ export default function InventarioPage() {
                           const numeric = Number(value ?? 0)
                           return showLosas
                             ? `${Math.round(numeric).toLocaleString()} losas`
-                            : `${numeric.toFixed(2)} m²`
+                            : `${numeric.toFixed(2)} mÂ²`
                         }}
                       />
                     }
@@ -1560,7 +1576,7 @@ export default function InventarioPage() {
                       >
                         <p className="text-sm font-semibold text-slate-900">{group.origenNombre}</p>
                         <p className="mt-1 text-[11px] text-rose-700">
-                          {group.mermaLosas} losas / {group.mermaM2.toFixed(2)} m²
+                          {group.mermaLosas} losas / {group.mermaM2.toFixed(2)} mÂ²
                         </p>
                       </div>
                     ))
@@ -1579,7 +1595,7 @@ export default function InventarioPage() {
                       >
                         <p className="text-sm font-semibold text-slate-900">{group.origenNombre}</p>
                         <p className="mt-1 text-[11px] text-sky-700">
-                          {group.reutilizableLosas} losas / {group.reutilizableM2.toFixed(2)} m²
+                          {group.reutilizableLosas} losas / {group.reutilizableM2.toFixed(2)} mÂ²
                         </p>
                       </div>
                     ))
@@ -1598,64 +1614,104 @@ export default function InventarioPage() {
               </div>
             ) : (
               <div className="grid gap-4 lg:grid-cols-2">
-                {groupedByOrigen.map((group) => (
-                  <div
-                    key={group.origenId}
-                    className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
-                  >
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Bloque / lote</p>
-                        <p className="text-base font-semibold text-slate-900">{group.origenNombre}</p>
+                {groupedByOrigen.map((group) => {
+                  const bloqueOrigen = bloquesPorId.get(group.origenId.trim())
+                  const bloqueVendido = bloqueOrigen?.estado === 'vendido'
+                  const gananciaBloque = bloqueOrigen?.gananciaReal ?? 0
+                  const losasLiquidadas = Math.max(
+                    0,
+                    (bloqueOrigen?.losasProducidas ?? 0) - (bloqueOrigen?.losasPerdidas ?? 0),
+                  )
+
+                  return (
+                    <div
+                      key={group.origenId}
+                      className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Bloque / lote</p>
+                          <p className="text-base font-semibold text-slate-900">{group.origenNombre}</p>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'w-fit',
+                            bloqueVendido
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                              : estadoBadgeClass[group.estadoDominante],
+                          )}
+                        >
+                          {bloqueVendido ? 'Vendido' : group.estadoDominante}
+                        </Badge>
                       </div>
-                      <Badge variant="outline" className={cn('w-fit', estadoBadgeClass[group.estadoDominante])}>
-                        {group.estadoDominante}
-                      </Badge>
-                    </div>
 
-                    <ChartContainer config={inventoryChartConfig} className="mt-3 h-[200px] w-full sm:h-[230px]">
-                      <BarChart data={group.chartData} margin={{ top: 10, right: 8, left: 0, bottom: 6 }} barGap={8}>
-                        <CartesianGrid vertical={false} />
-                        <XAxis dataKey="estado" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-                        {showLosas && <YAxis yAxisId="losas" tickLine={false} axisLine={false} width={36} allowDecimals={false} />}
-                        {showM2 && (
-                          <YAxis
-                            yAxisId="m2"
-                            orientation={showLosas ? 'right' : 'left'}
-                            tickLine={false}
-                            axisLine={false}
-                            width={36}
-                          />
-                        )}
-                        <ChartTooltip
-                          cursor={false}
-                          content={
-                            <ChartTooltipContent
-                              formatter={(value, name) => {
-                                const numeric = Number(value ?? 0)
-                                const normalizedName = String(name).toLowerCase()
-                                const isM2 = normalizedName.includes('m2') || normalizedName.includes('m²')
-                                return isM2 ? `${numeric.toFixed(2)} m²` : `${Math.round(numeric).toLocaleString()} losas`
-                              }}
+                      <div className="relative mt-3">
+                        {bloqueVendido ? (
+                          <div className="pointer-events-none absolute inset-x-2 top-2 z-10 rounded-xl border border-emerald-300 bg-emerald-50/95 px-3 py-2 shadow-sm">
+                            <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-700">Vendido</p>
+                            <p className="mt-1 text-xs font-semibold text-emerald-900">
+                              Ganancia del bloque: $
+                              {gananciaBloque.toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </p>
+                            <p className="text-[11px] text-emerald-700">
+                              Losas liquidadas: {losasLiquidadas.toLocaleString()} | Perdidas:{' '}
+                              {(bloqueOrigen?.losasPerdidas ?? 0).toLocaleString()}
+                            </p>
+                          </div>
+                        ) : null}
+
+                        <ChartContainer
+                          config={inventoryChartConfig}
+                          className={cn('h-[200px] w-full sm:h-[230px]', bloqueVendido ? 'pt-16' : '')}
+                        >
+                          <BarChart data={group.chartData} margin={{ top: 10, right: 8, left: 0, bottom: 6 }} barGap={8}>
+                            <CartesianGrid vertical={false} />
+                            <XAxis dataKey="estado" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+                            {showLosas && <YAxis yAxisId="losas" tickLine={false} axisLine={false} width={36} allowDecimals={false} />}
+                            {showM2 && (
+                              <YAxis
+                                yAxisId="m2"
+                                orientation={showLosas ? 'right' : 'left'}
+                                tickLine={false}
+                                axisLine={false}
+                                width={36}
+                              />
+                            )}
+                            <ChartTooltip
+                              cursor={false}
+                              content={
+                                <ChartTooltipContent
+                                  formatter={(value, name) => {
+                                    const numeric = Number(value ?? 0)
+                                    const normalizedName = String(name).toLowerCase()
+                                    const isM2 = normalizedName.includes('m2') || normalizedName.includes('mÂ²')
+                                    return isM2 ? `${numeric.toFixed(2)} mÂ²` : `${Math.round(numeric).toLocaleString()} losas`
+                                  }}
+                                />
+                              }
                             />
-                          }
-                        />
-                        {showLosas && <Bar yAxisId="losas" dataKey="losas" name="Losas" fill="var(--color-losas)" radius={[6, 6, 0, 0]} />}
-                        {showM2 && <Bar yAxisId="m2" dataKey="m2" name="m²" fill="var(--color-m2)" radius={[6, 6, 0, 0]} />}
-                      </BarChart>
-                    </ChartContainer>
+                            {showLosas && <Bar yAxisId="losas" dataKey="losas" name="Losas" fill="var(--color-losas)" radius={[6, 6, 0, 0]} />}
+                            {showM2 && <Bar yAxisId="m2" dataKey="m2" name="mÂ²" fill="var(--color-m2)" radius={[6, 6, 0, 0]} />}
+                          </BarChart>
+                        </ChartContainer>
+                      </div>
 
-                    <p className="mt-2 text-xs text-slate-500">
-                      {[
-                        `${group.items.length} items`,
-                        showLosas ? `${group.totalLosas.toLocaleString()} losas` : null,
-                        showM2 ? `${group.totalM2.toFixed(2)} m²` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' - ')}
-                    </p>
-                  </div>
-                ))}
+                      <p className="mt-2 text-xs text-slate-500">
+                        {[
+                          `${group.items.length} items`,
+                          showLosas ? `${group.totalLosas.toLocaleString()} losas` : null,
+                          showM2 ? `${group.totalM2.toFixed(2)} mÂ²` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' - ')}
+                      </p>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </CardContent>

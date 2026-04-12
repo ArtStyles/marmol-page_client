@@ -1,4 +1,4 @@
-﻿import React from 'react'
+import React from 'react'
 
 export type Dimension = '40x40' | '60x40' | '80x40'
 export type TipoProducto = 'Piso' | 'Plancha'
@@ -85,7 +85,7 @@ export interface BloqueOLote {
   losasPerdidas: number
   metrosVendibles: number
   gananciaReal: number
-  estado: 'activo' | 'agotado'
+  estado: 'activo' | 'agotado' | 'vendido'
 }
 
 export interface Producto {
@@ -135,7 +135,6 @@ export interface TarifasTrabajador {
 
 export interface Equipo {
   id: string
-  nombre: string
   tipo: TipoEquipo
   codigoInterno: string
   estado: 'activo' | 'mantenimiento' | 'inactivo'

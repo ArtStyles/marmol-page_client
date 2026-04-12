@@ -188,12 +188,12 @@ export function ProduccionActionSection({
                         onValueChange={(value) => updateUsage(accion, uso.id, { equipoId: value })}
                       >
                         <SelectTrigger className="h-9 w-full">
-                          <SelectValue placeholder="Seleccionar equipo" />
+                          <SelectValue placeholder="Seleccionar codigo" />
                         </SelectTrigger>
                         <SelectContent>
                           {equiposPorAccion.map((equipo) => (
                             <SelectItem key={equipo.id} value={equipo.id}>
-                              {equipo.nombre}
+                              {equipo.codigoInterno}
                             </SelectItem>
                           ))}
                         </SelectContent>

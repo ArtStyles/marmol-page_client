@@ -1,4 +1,4 @@
-﻿import { DomainError } from '../../errors/domain.error.js'
+import { DomainError } from '../../errors/domain.error.js'
 import type {
   AprobarInventarioMovimientoDto,
   CreateRetornoProcesoInventarioDto,
@@ -8,6 +8,7 @@ import type {
   InventarioMovimientoResponseDto,
   RechazarInventarioMovimientoDto,
 } from '../../dtos/index.js'
+import type { InventarioMovimientoDetalle, Venta } from '../../../domain/entities/index.js'
 import type {
   BloqueRepositoryPort,
   InventarioMovimientoPageCursor,
@@ -329,7 +330,8 @@ export class ApproveInventarioMovimientoUseCase {
       )
     }
 
-    await this.syncReferenciaAprobada(updated.id, updated.referenciaId, updated.origen, actor, updated.motivo)
+    await this.syncReferenciaAprobada(updated.id, updated.referenciaId, updated.origen, actor, updated.motivo, updated.detalles)
+    await this.syncBloquesVendidos(updated.detalles)
     return updated
   }
 
@@ -339,14 +341,19 @@ export class ApproveInventarioMovimientoUseCase {
     origen: InventarioMovimientoResponseDto['origen'],
     actor: MovimientoActor,
     motivo: string,
+    detallesMovimiento: InventarioMovimientoDetalle[],
   ): Promise<void> {
     if (!referenciaId) return
 
     if (origen === 'venta') {
+      const venta = await this.ventaRepository.findById(referenciaId)
       await this.ventaRepository.update(referenciaId, {
         estado: 'completada',
         movimientoInventarioId: movimientoId,
       })
+      if (venta) {
+        await this.syncGananciaBloquesPorVenta(venta, detallesMovimiento)
+      }
       return
     }
 
@@ -359,7 +366,7 @@ export class ApproveInventarioMovimientoUseCase {
           await this.bloqueRepository.update(bloque.id, {
             losasPerdidas: bloque.losasPerdidas + merma.cantidadLosas,
             metrosVendibles: Number(metrosVendibles.toFixed(2)),
-            estado: metrosVendibles <= 0 ? 'agotado' : bloque.estado,
+            estado: bloque.estado === 'vendido' ? 'vendido' : metrosVendibles <= 0 ? 'agotado' : bloque.estado,
           })
         }
       }
@@ -390,6 +397,79 @@ export class ApproveInventarioMovimientoUseCase {
       inventarioAplicado: true,
       movimientoInventarioIds,
     })
+  }
+
+  private async syncGananciaBloquesPorVenta(
+    venta: Venta,
+    detallesMovimiento: InventarioMovimientoDetalle[],
+  ): Promise<void> {
+    const gananciasPorOrigen = new Map<string, number>()
+
+    const acumularGanancia = (origenId: string, monto: number): void => {
+      if (!origenId || monto <= 0) return
+      gananciasPorOrigen.set(origenId, round2((gananciasPorOrigen.get(origenId) ?? 0) + monto))
+    }
+
+    const detallesVenta = venta.detallesProductos ?? []
+    if (detallesVenta.length > 0) {
+      detallesVenta.forEach((detalle) => {
+        acumularGanancia(detalle.origenId.trim(), detalle.subtotal)
+      })
+    } else if (venta.subtotal > 0) {
+      const detallesValidos = detallesMovimiento.filter((detalle) => detalle.origenId.trim().length > 0)
+      if (detallesValidos.length > 0) {
+        const totalMetros = detallesValidos.reduce(
+          (sum, detalle) => sum + Math.max(0, detalle.metrosCuadrados),
+          0,
+        )
+        const factorDefault = 1 / detallesValidos.length
+
+        detallesValidos.forEach((detalle) => {
+          const base = Math.max(0, detalle.metrosCuadrados)
+          const factor = totalMetros > 0 ? base / totalMetros : factorDefault
+          acumularGanancia(detalle.origenId.trim(), round2(venta.subtotal * factor))
+        })
+      }
+    }
+
+    for (const [origenId, ganancia] of gananciasPorOrigen.entries()) {
+      const bloque = await this.bloqueRepository.findById(origenId)
+      if (!bloque) continue
+
+      await this.bloqueRepository.update(bloque.id, {
+        gananciaReal: round2(bloque.gananciaReal + ganancia),
+      })
+    }
+  }
+
+  private async syncBloquesVendidos(detalles: InventarioMovimientoDetalle[]): Promise<void> {
+    const origenIds = Array.from(
+      new Set(
+        detalles
+          .map((detalle) => detalle.origenId.trim())
+          .filter((origenId) => origenId.length > 0),
+      ),
+    )
+    if (origenIds.length === 0) return
+
+    const productos = await this.productoRepository.findAll()
+
+    for (const origenId of origenIds) {
+      const bloque = await this.bloqueRepository.findById(origenId)
+      if (!bloque || bloque.estado !== 'agotado') continue
+
+      const tieneStock = productos.some(
+        (producto) =>
+          producto.origenId === origenId &&
+          (producto.cantidadLosas > 0 || producto.metrosCuadrados > 0.000001),
+      )
+
+      if (!tieneStock) {
+        await this.bloqueRepository.update(bloque.id, {
+          estado: 'vendido',
+        })
+      }
+    }
   }
 }
 

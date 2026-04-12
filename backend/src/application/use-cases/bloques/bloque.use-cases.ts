@@ -1,3 +1,4 @@
+import { DomainError } from '../../errors/domain.error.js'
 import type {
   BloqueRepositoryPort,
   GastoRepositoryPort,
@@ -113,6 +114,14 @@ export class UpdateBloqueUseCase {
     const actual = await this.repository.findById(id)
     if (!actual) return null
 
+    if (actual.estado === 'vendido') {
+      throw new DomainError(
+        'El bloque/lote ya esta vendido y no permite mas cambios.',
+        409,
+        'BLOQUE_VENDIDO_BLOQUEADO',
+      )
+    }
+
     const { nombre: _ignoredNombre, ...patch } = dto
     const patchFinal: Partial<BloqueOLote> = { ...patch }
     const tipoObjetivo = patchFinal.tipo ?? actual.tipo
@@ -130,6 +139,17 @@ export class DeleteBloqueUseCase {
   constructor(private readonly repository: BloqueRepositoryPort) {}
 
   async execute(id: string): Promise<boolean> {
+    const actual = await this.repository.findById(id)
+    if (!actual) return false
+
+    if (actual.estado === 'vendido') {
+      throw new DomainError(
+        'El bloque/lote ya esta vendido y no permite eliminarse.',
+        409,
+        'BLOQUE_VENDIDO_BLOQUEADO',
+      )
+    }
+
     return this.repository.delete(id)
   }
 }

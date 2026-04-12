@@ -214,7 +214,7 @@ export const getAccionDetalles = (
       trabajadorNombre: 'Sin detalle',
       trabajadores: [{ id: 'legacy', nombre: 'Sin detalle' }],
       equipoId: 'legacy',
-      equipoNombre: 'Sin equipo',
+      equipoNombre: 'SIN-EQUIPO',
       cantidadLosas: legacyLosas,
       metrosCuadrados: losasAMetros(legacyLosas, registro.dimension),
       losasMermaTotal: 0,

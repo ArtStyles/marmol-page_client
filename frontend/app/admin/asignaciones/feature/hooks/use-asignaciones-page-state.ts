@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useProduccionStore } from '@/hooks/use-produccion'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
-import { getTrabajadores } from '@/lib/resources-api'
-import type { AccionLosa, Trabajador } from '@/lib/types'
+import { getEquipos, getTrabajadores } from '@/lib/resources-api'
+import type { AccionLosa, Equipo, Trabajador } from '@/lib/types'
 import { actionSortIndex, buildAsignacionesFromProduccion, createResumenAcciones } from '../lib/asignaciones-helpers'
 import type { AccionResumen, ProduccionWorkerGroup, TopTrabajadorResumen } from '../model/types'
 
@@ -13,6 +13,7 @@ export const useAsignacionesPageState = () => {
   const { produccion } = useProduccionStore()
   const { config } = useConfiguracion()
   const [trabajadoresBase, setTrabajadoresBase] = useState<Trabajador[]>([])
+  const [equiposBase, setEquiposBase] = useState<Equipo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -37,18 +38,19 @@ export const useAsignacionesPageState = () => {
         }
 
         const canReadTrabajadores = hasPermission(sessionUser, 'trabajadores:read')
-        if (!canReadTrabajadores) {
-          if (!alive) return
-          setTrabajadoresBase([])
-          return
-        }
+        const canReadEquipos = hasPermission(sessionUser, 'equipos:read')
 
-        const data = await getTrabajadores()
+        const [trabajadoresData, equiposData] = await Promise.all([
+          canReadTrabajadores ? getTrabajadores() : Promise.resolve<Trabajador[]>([]),
+          canReadEquipos ? getEquipos() : Promise.resolve<Equipo[]>([]),
+        ])
+
         if (!alive) return
-        setTrabajadoresBase(data)
+        setTrabajadoresBase(trabajadoresData)
+        setEquiposBase(equiposData)
       } catch (loadError) {
         if (!alive) return
-        setError(loadError instanceof Error ? loadError.message : 'No se pudo cargar trabajadores.')
+        setError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar datos de asignaciones.')
       } finally {
         if (alive) setLoading(false)
       }
@@ -65,10 +67,20 @@ export const useAsignacionesPageState = () => {
     () => new Map<string, Trabajador>(trabajadoresBase.map((trabajador) => [trabajador.id, trabajador])),
     [trabajadoresBase],
   )
+  const codigosEquipoPorId = useMemo(
+    () => new Map<string, string>(equiposBase.map((equipo) => [equipo.id, equipo.codigoInterno])),
+    [equiposBase],
+  )
 
   const asignaciones = useMemo(
-    () => buildAsignacionesFromProduccion(produccion, config.tarifasGlobales, trabajadoresPorId),
-    [produccion, config.tarifasGlobales, trabajadoresPorId],
+    () =>
+      buildAsignacionesFromProduccion(
+        produccion,
+        config.tarifasGlobales,
+        trabajadoresPorId,
+        codigosEquipoPorId,
+      ),
+    [produccion, config.tarifasGlobales, trabajadoresPorId, codigosEquipoPorId],
   )
 
   const filteredAsignaciones = useMemo(() => {

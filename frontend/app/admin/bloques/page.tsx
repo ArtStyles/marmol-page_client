@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { Card, CardContent } from '@/components/ui/card'
 import { dimensiones } from '@/lib/data'
-import { losasAMetros, type BloqueOLote, type Dimension } from '@/lib/types'
+import { PLANCHA_DIMENSION, losasAMetros, type BloqueOLote, type Dimension } from '@/lib/types'
 import {
   createBloque,
   createProducto,
@@ -18,7 +18,8 @@ import {
 } from '@/lib/resources-api'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { getBloqueCodigo } from '@/lib/bloque-codigo'
-import { Plus, Search, Eye, Edit, Trash2, CircleOff, RotateCcw } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Plus, Search, Eye, Edit, Trash2, CircleOff, RotateCcw, Lock } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -43,7 +44,80 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 
+type LoteSeleccionKey = Dimension | 'Plancha'
+
+type LoteSeleccionValores = {
+  metrosComprados: number
+  costo: number
+  costoTransporte: number
+}
+
+type LoteSeleccionTouched = {
+  metrosComprados: boolean
+  costo: boolean
+  costoTransporte: boolean
+}
+
+const LOTE_SELECCION_OPCIONES: LoteSeleccionKey[] = ['40x40', '60x40', '80x40', 'Plancha']
+
+const LOTE_SELECCION_CONFIG: Record<
+  LoteSeleccionKey,
+  {
+    label: string
+    dimensionBase: Dimension
+    tipoProducto: 'Piso' | 'Plancha'
+  }
+> = {
+  '40x40': {
+    label: '40x40',
+    dimensionBase: '40x40',
+    tipoProducto: 'Piso',
+  },
+  '60x40': {
+    label: '60x40',
+    dimensionBase: '60x40',
+    tipoProducto: 'Piso',
+  },
+  '80x40': {
+    label: '80x40',
+    dimensionBase: '80x40',
+    tipoProducto: 'Piso',
+  },
+  Plancha: {
+    label: `Plancha (${PLANCHA_DIMENSION})`,
+    dimensionBase: PLANCHA_DIMENSION,
+    tipoProducto: 'Plancha',
+  },
+}
+
+const createLoteValoresIniciales = (): Record<LoteSeleccionKey, LoteSeleccionValores> => ({
+  '40x40': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
+  '60x40': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
+  '80x40': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
+  Plancha: { metrosComprados: 0, costo: 0, costoTransporte: 0 },
+})
+
+const createLoteTouchedInicial = (): Record<LoteSeleccionKey, LoteSeleccionTouched> => ({
+  '40x40': { metrosComprados: false, costo: false, costoTransporte: false },
+  '60x40': { metrosComprados: false, costo: false, costoTransporte: false },
+  '80x40': { metrosComprados: false, costo: false, costoTransporte: false },
+  Plancha: { metrosComprados: false, costo: false, costoTransporte: false },
+})
+const bloqueEstadoLabel: Record<BloqueOLote['estado'], string> = {
+  activo: 'Activo',
+  agotado: 'Agotado',
+  vendido: 'Vendido',
+}
+
+const bloqueEstadoBadgeClass: Record<BloqueOLote['estado'], string> = {
+  activo: '',
+  agotado: 'border-amber-200 bg-amber-50 text-amber-700',
+  vendido: 'border-emerald-300 bg-emerald-50 text-emerald-800',
+}
+
+const isBloqueVendido = (bloque: BloqueOLote): boolean => bloque.estado === 'vendido'
 export default function BloquesPage() {
   const [bloques, setBloques] = useState<BloqueOLote[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -71,6 +145,15 @@ export default function BloquesPage() {
     costoTransporte: 0,
     proveedor: '',
   })
+  const [loteSeleccionado, setLoteSeleccionado] = useState<LoteSeleccionKey[]>(['60x40'])
+  const [loteValores, setLoteValores] = useState<Record<LoteSeleccionKey, LoteSeleccionValores>>(
+    createLoteValoresIniciales,
+  )
+  const [loteTouched, setLoteTouched] = useState<Record<LoteSeleccionKey, LoteSeleccionTouched>>(
+    createLoteTouchedInicial,
+  )
+
+  const isCreatingLoteMulti = formData.tipo === 'Lote' && !editingBloque
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -222,6 +305,65 @@ export default function BloquesPage() {
     </div>
   )
 
+  const toggleLoteSeleccion = (option: LoteSeleccionKey, checked: boolean) => {
+    setLoteSeleccionado((prev) => {
+      if (checked) {
+        return prev.includes(option) ? prev : [...prev, option]
+      }
+      return prev.filter((item) => item !== option)
+    })
+  }
+
+  const updateLoteValor = (
+    option: LoteSeleccionKey,
+    field: keyof LoteSeleccionValores,
+    rawValue: string,
+  ) => {
+    const value = rawValue === '' ? 0 : Number(rawValue)
+    setLoteTouched((prev) => ({
+      ...prev,
+      [option]: {
+        ...prev[option],
+        [field]: rawValue !== '',
+      },
+    }))
+    setLoteValores((prev) => ({
+      ...prev,
+      [option]: {
+        ...prev[option],
+        [field]: value,
+      },
+    }))
+  }
+
+  const crearProductoDesdeLote = async (
+    lote: BloqueOLote,
+    cantidadLosas: number,
+    dimension: Dimension,
+    tipoProducto: 'Piso' | 'Plancha',
+  ) => {
+    if (cantidadLosas <= 0) return
+
+    const metrosCuadrados = Number(losasAMetros(cantidadLosas, dimension).toFixed(2))
+    const costoTotal = lote.costo + lote.costoTransporte
+    const precioM2 = metrosCuadrados > 0 ? Number((costoTotal / metrosCuadrados).toFixed(2)) : 0
+    const codigoOrigen = getBloqueCodigo(lote)
+
+    await createProducto({
+      nombre: `${tipoProducto} ${codigoOrigen} ${dimension} Picado`,
+      tipo: tipoProducto,
+      estado: 'Picado',
+      ubicacion: 'almacen',
+      dimension,
+      origenId: lote.id,
+      origenNombre: codigoOrigen,
+      cantidadLosas,
+      metrosCuadrados,
+      precioM2,
+      imagen: '',
+    })
+  }
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setActionError(null)
@@ -258,6 +400,77 @@ export default function BloquesPage() {
     }
 
     try {
+      if (isCreatingLoteMulti) {
+        if (loteSeleccionado.length === 0) {
+          setActionError('Selecciona al menos una medida o plancha para registrar el lote.')
+          return
+        }
+
+        const opcionesSinCantidad = loteSeleccionado.filter(
+          (option) => Math.trunc(loteValores[option].metrosComprados) <= 0,
+        )
+
+        if (opcionesSinCantidad.length > 0) {
+          const etiquetas = opcionesSinCantidad
+            .map((option) => LOTE_SELECCION_CONFIG[option].label)
+            .join(', ')
+          setActionError(`Completa la cantidad de losas para: ${etiquetas}.`)
+          return
+        }
+
+        const nuevosLotes: BloqueOLote[] = []
+        const erroresInventario: string[] = []
+
+        for (const option of loteSeleccionado) {
+          const optionConfig = LOTE_SELECCION_CONFIG[option]
+          const optionValores = loteValores[option]
+          const cantidadLosas = Math.max(0, Math.trunc(optionValores.metrosComprados))
+
+          const newBloque = await createBloque({
+            tipo: 'Lote',
+            dimensionBase: optionConfig.dimensionBase,
+            costo: optionValores.costo,
+            costoTransporte: optionValores.costoTransporte,
+            metrosComprados: cantidadLosas,
+            fechaIngreso: today,
+            proveedor: formData.proveedor,
+            losasProducidas: 0,
+            losasPerdidas: 0,
+            metrosVendibles: 0,
+            gananciaReal: 0,
+            estado: 'activo',
+          })
+
+          try {
+            await crearProductoDesdeLote(
+              newBloque,
+              cantidadLosas,
+              optionConfig.dimensionBase,
+              optionConfig.tipoProducto,
+            )
+          } catch (error) {
+            const codigoOrigen = getBloqueCodigo(newBloque)
+            erroresInventario.push(
+              `${codigoOrigen} (${optionConfig.label}): ${
+                error instanceof Error ? error.message : 'error desconocido'
+              }`,
+            )
+          }
+
+          nuevosLotes.push(newBloque)
+        }
+
+        if (erroresInventario.length > 0) {
+          setActionError(
+            `Se registraron los lotes, pero hubo errores al crear inventario: ${erroresInventario.join(' | ')}`,
+          )
+        }
+
+        setBloques((prev) => [...nuevosLotes, ...prev])
+        resetForm()
+        return
+      }
+
       const newBloque = await createBloque({
         tipo: formData.tipo,
         dimensionBase: formData.dimensionBase,
@@ -275,35 +488,15 @@ export default function BloquesPage() {
 
       if (formData.tipo === 'Lote') {
         const cantidadLosas = Math.max(0, Math.trunc(formData.metrosComprados))
-        if (cantidadLosas > 0) {
-          const metrosCuadrados = Number(
-            losasAMetros(cantidadLosas, formData.dimensionBase).toFixed(2),
-          )
-          const costoTotal = formData.costo + formData.costoTransporte
-          const precioM2 = metrosCuadrados > 0 ? Number((costoTotal / metrosCuadrados).toFixed(2)) : 0
+        try {
+          await crearProductoDesdeLote(newBloque, cantidadLosas, formData.dimensionBase, 'Piso')
+        } catch (error) {
           const codigoOrigen = getBloqueCodigo(newBloque)
-
-          try {
-            await createProducto({
-              nombre: `Piso ${codigoOrigen} ${formData.dimensionBase} Picado`,
-              tipo: 'Piso',
-              estado: 'Picado',
-              ubicacion: 'almacen',
-              dimension: formData.dimensionBase,
-              origenId: newBloque.id,
-              origenNombre: codigoOrigen,
-              cantidadLosas,
-              metrosCuadrados,
-              precioM2,
-              imagen: '',
-            })
-          } catch (error) {
-            setActionError(
-              `Lote ${codigoOrigen} registrado, pero no se pudo crear su entrada en inventario: ${
-                error instanceof Error ? error.message : 'error desconocido'
-              }`,
-            )
-          }
+          setActionError(
+            `Lote ${codigoOrigen} registrado, pero no se pudo crear su entrada en inventario: ${
+              error instanceof Error ? error.message : 'error desconocido'
+            }`,
+          )
         }
       }
 
@@ -317,7 +510,7 @@ export default function BloquesPage() {
   }
 
   const handleEdit = (bloque: BloqueOLote) => {
-    if (!canModify(bloque.fechaIngreso)) return
+    if (!canModify(bloque.fechaIngreso) || isBloqueVendido(bloque)) return
     setEditingBloque(bloque)
     setFormData({
       tipo: bloque.tipo,
@@ -332,11 +525,34 @@ export default function BloquesPage() {
       costo: true,
       costoTransporte: true,
     })
+
+    const loteValoresIniciales = createLoteValoresIniciales()
+    const loteTouchedInicial = createLoteTouchedInicial()
+
+    if (bloque.tipo === 'Lote') {
+      const key = bloque.dimensionBase
+      loteValoresIniciales[key] = {
+        metrosComprados: bloque.metrosComprados,
+        costo: bloque.costo,
+        costoTransporte: bloque.costoTransporte,
+      }
+      loteTouchedInicial[key] = {
+        metrosComprados: true,
+        costo: true,
+        costoTransporte: true,
+      }
+      setLoteSeleccionado([key])
+    } else {
+      setLoteSeleccionado(['60x40'])
+    }
+
+    setLoteValores(loteValoresIniciales)
+    setLoteTouched(loteTouchedInicial)
     setIsDialogOpen(true)
   }
 
   const openDeleteConfirm = (bloque: BloqueOLote) => {
-    if (!canModify(bloque.fechaIngreso)) return
+    if (!canModify(bloque.fechaIngreso) || isBloqueVendido(bloque)) return
     setDeleteTarget(bloque)
   }
 
@@ -355,12 +571,12 @@ export default function BloquesPage() {
   }
 
   const openEstadoConfirm = (bloque: BloqueOLote) => {
-    if (!canModify(bloque.fechaIngreso)) return
+    if (!canModify(bloque.fechaIngreso) || isBloqueVendido(bloque)) return
     setStatusTarget(bloque)
   }
 
   const confirmToggleEstado = async (bloque: BloqueOLote) => {
-    if (!canModify(bloque.fechaIngreso)) return
+    if (!canModify(bloque.fechaIngreso) || isBloqueVendido(bloque)) return
     setIsUpdatingStatus(true)
     setActionError(null)
     try {
@@ -391,18 +607,27 @@ export default function BloquesPage() {
       costo: false,
       costoTransporte: false,
     })
+    setLoteSeleccionado(['60x40'])
+    setLoteValores(createLoteValoresIniciales())
+    setLoteTouched(createLoteTouchedInicial())
     setIsDialogOpen(false)
   }
 
   const renderEstado = (bloque: BloqueOLote) => (
-    <Badge variant={bloque.estado === 'activo' ? 'default' : 'outline'}>
-      {bloque.estado === 'activo' ? 'Activo' : 'Agotado'}
+    <Badge
+      variant={bloque.estado === 'activo' ? 'default' : 'outline'}
+      className={cn(bloqueEstadoBadgeClass[bloque.estado])}
+    >
+      {bloqueEstadoLabel[bloque.estado]}
     </Badge>
   )
 
   const renderAcciones = (bloque: BloqueOLote) => {
-    const allowed = canModify(bloque.fechaIngreso)
-    const blockedTitle = 'Solo administrador despues del dia'
+    const bloqueVendido = isBloqueVendido(bloque)
+    const allowed = canModify(bloque.fechaIngreso) && !bloqueVendido
+    const blockedTitle = bloqueVendido
+      ? 'Bloque vendido: acciones bloqueadas'
+      : 'Solo administrador despues del dia'
 
     return (
       <div className="grid w-fit grid-cols-2 gap-1 justify-self-start lg:justify-self-end">
@@ -436,8 +661,10 @@ export default function BloquesPage() {
         >
           {bloque.estado === 'activo' ? (
             <CircleOff className="h-4 w-4 text-amber-600" />
-          ) : (
+          ) : bloque.estado === 'agotado' ? (
             <RotateCcw className="h-4 w-4 text-emerald-600" />
+          ) : (
+            <Lock className="h-4 w-4 text-emerald-700" />
           )}
         </Button>
       </div>
@@ -492,7 +719,29 @@ export default function BloquesPage() {
                   </Select>
                 </div>
 
-                {formData.tipo === 'Lote' ? (
+                {isCreatingLoteMulti ? (
+                  <div className="space-y-3">
+                    <Label>Medidas / tipo de lote</Label>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {LOTE_SELECCION_OPCIONES.map((option) => {
+                        const checked = loteSeleccionado.includes(option)
+                        const optionConfig = LOTE_SELECCION_CONFIG[option]
+                        return (
+                          <label
+                            key={option}
+                            className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(state) => toggleLoteSeleccion(option, state === true)}
+                            />
+                            <span className="text-sm text-slate-700">{optionConfig.label}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : formData.tipo === 'Lote' ? (
                   <div className="space-y-2">
                     <Label>Medida base</Label>
                     <Select
@@ -515,76 +764,160 @@ export default function BloquesPage() {
                   </div>
                 ) : null}
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>{formData.tipo === 'Lote' ? 'Cantidad losas' : 'Dimension (m3)'}</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step={formData.tipo === 'Lote' ? '1' : '0.01'}
-                      placeholder="0"
-                      value={
-                        editingBloque || numericTouched.metrosComprados || formData.metrosComprados > 0
-                          ? formData.metrosComprados
-                          : ''
-                      }
-                      onChange={(event) => {
-                        const value = event.target.value
-                        setNumericTouched((prev) => ({ ...prev, metrosComprados: value !== '' }))
-                        setFormData({ ...formData, metrosComprados: value === '' ? 0 : Number(value) })
-                      }}
-                      required
-                    />
-                  </div>
+                {isCreatingLoteMulti ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Proveedor</Label>
+                      <Input
+                        value={formData.proveedor}
+                        onChange={(event) => setFormData({ ...formData, proveedor: event.target.value })}
+                        placeholder="Nombre del proveedor"
+                        required
+                      />
+                    </div>
 
-                  <div className="space-y-2">
-                    <Label>Proveedor</Label>
-                    <Input
-                      value={formData.proveedor}
-                      onChange={(event) => setFormData({ ...formData, proveedor: event.target.value })}
-                      placeholder="Nombre del proveedor"
-                      required
-                    />
-                  </div>
-                </div>
+                    {loteSeleccionado.length === 0 ? (
+                      <p className="text-xs text-amber-700">Selecciona al menos una medida o plancha.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {loteSeleccionado.map((option) => {
+                          const optionConfig = LOTE_SELECCION_CONFIG[option]
+                          const optionValues = loteValores[option]
+                          const optionTouched = loteTouched[option]
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Costo material ($)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={editingBloque || numericTouched.costo || formData.costo > 0 ? formData.costo : ''}
-                      onChange={(event) => {
-                        const value = event.target.value
-                        setNumericTouched((prev) => ({ ...prev, costo: value !== '' }))
-                        setFormData({ ...formData, costo: value === '' ? 0 : Number(value) })
-                      }}
-                      required
-                    />
-                  </div>
+                          return (
+                            <div key={option} className="space-y-3 rounded-xl border border-slate-200 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                                {optionConfig.label}
+                              </p>
+                              <div className="grid gap-3 sm:grid-cols-3">
+                                <div className="space-y-2">
+                                  <Label>Cantidad losas</Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="0"
+                                    value={
+                                      optionTouched.metrosComprados || optionValues.metrosComprados > 0
+                                        ? optionValues.metrosComprados
+                                        : ''
+                                    }
+                                    onChange={(event) =>
+                                      updateLoteValor(option, 'metrosComprados', event.target.value)
+                                    }
+                                    required
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Costo material ($)</Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    placeholder="0"
+                                    value={optionTouched.costo || optionValues.costo > 0 ? optionValues.costo : ''}
+                                    onChange={(event) => updateLoteValor(option, 'costo', event.target.value)}
+                                    required
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Costo transporte ($)</Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    placeholder="0"
+                                    value={
+                                      optionTouched.costoTransporte || optionValues.costoTransporte > 0
+                                        ? optionValues.costoTransporte
+                                        : ''
+                                    }
+                                    onChange={(event) =>
+                                      updateLoteValor(option, 'costoTransporte', event.target.value)
+                                    }
+                                    required
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>{formData.tipo === 'Lote' ? 'Cantidad losas' : 'Dimension (m3)'}</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step={formData.tipo === 'Lote' ? '1' : '0.01'}
+                          placeholder="0"
+                          value={
+                            editingBloque || numericTouched.metrosComprados || formData.metrosComprados > 0
+                              ? formData.metrosComprados
+                              : ''
+                          }
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setNumericTouched((prev) => ({ ...prev, metrosComprados: value !== '' }))
+                            setFormData({ ...formData, metrosComprados: value === '' ? 0 : Number(value) })
+                          }}
+                          required
+                        />
+                      </div>
 
-                  <div className="space-y-2">
-                    <Label>Costo transporte ($)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={
-                        editingBloque || numericTouched.costoTransporte || formData.costoTransporte > 0
-                          ? formData.costoTransporte
-                          : ''
-                      }
-                      onChange={(event) => {
-                        const value = event.target.value
-                        setNumericTouched((prev) => ({ ...prev, costoTransporte: value !== '' }))
-                        setFormData({ ...formData, costoTransporte: value === '' ? 0 : Number(value) })
-                      }}
-                      required
-                    />
-                  </div>
-                </div>
+                      <div className="space-y-2">
+                        <Label>Proveedor</Label>
+                        <Input
+                          value={formData.proveedor}
+                          onChange={(event) => setFormData({ ...formData, proveedor: event.target.value })}
+                          placeholder="Nombre del proveedor"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Costo material ($)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          value={editingBloque || numericTouched.costo || formData.costo > 0 ? formData.costo : ''}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setNumericTouched((prev) => ({ ...prev, costo: value !== '' }))
+                            setFormData({ ...formData, costo: value === '' ? 0 : Number(value) })
+                          }}
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Costo transporte ($)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          value={
+                            editingBloque || numericTouched.costoTransporte || formData.costoTransporte > 0
+                              ? formData.costoTransporte
+                              : ''
+                          }
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setNumericTouched((prev) => ({ ...prev, costoTransporte: value !== '' }))
+                            setFormData({ ...formData, costoTransporte: value === '' ? 0 : Number(value) })
+                          }}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="flex gap-2 pt-4">
                   <Button type="button" variant="outline" onClick={resetForm} className="flex-1 bg-transparent">
@@ -722,7 +1055,11 @@ export default function BloquesPage() {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                {statusTarget?.estado === 'activo' ? 'Agotar bloque/lote' : 'Reactivar bloque/lote'}
+                {statusTarget?.estado === 'activo'
+                  ? 'Agotar bloque/lote'
+                  : statusTarget?.estado === 'agotado'
+                    ? 'Reactivar bloque/lote'
+                    : 'Bloque vendido'}
               </AlertDialogTitle>
               <AlertDialogDescription>
                 Esta accion cambiara el estado del registro seleccionado.
@@ -753,7 +1090,9 @@ export default function BloquesPage() {
                   ? 'Guardando...'
                   : statusTarget?.estado === 'activo'
                     ? 'Confirmar agotado'
-                    : 'Confirmar reactivacion'}
+                    : statusTarget?.estado === 'agotado'
+                      ? 'Confirmar reactivacion'
+                      : 'Accion no disponible'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -784,8 +1123,11 @@ export default function BloquesPage() {
                     ) : null}
                     <div>
                       <p className="text-muted-foreground">Estado</p>
-                      <Badge variant={selectedBloque.estado === 'activo' ? 'default' : 'outline'}>
-                        {selectedBloque.estado}
+                      <Badge
+                        variant={selectedBloque.estado === 'activo' ? 'default' : 'outline'}
+                        className={cn(bloqueEstadoBadgeClass[selectedBloque.estado])}
+                      >
+                        {bloqueEstadoLabel[selectedBloque.estado]}
                       </Badge>
                     </div>
                     <div>
@@ -830,3 +1172,4 @@ export default function BloquesPage() {
     </AdminShell>
   )
 }
+
