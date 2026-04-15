@@ -18,3 +18,5 @@ export { PostgresInventarioMovimientoRepository } from './inventario-movimiento.
 export { PostgresWorkshopRepository } from './workshop.repository.js'
 export { PostgresAuthAdapter } from './auth.adapter.js'
 export { PostgresPermissionRepository } from './permission.repository.js'
+export { PostgresMonoHiloMasaRepository } from './mono-hilo-masa.repository.js'
+

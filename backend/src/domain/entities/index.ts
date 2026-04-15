@@ -9,6 +9,7 @@ export type EstadoLosa = 'Crudo' | 'Pulido'
 export type EstadoInventario = 'Picado' | 'Escuadrado' | 'Devastado' | 'Resinado' | 'Pulido'
 export type UbicacionInventario = 'almacen' | 'proceso'
 export type AccionLosa = 'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir'
+export type UbicacionMasaMonoHilo = 'almacen' | 'proceso' | 'consumida'
 export type TipoEquipo = 'Pulidora' | 'Cortadora' | 'Escuadradora'
 export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado'
 
@@ -25,6 +26,8 @@ export interface ConfiguracionSistema {
   tarifasGlobales: Record<AccionLosa, number>
   salariosFijosPorRol: Record<RolConSalarioFijo, number>
   preciosM2: Record<Dimension, { crudo: number; pulido: number }>
+  monoHiloGrosorDiscoMm: number
+  monoHiloEspesorLosaCm: number
   nombreEmpresa: string
   email: string
   telefono: string
@@ -64,6 +67,33 @@ export interface Producto {
   metrosCuadrados: number
   precioM2: number
   imagen: string
+}
+
+export interface MonoHiloEstimadoDimension {
+  losasEstimadas: number
+  losasConsumidas: number
+  mermaEstimadaM3: number
+  mermaEstimadaPorcentaje: number
+}
+
+export type MonoHiloEstimados = Record<Dimension, MonoHiloEstimadoDimension>
+
+export interface MonoHiloMasa {
+  id: string
+  bloqueId: string
+  bloqueCodigo: string
+  bloqueNombre: string
+  codigo: string
+  largoCm: number
+  anchoCm: number
+  profundidadCm: number
+  margenCm: number
+  grosorDiscoMm: number
+  espesorLosaCm: number
+  ubicacion: UbicacionMasaMonoHilo
+  observaciones: string
+  fechaRegistro: string
+  estimados: MonoHiloEstimados
 }
 
 export interface CatalogoItem {
@@ -363,6 +393,7 @@ export interface InventarioMovimientoDetalle {
   productoNombre: string
   tipo: TipoProducto
   estado?: EstadoInventario
+  estadoDestino?: EstadoInventario
   ubicacionOrigen?: UbicacionInventario
   ubicacionDestino?: UbicacionInventario
   dimension: Dimension
@@ -389,3 +420,6 @@ export interface InventarioMovimiento {
   motivoRechazo?: string
   detalles: InventarioMovimientoDetalle[]
 }
+
+
+

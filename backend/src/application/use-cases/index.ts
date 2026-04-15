@@ -1,4 +1,4 @@
-﻿export * from './bloques/bloque.use-cases.js'
+export * from './bloques/bloque.use-cases.js'
 export * from './configuracion/configuracion.use-cases.js'
 export * from './productos/producto.use-cases.js'
 export * from './catalogo/catalogo.use-cases.js'
@@ -14,3 +14,5 @@ export * from './inventario-movimientos/inventario-movimiento.use-cases.js'
 export * from './workshops/workshop.use-cases.js'
 export * from './auth/auth.use-cases.js'
 export * from './permissions/permission.use-cases.js'
+export * from './mono-hilo/mono-hilo.use-cases.js'
+

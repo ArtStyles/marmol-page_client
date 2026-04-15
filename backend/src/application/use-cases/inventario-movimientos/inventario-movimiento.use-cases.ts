@@ -8,7 +8,7 @@ import type {
   InventarioMovimientoResponseDto,
   RechazarInventarioMovimientoDto,
 } from '../../dtos/index.js'
-import type { InventarioMovimientoDetalle, Venta } from '../../../domain/entities/index.js'
+import type { EstadoInventario, InventarioMovimientoDetalle, Venta } from '../../../domain/entities/index.js'
 import type {
   BloqueRepositoryPort,
   InventarioMovimientoPageCursor,
@@ -100,6 +100,42 @@ const estadoRequeridoPorAccionProceso: Record<
   devastar: 'Escuadrado',
   resinar: 'Devastado',
   pulir: 'Resinado',
+}
+
+const estadoSiguienteProceso: Partial<Record<EstadoInventario, EstadoInventario>> = {
+  Picado: 'Escuadrado',
+  Escuadrado: 'Devastado',
+  Devastado: 'Resinado',
+  Resinado: 'Pulido',
+}
+
+function resolveEstadoRetornoProceso(
+  estadoActual: EstadoInventario,
+  estadoObjetivo?: EstadoInventario,
+): EstadoInventario {
+  if (!estadoObjetivo) {
+    return estadoActual
+  }
+
+  if (estadoObjetivo === estadoActual) {
+    return estadoObjetivo
+  }
+
+  const siguiente = estadoSiguienteProceso[estadoActual]
+  if (siguiente && estadoObjetivo === siguiente) {
+    return estadoObjetivo
+  }
+
+  throw new DomainError(
+    `El estado objetivo ${estadoObjetivo} no es valido para retorno desde ${estadoActual}.`,
+    400,
+    'RETORNO_PROCESO_ESTADO_OBJETIVO_INVALIDO',
+    {
+      estadoActual,
+      estadoObjetivo,
+      estadoSiguienteValido: siguiente ?? null,
+    },
+  )
 }
 
 function dimensionToArea(dimension: '40x40' | '60x40' | '80x40'): number {
@@ -238,12 +274,14 @@ export class CreateRetornoProcesoInventarioUseCase {
     }
 
     const metrosCuadrados = resolveMetrosParaMovimiento(producto, cantidadLosas)
+    const estadoRetorno = resolveEstadoRetornoProceso(producto.estado, dto.estadoObjetivo)
     const detalle = {
       id: `imd-ra-${producto.id}-${Date.now()}`,
       productoId: producto.id,
       productoNombre: producto.nombre,
       tipo: producto.tipo,
       estado: producto.estado,
+      estadoDestino: estadoRetorno,
       ubicacionOrigen: 'proceso' as const,
       ubicacionDestino: 'almacen' as const,
       dimension: producto.dimension,
@@ -262,7 +300,10 @@ export class CreateRetornoProcesoInventarioUseCase {
       origen: 'proceso',
       estado: 'pendiente',
       motivo,
-      observaciones: 'Retorno solicitado desde proceso hacia almacen sin cambio de estado.',
+      observaciones:
+        estadoRetorno === producto.estado
+          ? 'Retorno solicitado desde proceso hacia almacen sin cambio de estado.'
+          : `Retorno solicitado desde proceso hacia almacen con cambio de estado ${producto.estado} -> ${estadoRetorno}.`,
       solicitadoPorId: actor.userId,
       solicitadoPorNombre: actor.userName,
       detalles: [detalle],
@@ -299,14 +340,18 @@ export class ApproveInventarioMovimientoUseCase {
     }
 
     if (movimiento.origen === 'proceso') {
-      await applyInventarioSalida(movimiento.detalles, this.productoRepository)
-      await applyInventarioEntrada(
-        movimiento.detalles.map((detalle) => ({
-          ...detalle,
-          ubicacionDestino: detalle.ubicacionDestino ?? 'proceso',
-        })),
-        this.productoRepository,
-      )
+      const detallesSalidaProceso = movimiento.detalles.map((detalle) => ({
+        ...detalle,
+        estado: detalle.estado ?? detalle.estadoDestino,
+      }))
+      await applyInventarioSalida(detallesSalidaProceso, this.productoRepository)
+
+      const detallesEntradaProceso = movimiento.detalles.map((detalle) => ({
+        ...detalle,
+        estado: detalle.estadoDestino ?? detalle.estado,
+        ubicacionDestino: detalle.ubicacionDestino ?? 'proceso',
+      }))
+      await applyInventarioEntrada(detallesEntradaProceso, this.productoRepository)
     } else if (movimiento.tipo === 'entrada') {
       await applyInventarioEntrada(movimiento.detalles, this.productoRepository)
     } else {

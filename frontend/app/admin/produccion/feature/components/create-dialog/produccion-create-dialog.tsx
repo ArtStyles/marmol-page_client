@@ -79,6 +79,9 @@ export function ProduccionCreateDialog({
   updateUsageDimension,
 }: ProduccionCreateDialogProps) {
   const accionActiva = formData.accionActiva
+  const accionesDisponibles = actionOrder.filter(
+    (accion) => (origenesActivosByAccion[accion]?.length ?? 0) > 0,
+  )
 
   return (
     <Dialog
@@ -162,27 +165,54 @@ export function ProduccionCreateDialog({
             <div className="space-y-3">
               <Label>Selecciona accion</Label>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                {actionOrder.map((accion) => (
+                {actionOrder.map((accion) => {
+                  const disponible = accionesDisponibles.includes(accion)
+                  const cantidadOrigenes = origenesActivosByAccion[accion]?.length ?? 0
+
+                  return (
                   <Button
                     key={accion}
                     type="button"
                     variant="outline"
                     className="justify-center bg-transparent"
-                    disabled={!canWriteProduccion}
+                    disabled={!canWriteProduccion || !disponible}
                     onClick={() =>
                       setFormData((prev) => ({
                         ...prev,
                         accionActiva: accion,
+                        acciones: {
+                          ...prev.acciones,
+                          [accion]: {
+                            ...prev.acciones[accion],
+                            usos: prev.acciones[accion].usos.map((uso, index) =>
+                              index === 0 && !uso.origenId
+                                ? {
+                                    ...uso,
+                                    origenId: origenesActivosByAccion[accion]?.[0]?.id ?? '',
+                                  }
+                                : uso,
+                            ),
+                          },
+                        },
                       }))
                     }
                   >
-                    {actionLabels[accion]}
+                    {actionLabels[accion]} ({cantidadOrigenes})
                   </Button>
-                ))}
+                  )
+                })}
               </div>
+              {accionesDisponibles.length === 0 ? (
+                <p className="text-xs text-amber-700">
+                  No hay acciones disponibles con stock/origen activo para registrar.
+                </p>
+              ) : null}
             </div>
           ) : (
             <div className="space-y-3">
+              <p className="text-xs text-slate-500">
+                Captura guiada: selecciona codigo, equipo y tipo de forma explicita en cada fila.
+              </p>
               <ProduccionActionSection
                 accion={accionActiva}
                 accionState={formData.acciones[accionActiva]}

@@ -8,6 +8,7 @@ import {
   deleteProduccion,
   getBloques,
   getEquipos,
+  getMonoHiloMasas,
   getProductos,
   getTrabajadores,
   updateProduccion,
@@ -22,6 +23,7 @@ import {
   type BloqueOLote,
   type Dimension,
   type Equipo,
+  type MonoHiloMasa,
   type Producto,
   type ProduccionDetalleAccion,
   type ProduccionDiaria,
@@ -49,6 +51,21 @@ const estadoProcesoRequeridoPorAccion: Record<
   resinar: 'Devastado',
   pulir: 'Resinado',
 }
+
+const PROCESS_ACTIONS: AccionLosa[] = ['escuadrar', 'devastar', 'resinar', 'pulir']
+const ACTION_ORDER: AccionLosa[] = ['picar', 'escuadrar', 'devastar', 'resinar', 'pulir']
+const DIMENSION_OPTIONS: Dimension[] = ['40x40', '60x40', '80x40']
+const MONO_HILO_DIMENSIONS: Dimension[] = ['40x40', '60x40', '80x40']
+
+const getMonoHiloLosasDisponibles = (masa: MonoHiloMasa, dimension: Dimension): number => {
+  const estimado = masa.estimados[dimension]
+  if (!estimado) return 0
+  return Math.max(0, estimado.losasEstimadas - estimado.losasConsumidas)
+}
+
+const isProcessAction = (
+  accion: AccionLosa,
+): accion is 'escuadrar' | 'devastar' | 'resinar' | 'pulir' => PROCESS_ACTIONS.includes(accion)
 
 const buildPseudoOrigen = (
   origenId: string,
@@ -91,6 +108,7 @@ export const useProduccionPageState = () => {
   const [loadingDependencies, setLoadingDependencies] = useState(true)
   const [dependenciesError, setDependenciesError] = useState<string | null>(null)
   const [bloquesYLotes, setBloquesYLotes] = useState<BloqueOLote[]>([])
+  const [monoHiloMasas, setMonoHiloMasas] = useState<MonoHiloMasa[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
   const [equipos, setEquipos] = useState<Equipo[]>([])
   const [trabajadores, setTrabajadores] = useState<Trabajador[]>([])
@@ -123,11 +141,13 @@ export const useProduccionPageState = () => {
 
         const canReadBloques = hasPermission(sessionUser, 'bloques:read')
         const canReadInventario = hasPermission(sessionUser, 'inventario:read')
+        const canReadProduccion = hasPermission(sessionUser, 'produccion:read')
         const canReadEquipos = hasPermission(sessionUser, 'equipos:read')
         const canReadTrabajadores = hasPermission(sessionUser, 'trabajadores:read')
 
-        const [bloquesData, productosData, equiposData, trabajadoresData] = await Promise.all([
+        const [bloquesData, monoHiloData, productosData, equiposData, trabajadoresData] = await Promise.all([
           canReadBloques ? getBloques() : Promise.resolve<BloqueOLote[]>([]),
+          canReadProduccion ? getMonoHiloMasas() : Promise.resolve<MonoHiloMasa[]>([]),
           canReadInventario ? getProductos() : Promise.resolve<Producto[]>([]),
           canReadEquipos ? getEquipos() : Promise.resolve<Equipo[]>([]),
           canReadTrabajadores ? getTrabajadores() : Promise.resolve<Trabajador[]>([]),
@@ -135,6 +155,7 @@ export const useProduccionPageState = () => {
 
         if (!alive) return
         setBloquesYLotes(bloquesData)
+        setMonoHiloMasas(monoHiloData)
         setProductos(productosData)
         setEquipos(equiposData)
         setTrabajadores(trabajadoresData)
@@ -174,13 +195,43 @@ export const useProduccionPageState = () => {
     })
     return map
   }, [equiposActivos])
-  const origenesActivosParaPicar = useMemo(
+  const bloquesActivosMonoHilo = useMemo(
     () =>
       bloquesYLotes.filter(
         (bloque) => bloque.estado === 'activo' && bloque.tipo === 'Bloque',
       ),
     [bloquesYLotes],
   )
+
+  const stockMonoHiloPorClave = useMemo(() => {
+    const map = new Map<string, number>()
+
+    for (const masa of monoHiloMasas) {
+      if (masa.ubicacion !== 'proceso') continue
+
+      for (const dimension of MONO_HILO_DIMENSIONS) {
+        const disponibles = getMonoHiloLosasDisponibles(masa, dimension)
+        if (disponibles <= 0) continue
+
+        const key = `${masa.bloqueId}::${dimension}`
+        map.set(key, (map.get(key) ?? 0) + disponibles)
+      }
+    }
+
+    return map
+  }, [monoHiloMasas])
+
+  const origenesActivosParaPicar = useMemo(() => {
+    const idsConStock = new Set<string>()
+
+    for (const key of stockMonoHiloPorClave.keys()) {
+      const [bloqueId] = key.split('::')
+      if (bloqueId) idsConStock.add(bloqueId)
+    }
+
+    return bloquesActivosMonoHilo.filter((bloque) => idsConStock.has(bloque.id))
+  }, [bloquesActivosMonoHilo, stockMonoHiloPorClave])
+
   const stockProcesoDisponible = useMemo(
     () =>
       productos.filter((producto) => producto.ubicacion === 'proceso' && producto.cantidadLosas > 0),
@@ -352,26 +403,49 @@ export const useProduccionPageState = () => {
       tipo: ProduccionDiaria['tipo'] | '',
       dimension: ProduccionDiaria['dimension'],
     ): number | null => {
-      if (accion !== 'escuadrar' && accion !== 'devastar' && accion !== 'resinar' && accion !== 'pulir') return null
       if (!origenId) return null
 
-      const estadoRequerido = estadoProcesoRequeridoPorAccion[accion]
-      if (accion === 'resinar' && !tipo) {
-        return (['Piso', 'Plancha'] as const).reduce((maxValue, tipoItem) => {
-          const dimensionNormalizada = resolveDimensionByTipo(tipoItem, dimension)
-          const stockKey = `${origenId}::${tipoItem}::${dimensionNormalizada}::${estadoRequerido}`
-          const disponible = stockProcesoPorClave.get(stockKey) ?? 0
-          return Math.max(maxValue, disponible)
-        }, 0)
+      if (accion === 'picar') {
+        const resolveDisponibilidadMonoHilo = (dimensionItem: ProduccionDiaria['dimension']): number => {
+          if (tipo === 'Plancha' && dimensionItem !== PLANCHA_DIMENSION) return 0
+          return stockMonoHiloPorClave.get(`${origenId}::${dimensionItem}`) ?? 0
+        }
+
+        if (!tipo) {
+          return MONO_HILO_DIMENSIONS.reduce(
+            (maxValue, dimensionItem) =>
+              Math.max(maxValue, resolveDisponibilidadMonoHilo(dimensionItem)),
+            0,
+          )
+        }
+
+        const dimensionNormalizada = resolveDimensionByTipo(tipo, dimension)
+        return resolveDisponibilidadMonoHilo(dimensionNormalizada)
       }
 
-      if (!tipo) return null
+      if (!isProcessAction(accion)) return null
 
-      const dimensionNormalizada = resolveDimensionByTipo(tipo, dimension)
-      const stockKey = `${origenId}::${tipo}::${dimensionNormalizada}::${estadoRequerido}`
-      return stockProcesoPorClave.get(stockKey) ?? 0
+      const estadoRequerido = estadoProcesoRequeridoPorAccion[accion]
+      const resolveDisponibilidad = (
+        tipoItem: ProduccionDiaria['tipo'],
+        dimensionItem: ProduccionDiaria['dimension'],
+      ): number => {
+        if (tipoItem === 'Plancha' && dimensionItem !== PLANCHA_DIMENSION) return 0
+        const dimensionNormalizada = resolveDimensionByTipo(tipoItem, dimensionItem)
+        const stockKey = `${origenId}::${tipoItem}::${dimensionNormalizada}::${estadoRequerido}`
+        return stockProcesoPorClave.get(stockKey) ?? 0
+      }
+
+      if (!tipo) {
+        return (['Piso', 'Plancha'] as const).reduce(
+          (maxValue, tipoItem) => Math.max(maxValue, resolveDisponibilidad(tipoItem, dimension)),
+          0,
+        )
+      }
+
+      return resolveDisponibilidad(tipo, dimension)
     },
-    [stockProcesoPorClave],
+    [stockMonoHiloPorClave, stockProcesoPorClave],
   )
 
   const filteredProduccion = produccion.filter((registro) => {
@@ -466,7 +540,34 @@ export const useProduccionPageState = () => {
   const fechasOrdenadas = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a))
 
   const prepareNewForm = () => {
-    setFormData(createInitialFormData())
+    const nextForm = createInitialFormData()
+    const accionInicial = ACTION_ORDER.find(
+      (accion) => (origenesActivosByAccion[accion]?.length ?? 0) > 0,
+    )
+
+    if (accionInicial) {
+      const primerOrigen = origenesActivosByAccion[accionInicial][0]
+      nextForm.accionActiva = accionInicial
+      if (primerOrigen) {
+        const dimensionInicial =
+          (PROCESS_ACTIONS.includes(accionInicial) || accionInicial === 'picar')
+            ? DIMENSION_OPTIONS.find(
+                (dimension) =>
+                  (getLosasDisponiblesParaAccion(accionInicial, primerOrigen.id, '', dimension) ?? 0) > 0,
+              ) ?? PLANCHA_DIMENSION
+            : '60x40'
+
+        nextForm.acciones[accionInicial].usos = [
+          {
+            ...nextForm.acciones[accionInicial].usos[0],
+            origenId: primerOrigen.id,
+            dimensiones: [createUsageDimensionRow(dimensionInicial)],
+          },
+        ]
+      }
+    }
+
+    setFormData(nextForm)
     setFormError('')
   }
 
@@ -478,17 +579,52 @@ export const useProduccionPageState = () => {
   const getUsageLosas = (uso: ActionUsageForm): number =>
     uso.dimensiones.reduce((sum, dimensionUso) => sum + dimensionUso.cantidadLosas, 0)
 
+  const resolveAvailableDimensionsForUsage = useCallback(
+    (accion: AccionLosa, uso: ActionUsageForm): Dimension[] => {
+      if (accion !== 'picar' && !PROCESS_ACTIONS.includes(accion)) return DIMENSION_OPTIONS
+      if (!uso.origenId) return DIMENSION_OPTIONS
+
+      const disponibles = DIMENSION_OPTIONS.filter(
+        (dimension) =>
+          (getLosasDisponiblesParaAccion(accion, uso.origenId, uso.tipo, dimension) ?? 0) > 0,
+      )
+
+      return disponibles
+    },
+    [getLosasDisponiblesParaAccion],
+  )
+
   const updateUsage = (
     accion: AccionLosa,
     usageId: string,
     patch: Partial<ActionUsageForm>,
   ) => {
     setFormData((prev) => {
-      const usosActualizados = prev.acciones[accion].usos.map((uso) =>
-        uso.id === usageId
-          ? normalizeUsageForPlancha({ ...uso, ...patch })
-          : uso,
-      )
+      const usosActualizados = prev.acciones[accion].usos.map((uso) => {
+        if (uso.id !== usageId) return uso
+
+        const usoNormalizado = normalizeUsageForPlancha({ ...uso, ...patch })
+        const dimensionesDisponibles = resolveAvailableDimensionsForUsage(accion, usoNormalizado)
+        const dimensionesFiltradas = usoNormalizado.dimensiones.filter((dimensionUso) =>
+          dimensionesDisponibles.includes(dimensionUso.dimension),
+        )
+
+        if (dimensionesFiltradas.length > 0) {
+          return {
+            ...usoNormalizado,
+            dimensiones: dimensionesFiltradas,
+          }
+        }
+
+        if (dimensionesDisponibles.length > 0) {
+          return {
+            ...usoNormalizado,
+            dimensiones: [createUsageDimensionRow(dimensionesDisponibles[0])],
+          }
+        }
+
+        return usoNormalizado
+      })
       const cantidadLosas = usosActualizados.reduce((sum, uso) => sum + getUsageLosas(uso), 0)
 
       return {
@@ -554,6 +690,15 @@ export const useProduccionPageState = () => {
           return usoNormalizado
         }
 
+        const esAccionConStock = accion === 'picar' || PROCESS_ACTIONS.includes(accion)
+        if (
+          esAccionConStock &&
+          enabled &&
+          (getLosasDisponiblesParaAccion(accion, usoNormalizado.origenId, usoNormalizado.tipo, dimension) ?? 0) <= 0
+        ) {
+          return usoNormalizado
+        }
+
         const alreadyExists = usoNormalizado.dimensiones.some(
           (dimensionUso) => dimensionUso.dimension === dimension,
         )
@@ -594,13 +739,25 @@ export const useProduccionPageState = () => {
   }
 
   const addUsage = (accion: AccionLosa) => {
+    const primerOrigen = origenesActivosByAccion[accion]?.[0]
+    const usoBase: ActionUsageForm = {
+      ...createUsageRow(),
+      origenId: primerOrigen?.id ?? '',
+      dimensiones: PROCESS_ACTIONS.includes(accion) ? [] : [createUsageDimensionRow('60x40')],
+    }
+    const dimensionesDisponibles = resolveAvailableDimensionsForUsage(accion, usoBase)
+    const usoConDisponibilidad: ActionUsageForm =
+      dimensionesDisponibles.length > 0
+        ? { ...usoBase, dimensiones: [createUsageDimensionRow(dimensionesDisponibles[0])] }
+        : usoBase
+
     setFormData((prev) => ({
       ...prev,
       acciones: {
         ...prev.acciones,
         [accion]: {
           ...prev.acciones[accion],
-          usos: [...prev.acciones[accion].usos, createUsageRow()],
+          usos: [...prev.acciones[accion].usos, usoConDisponibilidad],
           cantidadTouched: true,
         },
       },
@@ -672,13 +829,12 @@ export const useProduccionPageState = () => {
       }
     >()
     const consumoProcesoReservado = new Map<string, number>()
+    const consumoMonoHiloReservado = new Map<string, number>()
 
     for (const accion of [formData.accionActiva] as AccionLosa[]) {
       const accionState = formData.acciones[accion]
       const includeMermaEnAccion = accion !== 'picar' && accion !== 'resinar'
       const includeReutilizableEnAccion = accion !== 'resinar'
-      const requiresTipo = accion !== 'resinar'
-      const requiresEquipo = accion !== 'resinar'
 
       const usosCapturados = accionState.usos.filter(
         (uso) =>
@@ -701,17 +857,8 @@ export const useProduccionPageState = () => {
       for (const uso of usosCapturados) {
         const usoNormalizado = normalizeUsageForPlancha(uso)
 
-        if (
-          !usoNormalizado.origenId ||
-          usoNormalizado.trabajadorIds.length === 0 ||
-          (requiresTipo && !usoNormalizado.tipo) ||
-          (requiresEquipo && !usoNormalizado.equipoId)
-        ) {
-          setFormError(
-            requiresTipo && requiresEquipo
-              ? `Completa bloque/lote, equipo, personal y tipo en ${actionLabels[accion]}.`
-              : `Completa bloque/lote y personal en ${actionLabels[accion]}.`,
-          )
+        if (!usoNormalizado.origenId) {
+          setFormError(`Completa bloque/lote en ${actionLabels[accion]}.`)
           return
         }
 
@@ -735,21 +882,27 @@ export const useProduccionPageState = () => {
           codigoInterno: 'SIN-EQUIPO',
         }
 
-        if (requiresEquipo) {
-          const equipo = equiposById.get(usoNormalizado.equipoId)
-          if (!equipo) {
-            setFormError('Uno de los equipos seleccionados no esta activo.')
+        if (accion !== 'resinar') {
+          const tipoEsperado = TIPO_EQUIPO_POR_ACCION[accion]
+
+          if (!usoNormalizado.equipoId) {
+            setFormError(`Selecciona un equipo en ${actionLabels[accion]}.`)
             return
           }
 
-          const tipoEsperado = TIPO_EQUIPO_POR_ACCION[accion]
-          if (equipo.tipo !== tipoEsperado) {
+          const equipoSeleccionado = equiposById.get(usoNormalizado.equipoId)
+          if (!equipoSeleccionado) {
+            setFormError('Uno de los equipos seleccionados no es valido o no esta activo.')
+            return
+          }
+
+          if (equipoSeleccionado.tipo !== tipoEsperado) {
             setFormError(`${actionLabels[accion]} solo permite equipos tipo ${tipoEsperado}.`)
             return
           }
 
-          equipoDetalle.id = equipo.id
-          equipoDetalle.codigoInterno = equipo.codigoInterno
+          equipoDetalle.id = equipoSeleccionado.id
+          equipoDetalle.codigoInterno = equipoSeleccionado.codigoInterno
         }
 
         const dimensionesCapturadas = usoNormalizado.dimensiones.filter(
@@ -767,7 +920,7 @@ export const useProduccionPageState = () => {
         for (const dimensionUso of dimensionesCapturadas) {
           const mermaTotalLosas = includeMermaEnAccion ? dimensionUso.mermaTotalLosas : 0
           const reutilizableLosas = includeReutilizableEnAccion ? dimensionUso.reutilizableLosas : 0
-          let tipoUso = (accion === 'resinar' ? '' : usoNormalizado.tipo) as ProduccionDiaria['tipo'] | ''
+          let tipoUso = usoNormalizado.tipo as ProduccionDiaria['tipo'] | ''
 
           if (!Number.isInteger(dimensionUso.cantidadLosas) || dimensionUso.cantidadLosas <= 0) {
             setFormError(
@@ -800,38 +953,36 @@ export const useProduccionPageState = () => {
             return
           }
 
-          if (accion === 'resinar' && !tipoUso) {
-            const estadoRequerido = estadoProcesoRequeridoPorAccion[accion]
-            const candidato = (['Piso', 'Plancha'] as const)
-              .map((tipoItem) => {
-                const dimensionCandidata = resolveDimensionByTipo(tipoItem, dimensionUso.dimension)
-                const stockKey = `${usoNormalizado.origenId}::${tipoItem}::${dimensionCandidata}::${estadoRequerido}`
-                const disponible = stockProcesoPorClave.get(stockKey) ?? 0
-                const reservado = consumoProcesoReservado.get(stockKey) ?? 0
-                return {
-                  tipo: tipoItem as ProduccionDiaria['tipo'],
-                  restante: disponible - reservado,
-                }
-              })
-              .sort((a, b) => b.restante - a.restante)
-              .find((item) => item.restante >= dimensionUso.cantidadLosas)
-
-            if (!candidato) {
-              setFormError(
-                `Stock insuficiente para ${actionLabels[accion]} (${dimensionUso.dimension}). No se pudo inferir el tipo automaticamente.`,
-              )
-              return
-            }
-
-            tipoUso = candidato.tipo
+          if (!tipoUso) {
+            setFormError(`Selecciona el tipo (Piso o Plancha) en ${actionLabels[accion]}.`)
+            return
           }
 
-          if (!tipoUso) {
-            setFormError(`Falta tipo para ${actionLabels[accion]} (${dimensionUso.dimension}).`)
+          if (tipoUso === 'Plancha' && dimensionUso.dimension !== PLANCHA_DIMENSION) {
+            setFormError(`Plancha solo permite dimension ${PLANCHA_DIMENSION}.`)
             return
           }
 
           const dimensionUsoReal = resolveDimensionByTipo(tipoUso, dimensionUso.dimension)
+
+          if (accion === 'picar') {
+            const stockKeyMonoHilo = `${usoNormalizado.origenId}::${dimensionUsoReal}`
+            const disponibleMonoHilo = stockMonoHiloPorClave.get(stockKeyMonoHilo) ?? 0
+            const reservadoMonoHilo = consumoMonoHiloReservado.get(stockKeyMonoHilo) ?? 0
+            const restanteMonoHilo = disponibleMonoHilo - reservadoMonoHilo
+
+            if (restanteMonoHilo < dimensionUso.cantidadLosas) {
+              setFormError(
+                `Masas de mono hilo insuficientes para picar (${dimensionUsoReal}). Disponible en proceso: ${Math.max(0, restanteMonoHilo)} losas estimadas.`,
+              )
+              return
+            }
+
+            consumoMonoHiloReservado.set(
+              stockKeyMonoHilo,
+              reservadoMonoHilo + dimensionUso.cantidadLosas,
+            )
+          }
 
           if (accion === 'escuadrar' || accion === 'devastar' || accion === 'resinar' || accion === 'pulir') {
             const estadoRequerido = estadoProcesoRequeridoPorAccion[accion]
@@ -1094,6 +1245,9 @@ export const useProduccionPageState = () => {
     handleSubmit,
     isDialogOpen,
     loadingDependencies,
+    bloquesActivosMonoHilo,
+    monoHiloMasas,
+    setMonoHiloMasas,
     origenesActivosByAccion,
     origenesActivosResumen,
     prepareNewForm,

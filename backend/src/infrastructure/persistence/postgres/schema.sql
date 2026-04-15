@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS configuracion (
   tarifas_globales JSONB NOT NULL DEFAULT '{"picar":400,"escuadrar":100,"devastar":250,"resinar":250,"pulir":250}',
   salarios_fijos_por_rol JSONB NOT NULL DEFAULT '{}',
   precios_m2 JSONB NOT NULL DEFAULT '{}',
+  mono_hilo_grosor_disco_mm NUMERIC(10,2) NOT NULL DEFAULT 8,
+  mono_hilo_espesor_losa_cm NUMERIC(10,2) NOT NULL DEFAULT 3,
   nombre_empresa TEXT NOT NULL DEFAULT '',
   email TEXT NOT NULL DEFAULT '',
   telefono TEXT NOT NULL DEFAULT '',
@@ -56,6 +58,27 @@ CREATE TABLE IF NOT EXISTS productos (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Masas de mono hilo (bloque segmentado previo al picado)
+CREATE TABLE IF NOT EXISTS mono_hilo_masas (
+  id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
+  bloque_id TEXT NOT NULL,
+  bloque_codigo TEXT NOT NULL,
+  bloque_nombre TEXT NOT NULL,
+  codigo TEXT NOT NULL,
+  largo_cm NUMERIC(10,2) NOT NULL,
+  ancho_cm NUMERIC(10,2) NOT NULL,
+  profundidad_cm NUMERIC(10,2) NOT NULL,
+  margen_cm NUMERIC(10,2) NOT NULL DEFAULT 1,
+  grosor_disco_mm NUMERIC(10,2) NOT NULL DEFAULT 8,
+  espesor_losa_cm NUMERIC(10,2) NOT NULL DEFAULT 3,
+  ubicacion TEXT NOT NULL DEFAULT 'almacen' CHECK (ubicacion IN ('almacen', 'proceso', 'consumida')),
+  observaciones TEXT NOT NULL DEFAULT '',
+  fecha_registro TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  estimados JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 -- Catalogo comercial (landing)
 CREATE TABLE IF NOT EXISTS catalogo_items (
   id TEXT PRIMARY KEY,
@@ -344,6 +367,8 @@ CREATE TABLE IF NOT EXISTS admin_user_permissions (
 
 -- Compatibilidad para bases existentes sin workshop_id
 ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS mono_hilo_grosor_disco_mm NUMERIC(10,2) NOT NULL DEFAULT 8;
+ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS mono_hilo_espesor_losa_cm NUMERIC(10,2) NOT NULL DEFAULT 3;
 ALTER TABLE bloques ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS ubicacion TEXT NOT NULL DEFAULT 'almacen';
@@ -352,6 +377,26 @@ ALTER TABLE productos
   ADD CONSTRAINT productos_ubicacion_check
   CHECK (ubicacion IN ('almacen', 'proceso'));
 ALTER TABLE catalogo_items ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS bloque_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS bloque_codigo TEXT NOT NULL DEFAULT '';
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS bloque_nombre TEXT NOT NULL DEFAULT '';
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS codigo TEXT NOT NULL DEFAULT '';
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS largo_cm NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS ancho_cm NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS profundidad_cm NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS margen_cm NUMERIC(10,2) NOT NULL DEFAULT 1;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS grosor_disco_mm NUMERIC(10,2) NOT NULL DEFAULT 8;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS espesor_losa_cm NUMERIC(10,2) NOT NULL DEFAULT 3;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS ubicacion TEXT NOT NULL DEFAULT 'almacen';
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS observaciones TEXT NOT NULL DEFAULT '';
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS fecha_registro TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS estimados JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE mono_hilo_masas DROP CONSTRAINT IF EXISTS mono_hilo_masas_ubicacion_check;
+ALTER TABLE mono_hilo_masas
+  ADD CONSTRAINT mono_hilo_masas_ubicacion_check
+  CHECK (ubicacion IN ('almacen', 'proceso', 'consumida'));
 ALTER TABLE trabajadores ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE equipos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
@@ -403,6 +448,12 @@ CREATE INDEX IF NOT EXISTS idx_configuracion_workshop_id ON configuracion(worksh
 CREATE INDEX IF NOT EXISTS idx_bloques_workshop_id ON bloques(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_productos_workshop_id ON productos(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_productos_workshop_ubicacion ON productos(workshop_id, ubicacion);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mono_hilo_masas_workshop_codigo
+  ON mono_hilo_masas(workshop_id, codigo);
+CREATE INDEX IF NOT EXISTS idx_mono_hilo_masas_workshop_bloque
+  ON mono_hilo_masas(workshop_id, bloque_id);
+CREATE INDEX IF NOT EXISTS idx_mono_hilo_masas_workshop_ubicacion
+  ON mono_hilo_masas(workshop_id, ubicacion);
 CREATE INDEX IF NOT EXISTS idx_catalogo_items_workshop_id ON catalogo_items(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_trabajadores_workshop_id ON trabajadores(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_equipos_workshop_id ON equipos(workshop_id);
@@ -622,3 +673,4 @@ WHERE m.group_id IS NOT NULL
     WHERE aug.user_id = m.user_id
   )
 ON CONFLICT DO NOTHING;
+

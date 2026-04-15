@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
@@ -13,6 +13,8 @@ const emptyConfiguracion: ConfiguracionSistema = {
     escuadrar: 0,
     resinar: 0,
   },
+  monoHiloGrosorDiscoMm: 8,
+  monoHiloEspesorLosaCm: 3,
   salariosFijosPorRol: {
     Administrador: 0,
     'Gestor de Ventas': 0,
@@ -51,6 +53,8 @@ const mergeConfiguracion = (value: Partial<ConfiguracionSistema>): Configuracion
     ...emptyConfiguracion.preciosM2,
     ...value.preciosM2,
   },
+  monoHiloGrosorDiscoMm: value.monoHiloGrosorDiscoMm ?? emptyConfiguracion.monoHiloGrosorDiscoMm,
+  monoHiloEspesorLosaCm: value.monoHiloEspesorLosaCm ?? emptyConfiguracion.monoHiloEspesorLosaCm,
 })
 
 const readSessionUser = (): AdminUser | null => {

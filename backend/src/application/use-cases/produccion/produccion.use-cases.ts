@@ -21,8 +21,10 @@ import type {
   ProduccionRepositoryPort,
   ProduccionTrabajadorRepositoryPort,
   ProductoRepositoryPort,
+  MonoHiloMasaRepositoryPort,
 } from '../../../domain/ports/index.js'
 import { applyInventarioEntrada } from '../inventario-movimientos/inventario-movimiento.helpers.js'
+import { consumeMonoHiloMasasParaPicado } from '../mono-hilo/mono-hilo.use-cases.js'
 
 interface ProduccionActor {
   userId: string
@@ -51,11 +53,20 @@ export class CreateProduccionUseCase {
   constructor(
     private readonly repository: ProduccionRepositoryPort,
     private readonly productoRepository: ProductoRepositoryPort,
+    private readonly monoHiloRepository: MonoHiloMasaRepositoryPort,
   ) {}
 
   async execute(dto: CreateProduccionDto): Promise<ProduccionResponseDto> {
     const normalizedDto = normalizeProduccionDto(dto)
     validateResinaConsumo(normalizedDto)
+    await consumeMonoHiloMasasParaPicado(
+      {
+        bloqueId: normalizedDto.origenId,
+        dimension: normalizedDto.dimension,
+        cantidadLosas: normalizedDto.cantidadPicar,
+      },
+      this.monoHiloRepository,
+    )
     await consumeProcesoStockParaProduccion(normalizedDto, this.productoRepository)
 
     return this.repository.create({

@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   BloqueOLote,
   CatalogoItem,
   ConfiguracionSistema,
@@ -10,6 +10,7 @@
   ProduccionDiaria,
   ProduccionTrabajador,
   Producto,
+  MonoHiloMasa,
   SystemLog,
   Trabajador,
   Venta,
@@ -28,6 +29,7 @@ import {
   equipos,
   produccionDiaria,
   produccionTrabajadores,
+  monoHiloMasas,
   mermas,
   ventas,
   gastos,
@@ -46,6 +48,7 @@ interface StoreState {
   equipos: Equipo[]
   produccion: ProduccionDiaria[]
   produccionTrabajadores: ProduccionTrabajador[]
+  monoHiloMasas: MonoHiloMasa[]
   mermas: Merma[]
   ventas: Venta[]
   gastos: Gasto[]
@@ -65,6 +68,7 @@ function cloneInitialState(): StoreState {
     equipos: [...equipos],
     produccion: [...produccionDiaria],
     produccionTrabajadores: [...produccionTrabajadores],
+    monoHiloMasas: [...monoHiloMasas],
     mermas: [...mermas],
     ventas: [...ventas],
     gastos: [...gastos],
@@ -155,6 +159,32 @@ export function deleteProducto(id: string): boolean {
   const i = state.productos.findIndex((p) => p.id === id)
   if (i === -1) return false
   state.productos.splice(i, 1)
+  return true
+}
+
+// --- Mono hilo (masas) ---
+export function getMonoHiloMasas(): MonoHiloMasa[] {
+  return state.monoHiloMasas
+}
+export function getMonoHiloMasaById(id: string): MonoHiloMasa | undefined {
+  return state.monoHiloMasas.find((item) => item.id === id)
+}
+export function createMonoHiloMasa(data: Omit<MonoHiloMasa, 'id'>): MonoHiloMasa {
+  const id = `MH${String(state.monoHiloMasas.length + 1).padStart(3, '0')}`
+  const item: MonoHiloMasa = { ...data, id }
+  state.monoHiloMasas.push(item)
+  return item
+}
+export function updateMonoHiloMasa(id: string, data: Partial<MonoHiloMasa>): MonoHiloMasa | null {
+  const i = state.monoHiloMasas.findIndex((item) => item.id === id)
+  if (i === -1) return null
+  state.monoHiloMasas[i] = { ...state.monoHiloMasas[i], ...data }
+  return state.monoHiloMasas[i]
+}
+export function deleteMonoHiloMasa(id: string): boolean {
+  const i = state.monoHiloMasas.findIndex((item) => item.id === id)
+  if (i === -1) return false
+  state.monoHiloMasas.splice(i, 1)
   return true
 }
 
@@ -597,4 +627,7 @@ export function loginAdmin(email: string, password: string, workshopId?: string)
   if (workshopId && entry.user.workshopId !== workshopId) return null
   return entry.user
 }
+
+
+
 

@@ -18,7 +18,7 @@ type ConfigTab = 'empresa' | 'notificaciones' | 'tarifas' | 'seguridad'
 
 type EmpresaDraft = Pick<ConfiguracionSistema, 'nombreEmpresa' | 'email' | 'telefono' | 'direccion'>
 type NotificacionesDraft = Pick<ConfiguracionSistema, 'notificacionesEmail' | 'alertasStockBajo' | 'reportesVentas'>
-type TarifasDraft = Pick<ConfiguracionSistema, 'tarifasGlobales' | 'salariosFijosPorRol' | 'preciosM2'>
+type TarifasDraft = Pick<ConfiguracionSistema, 'tarifasGlobales' | 'salariosFijosPorRol' | 'preciosM2' | 'monoHiloGrosorDiscoMm' | 'monoHiloEspesorLosaCm'>
 
 type SecuritySettings = {
   twoFactorAuth: boolean
@@ -64,6 +64,8 @@ const createTarifasDraft = (value: ConfiguracionSistema): TarifasDraft => ({
     '60x40': { ...value.preciosM2['60x40'] },
     '80x40': { ...value.preciosM2['80x40'] },
   },
+  monoHiloGrosorDiscoMm: value.monoHiloGrosorDiscoMm,
+  monoHiloEspesorLosaCm: value.monoHiloEspesorLosaCm,
 })
 
 const getRoleLabel = (role: string) => ROLE_LABEL_OVERRIDES[role] ?? role
@@ -234,6 +236,19 @@ export default function ConfiguracionPage() {
               <span className="font-semibold">${item.salario.toLocaleString()}</span>
             </div>
           ))}
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Mono hilo" meta="Tecnico">
+        <div className="space-y-2 text-sm text-slate-700">
+          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+            <span>Disco</span>
+            <span className="font-semibold">{config.monoHiloGrosorDiscoMm} mm</span>
+          </div>
+          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+            <span>Espesor losa</span>
+            <span className="font-semibold">{config.monoHiloEspesorLosaCm} cm</span>
+          </div>
         </div>
       </AdminPanelCard>
     </div>
@@ -450,6 +465,45 @@ export default function ConfiguracionPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-medium">Parametros tecnicos de mono hilo</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Estos valores se aplican automaticamente al registrar masas desde produccion.
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Grosor de disco (mm)</Label>
+                      <Input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={tarifasDraft.monoHiloGrosorDiscoMm}
+                        onChange={(e) =>
+                          setTarifasDraft((prev) => ({
+                            ...prev,
+                            monoHiloGrosorDiscoMm: Number(e.target.value),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Espesor de losa (cm)</Label>
+                      <Input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={tarifasDraft.monoHiloEspesorLosaCm}
+                        onChange={(e) =>
+                          setTarifasDraft((prev) => ({
+                            ...prev,
+                            monoHiloEspesorLosaCm: Number(e.target.value),
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="flex justify-end">

@@ -29,6 +29,8 @@ import {
   rejectInventarioMovimientoSchema,
   createSalidaProcesoInventarioSchema,
   createRetornoProcesoInventarioSchema,
+  createMonoHiloMasasSchema,
+  updateMonoHiloMasaUbicacionSchema,
   createHistorialPagoSchema,
   updateHistorialPagoSchema,
   createLogSchema,
@@ -50,6 +52,7 @@ import * as produccionCtrl from '../controllers/produccion.controller.js'
 import * as mermaCtrl from '../controllers/merma.controller.js'
 import * as ventaCtrl from '../controllers/venta.controller.js'
 import * as inventarioMovimientoCtrl from '../controllers/inventario-movimiento.controller.js'
+import * as monoHiloCtrl from '../controllers/mono-hilo.controller.js'
 import * as gastoCtrl from '../controllers/gasto.controller.js'
 import * as historialPagoCtrl from '../controllers/historial-pago.controller.js'
 import * as logCtrl from '../controllers/log.controller.js'
@@ -144,6 +147,23 @@ api.patch(
   asyncHandler(inventarioMovimientoCtrl.rejectInventarioMovimiento),
 )
 
+api.get(
+  '/mono-hilo/masas',
+  requirePermission('produccion:read'),
+  asyncHandler(monoHiloCtrl.getMonoHiloMasas),
+)
+api.post(
+  '/mono-hilo/masas',
+  requirePermission('produccion:write'),
+  validateBody(createMonoHiloMasasSchema),
+  asyncHandler(monoHiloCtrl.createMonoHiloMasas),
+)
+api.patch(
+  '/mono-hilo/masas/:id/ubicacion',
+  requirePermission('produccion:write'),
+  validateBody(updateMonoHiloMasaUbicacionSchema),
+  asyncHandler(monoHiloCtrl.updateMonoHiloMasaUbicacion),
+)
 // ----- Catalogo -----
 api.get('/catalogo', asyncHandler(catalogoCtrl.getCatalogoItems))
 api.get('/catalogo/:id', asyncHandler(catalogoCtrl.getCatalogoItemById))

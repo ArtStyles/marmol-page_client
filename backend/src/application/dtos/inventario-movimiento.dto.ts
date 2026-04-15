@@ -1,4 +1,4 @@
-import type { InventarioMovimiento } from '../../domain/entities/index.js'
+import type { EstadoInventario, InventarioMovimiento } from '../../domain/entities/index.js'
 
 export type CreateInventarioMovimientoDto = Omit<InventarioMovimiento, 'id'>
 export type UpdateInventarioMovimientoDto = Partial<Omit<InventarioMovimiento, 'id'>>
@@ -35,4 +35,5 @@ export interface CreateRetornoProcesoInventarioDto {
   productoId: string
   cantidadLosas: number
   motivo: string
+  estadoObjetivo?: EstadoInventario
 }

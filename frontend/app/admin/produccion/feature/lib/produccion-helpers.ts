@@ -47,7 +47,8 @@ export const createUsageRow = (): ActionUsageForm => ({
   tipo: '',
   trabajadorIds: [],
   equipoId: '',
-  dimensiones: [],
+  // Start with one default dimension to reduce manual clicks in daily capture.
+  dimensiones: [createUsageDimensionRow('60x40')],
 })
 
 export const createActionState = (): ActionFormState => ({

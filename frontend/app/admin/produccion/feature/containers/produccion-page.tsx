@@ -27,9 +27,20 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
-import { createRetornoProcesoInventario } from '@/lib/resources-api'
+import { getBloqueCodigo } from '@/lib/bloque-codigo'
+import {
+  createMonoHiloMasas,
+  createRetornoProcesoInventario,
+  updateMonoHiloMasaUbicacion,
+} from '@/lib/resources-api'
 import { Search } from 'lucide-react'
-import { losasAMetros, type ProduccionDetalleAccion, type ProduccionDiaria } from '@/lib/types'
+import {
+  losasAMetros,
+  type MonoHiloMasa,
+  type ProduccionDetalleAccion,
+  type ProduccionDiaria,
+  type Producto,
+} from '@/lib/types'
 import { useProduccionPageState } from '../hooks/use-produccion-page-state'
 import { ProduccionCreateDialog } from '../components/create-dialog/produccion-create-dialog'
 import { ProduccionRightPanel } from '../components/produccion-right-panel'
@@ -39,6 +50,23 @@ import {
   canEditProduccionEntrada,
   getDetalleTrabajadores,
 } from '../lib/produccion-helpers'
+
+const estadoSiguienteProceso: Partial<Record<Producto['estado'], Producto['estado']>> = {
+  Picado: 'Escuadrado',
+  Escuadrado: 'Devastado',
+  Devastado: 'Resinado',
+  Resinado: 'Pulido',
+}
+
+function resolveEstadoRetornoObjetivo(estadoActual: Producto['estado']): Producto['estado'] {
+  return estadoSiguienteProceso[estadoActual] ?? estadoActual
+}
+
+function getMonoHiloLosasDisponibles(masa: MonoHiloMasa, dimension: '40x40' | '60x40' | '80x40'): number {
+  const estimado = masa.estimados[dimension]
+  if (!estimado) return 0
+  return Math.max(0, estimado.losasEstimadas - estimado.losasConsumidas)
+}
 
 export default function ProduccionPage() {
   const {
@@ -60,6 +88,9 @@ export default function ProduccionPage() {
     handleSubmit,
     isDialogOpen,
     loadingDependencies,
+    bloquesActivosMonoHilo,
+    monoHiloMasas,
+    setMonoHiloMasas,
     origenesActivosByAccion,
     origenesActivosResumen,
     prepareNewForm,
@@ -96,6 +127,16 @@ export default function ProduccionPage() {
   const [retornoDialogError, setRetornoDialogError] = useState<string | null>(null)
   const [retornoDialogSubmitting, setRetornoDialogSubmitting] = useState(false)
   const [retornoNotice, setRetornoNotice] = useState<string | null>(null)
+  const [monoHiloDialogOpen, setMonoHiloDialogOpen] = useState(false)
+  const [monoHiloBloqueId, setMonoHiloBloqueId] = useState('')
+  const [monoHiloLargoCm, setMonoHiloLargoCm] = useState(0)
+  const [monoHiloAnchoCm, setMonoHiloAnchoCm] = useState(0)
+  const [monoHiloProfundidadCm, setMonoHiloProfundidadCm] = useState(0)
+  const [monoHiloObservaciones, setMonoHiloObservaciones] = useState('')
+  const [monoHiloDialogError, setMonoHiloDialogError] = useState<string | null>(null)
+  const [monoHiloDialogSubmitting, setMonoHiloDialogSubmitting] = useState(false)
+  const [monoHiloNotice, setMonoHiloNotice] = useState<string | null>(null)
+  const [monoHiloMoveLoadingById, setMonoHiloMoveLoadingById] = useState<Record<string, boolean>>({})
   const [entryEditDialogOpen, setEntryEditDialogOpen] = useState(false)
   const [entryDeleteDialogOpen, setEntryDeleteDialogOpen] = useState(false)
   const [entryEditTarget, setEntryEditTarget] = useState<ProduccionDiaria | null>(null)
@@ -151,6 +192,116 @@ export default function ProduccionPage() {
     return `${nombres[0]}, ${nombres[1]} +${nombres.length - 2}`
   }, [entryEditTrabajadorIds, trabajadoresActivosById])
 
+  const monoHiloMasasOrdenadas = useMemo(
+    () =>
+      [...monoHiloMasas].sort((a, b) =>
+        b.fechaRegistro.localeCompare(a.fechaRegistro) || b.codigo.localeCompare(a.codigo),
+      ),
+    [monoHiloMasas],
+  )
+
+  const monoHiloResumen = useMemo(
+    () =>
+      monoHiloMasas.reduce(
+        (acc, masa) => {
+          acc.total += 1
+          if (masa.ubicacion === 'almacen') acc.almacen += 1
+          if (masa.ubicacion === 'proceso') acc.proceso += 1
+          if (masa.ubicacion === 'consumida') acc.consumida += 1
+          return acc
+        },
+        { total: 0, almacen: 0, proceso: 0, consumida: 0 },
+      ),
+    [monoHiloMasas],
+  )
+
+  const openMonoHiloDialog = () => {
+    if (!canWriteProduccion) return
+    setMonoHiloDialogError(null)
+    setMonoHiloBloqueId(bloquesActivosMonoHilo[0]?.id ?? '')
+    setMonoHiloLargoCm(0)
+    setMonoHiloAnchoCm(0)
+    setMonoHiloProfundidadCm(0)
+    setMonoHiloObservaciones('')
+    setMonoHiloDialogOpen(true)
+  }
+
+  const closeMonoHiloDialog = () => {
+    if (monoHiloDialogSubmitting) return
+    setMonoHiloDialogOpen(false)
+    setMonoHiloDialogError(null)
+  }
+
+  const confirmMonoHiloRegistro = async () => {
+    const bloqueId = monoHiloBloqueId.trim()
+    if (!bloqueId) {
+      setMonoHiloDialogError('Selecciona el bloque del que saldra la masa.')
+      return
+    }
+
+    if (monoHiloLargoCm <= 0 || monoHiloAnchoCm <= 0 || monoHiloProfundidadCm <= 0) {
+      setMonoHiloDialogError('Largo, ancho y profundidad deben ser mayores a 0.')
+      return
+    }
+
+    setMonoHiloDialogSubmitting(true)
+    setMonoHiloDialogError(null)
+
+    try {
+      const created = await createMonoHiloMasas({
+        bloqueId,
+        masas: [
+          {
+            largoCm: monoHiloLargoCm,
+            anchoCm: monoHiloAnchoCm,
+            profundidadCm: monoHiloProfundidadCm,
+            observaciones: monoHiloObservaciones.trim() || undefined,
+          },
+        ],
+      })
+
+      setMonoHiloMasas((prev) => [...created, ...prev])
+      setMonoHiloNotice(
+        created.length === 1
+          ? `Masa ${created[0].codigo} registrada en almacen.`
+          : `${created.length} masas registradas en almacen.`,
+      )
+      setMonoHiloDialogOpen(false)
+      setMonoHiloDialogError(null)
+    } catch (error) {
+      setMonoHiloDialogError(
+        error instanceof Error ? error.message : 'No se pudo registrar la masa de mono hilo.',
+      )
+    } finally {
+      setMonoHiloDialogSubmitting(false)
+    }
+  }
+
+  const moveMonoHiloMasa = async (
+    masa: MonoHiloMasa,
+    ubicacionDestino: 'almacen' | 'proceso',
+  ) => {
+    if (!canWriteProduccion) return
+    if (monoHiloMoveLoadingById[masa.id]) return
+
+    setMonoHiloMoveLoadingById((prev) => ({ ...prev, [masa.id]: true }))
+    try {
+      const updated = await updateMonoHiloMasaUbicacion(masa.id, { ubicacionDestino })
+      setMonoHiloMasas((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      setMonoHiloNotice(
+        ubicacionDestino === 'proceso'
+          ? `Masa ${updated.codigo} enviada a proceso para picado.`
+          : `Masa ${updated.codigo} retornada a almacen.`,
+      )
+    } catch (error) {
+      setMonoHiloDialogError(
+        error instanceof Error ? error.message : 'No se pudo mover la masa de mono hilo.',
+      )
+    } finally {
+      setMonoHiloMoveLoadingById((prev) => ({ ...prev, [masa.id]: false }))
+    }
+  }
+
   const openRetornoDialog = () => {
     if (!canSolicitarRetornoProceso) return
     setRetornoDialogError(null)
@@ -195,15 +346,18 @@ export default function ProduccionPage() {
     setRetornoDialogError(null)
     setRetornoDialogSubmitting(true)
     try {
+      const estadoObjetivo = resolveEstadoRetornoObjetivo(retornoProductoSeleccionado.estado)
       const movimiento = await createRetornoProcesoInventario({
         productoId: retornoProductoSeleccionado.id,
         cantidadLosas,
         motivo,
+        estadoObjetivo,
       })
       setRetornoNotice(
-        `Solicitud ${movimiento.id} enviada a almacen para retorno sin cambio de estado.`,
+        `Solicitud ${movimiento.id} enviada a almacen (${retornoProductoSeleccionado.estado} -> ${estadoObjetivo}).`,
       )
-      closeRetornoDialog()
+      setRetornoDialogOpen(false)
+      setRetornoDialogError(null)
     } catch (error) {
       const message =
         error instanceof Error
@@ -449,11 +603,18 @@ export default function ProduccionPage() {
               <p className="mt-2 text-sm text-slate-500">Cargando catalogos de produccion...</p>
             ) : null}
             {retornoNotice ? <p className="mt-2 text-sm text-emerald-700">{retornoNotice}</p> : null}
+            {monoHiloNotice ? <p className="mt-2 text-sm text-emerald-700">{monoHiloNotice}</p> : null}
+            {monoHiloDialogError ? <p className="mt-2 text-sm text-destructive">{monoHiloDialogError}</p> : null}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             {canSolicitarRetornoProceso ? (
               <Button type="button" variant="outline" onClick={openRetornoDialog}>
                 Retirar a almacen
+              </Button>
+            ) : null}
+            {canWriteProduccion ? (
+              <Button type="button" variant="outline" onClick={openMonoHiloDialog}>
+                Registrar masa mono hilo
               </Button>
             ) : null}
             <ProduccionCreateDialog
@@ -519,6 +680,108 @@ export default function ProduccionPage() {
           </div>
         </div>
 
+        <div className="rounded-[24px] border border-amber-200/70 bg-amber-50/40 p-4 shadow-[var(--dash-shadow)]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-amber-700">Mono hilo</p>
+              <h2 className="text-lg font-semibold text-amber-950">Inventario de masas para picado</h2>
+              <p className="text-xs text-amber-800">
+                Total: {monoHiloResumen.total} | Almacen: {monoHiloResumen.almacen} | Proceso: {monoHiloResumen.proceso} | Consumidas: {monoHiloResumen.consumida}
+              </p>
+            </div>
+          </div>
+
+          {monoHiloMasasOrdenadas.length === 0 ? (
+            <p className="mt-3 rounded-lg border border-dashed border-amber-200 bg-white/70 p-3 text-sm text-amber-800">
+              No hay masas registradas. Usa "Registrar masa mono hilo" para crear el inventario base.
+            </p>
+          ) : (
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-amber-200 text-xs uppercase tracking-wide text-amber-700">
+                    <th className="px-2 py-2">Masa</th>
+                    <th className="px-2 py-2">Bloque</th>
+                    <th className="px-2 py-2">Dimensiones (cm)</th>
+                    <th className="px-2 py-2">Estimado / disponible</th>
+                    <th className="px-2 py-2">Merma estimada</th>
+                    <th className="px-2 py-2">Ubicacion</th>
+                    <th className="px-2 py-2 text-right">Accion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monoHiloMasasOrdenadas.map((masa) => {
+                    const loadingMove = Boolean(monoHiloMoveLoadingById[masa.id])
+                    const disponibles80 = getMonoHiloLosasDisponibles(masa, '80x40')
+                    const disponibles60 = getMonoHiloLosasDisponibles(masa, '60x40')
+                    const disponibles40 = getMonoHiloLosasDisponibles(masa, '40x40')
+                    const estimado80 = masa.estimados['80x40']
+                    const estimado60 = masa.estimados['60x40']
+                    const estimado40 = masa.estimados['40x40']
+
+                    return (
+                      <tr key={masa.id} className="border-b border-amber-100/70 text-amber-950 last:border-b-0">
+                        <td className="px-2 py-2">
+                          <p className="font-semibold">{masa.codigo}</p>
+                          <p className="text-xs text-amber-800">{masa.fechaRegistro.slice(0, 10)}</p>
+                        </td>
+                        <td className="px-2 py-2 text-xs text-amber-900">
+                          {resolveOrigenCodigo(masa.bloqueId, masa.bloqueCodigo || masa.bloqueNombre)}
+                        </td>
+                        <td className="px-2 py-2 text-xs text-amber-900">
+                          {masa.largoCm.toFixed(2)} x {masa.anchoCm.toFixed(2)} x {masa.profundidadCm.toFixed(2)}
+                        </td>
+                        <td className="px-2 py-2 text-xs text-amber-900">
+                          <p>80x40: {estimado80.losasEstimadas} / {disponibles80}</p>
+                          <p>60x40: {estimado60.losasEstimadas} / {disponibles60}</p>
+                          <p>40x40: {estimado40.losasEstimadas} / {disponibles40}</p>
+                        </td>
+                        <td className="px-2 py-2 text-xs text-amber-900">
+                          <p>80x40: {estimado80.mermaEstimadaPorcentaje.toFixed(2)}% ({estimado80.mermaEstimadaM3.toFixed(4)} m³)</p>
+                          <p>60x40: {estimado60.mermaEstimadaPorcentaje.toFixed(2)}% ({estimado60.mermaEstimadaM3.toFixed(4)} m³)</p>
+                          <p>40x40: {estimado40.mermaEstimadaPorcentaje.toFixed(2)}% ({estimado40.mermaEstimadaM3.toFixed(4)} m³)</p>
+                        </td>
+                        <td className="px-2 py-2 text-xs font-medium uppercase text-amber-800">{masa.ubicacion}</td>
+                        <td className="px-2 py-2 text-right">
+                          {masa.ubicacion === 'almacen' && canWriteProduccion ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={loadingMove}
+                              onClick={() => {
+                                void moveMonoHiloMasa(masa, 'proceso')
+                              }}
+                            >
+                              {loadingMove ? 'Moviendo...' : 'Enviar a proceso'}
+                            </Button>
+                          ) : null}
+                          {masa.ubicacion === 'proceso' && canWriteProduccion ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={loadingMove}
+                              onClick={() => {
+                                void moveMonoHiloMasa(masa, 'almacen')
+                              }}
+                            >
+                              {loadingMove ? 'Moviendo...' : 'Retornar a almacen'}
+                            </Button>
+                          ) : null}
+                          {masa.ubicacion === 'consumida' ? (
+                            <span className="text-xs text-amber-800">Consumida</span>
+                          ) : null}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
         <Dialog
           open={retornoDialogOpen}
           onOpenChange={(open) => {
@@ -529,7 +792,7 @@ export default function ProduccionPage() {
             <DialogHeader>
               <DialogTitle>Retornar losas de proceso a almacen</DialogTitle>
               <DialogDescription>
-                Esta solicitud queda pendiente hasta aprobacion de jefatura de almacen.
+                Esta solicitud queda pendiente hasta aprobacion de jefatura de almacen y aplica el siguiente estado del flujo.
               </DialogDescription>
             </DialogHeader>
 
@@ -571,6 +834,10 @@ export default function ProduccionPage() {
                 <p className="text-xs text-slate-600">
                   Disponible en proceso: {retornoProductoSeleccionado.cantidadLosas} losas (
                   {retornoProductoSeleccionado.metrosCuadrados.toFixed(2)} m²)
+                  {' - Estado al retornar: '}
+                  <span className="font-semibold">
+                    {`${retornoProductoSeleccionado.estado} -> ${resolveEstadoRetornoObjetivo(retornoProductoSeleccionado.estado)}`}
+                  </span>
                 </p>
               ) : null}
 
@@ -631,7 +898,136 @@ export default function ProduccionPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
+        <Dialog
+          open={monoHiloDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) closeMonoHiloDialog()
+          }}
+        >
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Registrar masa de mono hilo</DialogTitle>
+              <DialogDescription>
+                Registra la masa con codigo de bloque y dimensiones. El margen se calcula automaticamente y los parametros tecnicos salen de Configuracion.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>Bloque de origen</Label>
+                <Select
+                  value={monoHiloBloqueId}
+                  onValueChange={(value) => {
+                    setMonoHiloBloqueId(value)
+                    if (monoHiloDialogError) setMonoHiloDialogError(null)
+                  }}
+                  disabled={monoHiloDialogSubmitting}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar bloque" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bloquesActivosMonoHilo.length === 0 ? (
+                      <SelectItem value="__empty__" disabled>
+                        Sin bloques activos disponibles
+                      </SelectItem>
+                    ) : (
+                      bloquesActivosMonoHilo.map((bloque) => (
+                        <SelectItem key={bloque.id} value={bloque.id}>
+                          {getBloqueCodigo(bloque)}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label>Largo (cm)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={monoHiloLargoCm > 0 ? monoHiloLargoCm : ''}
+                    onChange={(event) => {
+                      const raw = event.target.value
+                      setMonoHiloLargoCm(raw === '' ? 0 : Number(raw))
+                      if (monoHiloDialogError) setMonoHiloDialogError(null)
+                    }}
+                    disabled={monoHiloDialogSubmitting}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Ancho (cm)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={monoHiloAnchoCm > 0 ? monoHiloAnchoCm : ''}
+                    onChange={(event) => {
+                      const raw = event.target.value
+                      setMonoHiloAnchoCm(raw === '' ? 0 : Number(raw))
+                      if (monoHiloDialogError) setMonoHiloDialogError(null)
+                    }}
+                    disabled={monoHiloDialogSubmitting}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Profundidad (cm)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={monoHiloProfundidadCm > 0 ? monoHiloProfundidadCm : ''}
+                    onChange={(event) => {
+                      const raw = event.target.value
+                      setMonoHiloProfundidadCm(raw === '' ? 0 : Number(raw))
+                      if (monoHiloDialogError) setMonoHiloDialogError(null)
+                    }}
+                    disabled={monoHiloDialogSubmitting}
+                  />
+                </div>
+              </div>
+              <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                El margen se calcula automaticamente segun las dimensiones de la masa. Grosor de disco y espesor de losa se toman desde Configuracion.
+              </p>
+              <div className="space-y-1">
+                <Label>Observaciones</Label>
+                <Textarea
+                  value={monoHiloObservaciones}
+                  onChange={(event) => {
+                    setMonoHiloObservaciones(event.target.value)
+                    if (monoHiloDialogError) setMonoHiloDialogError(null)
+                  }}
+                  placeholder="Notas opcionales de la masa."
+                  rows={3}
+                  disabled={monoHiloDialogSubmitting}
+                />
+              </div>
+              {monoHiloDialogError ? (
+                <p className="text-xs text-destructive">{monoHiloDialogError}</p>
+              ) : null}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeMonoHiloDialog}
+                disabled={monoHiloDialogSubmitting}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  void confirmMonoHiloRegistro()
+                }}
+                disabled={monoHiloDialogSubmitting || bloquesActivosMonoHilo.length === 0}
+              >
+                {monoHiloDialogSubmitting ? 'Guardando...' : 'Registrar masa'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <Dialog
           open={entryEditDialogOpen}
           onOpenChange={(open) => {
@@ -835,3 +1231,4 @@ export default function ProduccionPage() {
     </AdminShell>
   )
 }
+

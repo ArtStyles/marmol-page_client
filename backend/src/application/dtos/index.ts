@@ -14,3 +14,5 @@ export * from './configuracion.dto.js'
 export * from './workshop.dto.js'
 export * from './auth.dto.js'
 export * from './permission.dto.js'
+export * from './mono-hilo-masa.dto.js'
+

@@ -26,6 +26,8 @@ export const configuracionInicial: ConfiguracionSistema = {
   tarifasGlobales: { ...TARIFAS_ACCION_DEFAULT },
   salariosFijosPorRol: { ...SALARIOS_FIJOS_POR_ROL_DEFAULT },
   preciosM2: { ...PRECIOS_M2_DEFAULT },
+  monoHiloGrosorDiscoMm: 8,
+  monoHiloEspesorLosaCm: 3,
   nombreEmpresa: 'MÃ¡rmoles Elegance',
   email: 'info@marmoleselegance.com',
   telefono: '+52 555 123 4567',

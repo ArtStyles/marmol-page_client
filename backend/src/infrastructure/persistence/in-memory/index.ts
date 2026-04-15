@@ -17,3 +17,5 @@ export { InMemoryInventarioMovimientoRepository } from './inventario-movimiento.
 export { InMemoryWorkshopRepository } from './workshop.repository.js'
 export { InMemoryAuthAdapter } from './auth.adapter.js'
 export { InMemoryPermissionRepository } from './permission.repository.js'
+export { InMemoryMonoHiloMasaRepository } from './mono-hilo-masa.repository.js'
+

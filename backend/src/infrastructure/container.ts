@@ -59,6 +59,11 @@ import {
   DeleteProduccionTrabajadorUseCase,
 } from '../application/use-cases/produccion/produccion.use-cases.js'
 import {
+  GetMonoHiloMasasUseCase,
+  CreateMonoHiloMasasUseCase,
+  UpdateMonoHiloMasaUbicacionUseCase,
+} from '../application/use-cases/mono-hilo/mono-hilo.use-cases.js'
+import {
   GetMermasUseCase,
   GetMermaByIdUseCase,
   CreateMermaUseCase,
@@ -124,6 +129,9 @@ const bloqueRepo = usePostgres
 const productoRepo = usePostgres
   ? new postgres.PostgresProductoRepository()
   : new inMemory.InMemoryProductoRepository()
+const monoHiloMasaRepo = usePostgres
+  ? new postgres.PostgresMonoHiloMasaRepository()
+  : new inMemory.InMemoryMonoHiloMasaRepository()
 const catalogoRepo = usePostgres
   ? new postgres.PostgresCatalogoRepository()
   : new inMemory.InMemoryCatalogoRepository()
@@ -206,7 +214,11 @@ export const deleteEquipoUseCase = new DeleteEquipoUseCase(equipoRepo)
 
 export const getProduccionUseCase = new GetProduccionUseCase(produccionRepo)
 export const getProduccionByIdUseCase = new GetProduccionByIdUseCase(produccionRepo)
-export const createProduccionUseCase = new CreateProduccionUseCase(produccionRepo, productoRepo)
+export const createProduccionUseCase = new CreateProduccionUseCase(
+  produccionRepo,
+  productoRepo,
+  monoHiloMasaRepo,
+)
 export const approveProduccionTallerUseCase = new ApproveProduccionTallerUseCase(produccionRepo)
 export const approveEntradaProduccionAlmacenUseCase = new ApproveEntradaProduccionAlmacenUseCase(
   produccionRepo,
@@ -222,6 +234,16 @@ export const getProduccionTrabajadorByIdUseCase = new GetProduccionTrabajadorByI
 export const createProduccionTrabajadorUseCase = new CreateProduccionTrabajadorUseCase(produccionTrabajadorRepo)
 export const updateProduccionTrabajadorUseCase = new UpdateProduccionTrabajadorUseCase(produccionTrabajadorRepo)
 export const deleteProduccionTrabajadorUseCase = new DeleteProduccionTrabajadorUseCase(produccionTrabajadorRepo)
+
+export const getMonoHiloMasasUseCase = new GetMonoHiloMasasUseCase(monoHiloMasaRepo)
+export const createMonoHiloMasasUseCase = new CreateMonoHiloMasasUseCase(
+  monoHiloMasaRepo,
+  bloqueRepo,
+  configuracionPort,
+)
+export const updateMonoHiloMasaUbicacionUseCase = new UpdateMonoHiloMasaUbicacionUseCase(
+  monoHiloMasaRepo,
+)
 
 export const getMermasUseCase = new GetMermasUseCase(mermaRepo)
 export const getMermaByIdUseCase = new GetMermaByIdUseCase(mermaRepo)

@@ -960,11 +960,12 @@ export default function BloquesPage() {
             ) : (
               <div className="space-y-3">
                 <div className="overflow-x-auto">
-                  <div className="space-y-3 lg:min-w-[980px]">
-                    <div className="hidden rounded-[16px] border border-slate-200/70 bg-slate-50/70 px-4 py-2 lg:grid lg:grid-cols-[minmax(0,1.15fr)_90px_150px_120px_150px] lg:gap-x-4">
+                  <div className="space-y-3 lg:min-w-[940px]">
+                    <div className="hidden rounded-[16px] border border-slate-200/70 bg-slate-50/70 px-4 py-2 lg:grid lg:grid-cols-[220px_100px_140px_120px_110px_140px] lg:gap-x-3">
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Codigo</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Cantidad</span>
-                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Costo total</span>
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Costo bloque/lote</span>
+                      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Transporte</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Estado</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Acciones</span>
                     </div>
@@ -972,7 +973,7 @@ export default function BloquesPage() {
                     <div className="divide-y divide-slate-200/60 overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
                       {filteredBloques.map((bloque) => (
                         <div key={bloque.id} className="px-4 py-3">
-                          <div className="grid gap-2 lg:grid-cols-[minmax(0,1.15fr)_90px_150px_120px_150px] lg:items-center lg:gap-x-4">
+                          <div className="grid gap-2 lg:grid-cols-[220px_100px_140px_120px_110px_140px] lg:items-center lg:gap-x-3">
                             <div>
                               <p className="text-sm font-semibold text-slate-900">{getBloqueCodigo(bloque)}</p>
                               <p className="text-[11px] text-slate-500">Ingreso {bloque.fechaIngreso}</p>
@@ -985,9 +986,16 @@ export default function BloquesPage() {
                             </div>
 
                             <div className="flex items-center justify-between text-sm lg:block">
-                              <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Costo total</span>
+                              <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Costo bloque/lote</span>
                               <span className="font-semibold text-slate-900">
-                                ${(bloque.costo + bloque.costoTransporte).toLocaleString()}
+                                ${bloque.costo.toLocaleString()}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-sm lg:block">
+                              <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500 lg:hidden">Transporte</span>
+                              <span className="font-semibold text-slate-900">
+                                ${bloque.costoTransporte.toLocaleString()}
                               </span>
                             </div>
 

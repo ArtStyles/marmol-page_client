@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   BloqueOLote,
   CatalogoItem,
   ConfiguracionSistema,
@@ -7,6 +7,7 @@
   InventarioMovimiento,
   InventarioMovimientoPage,
   Merma,
+  MonoHiloMasa,
   ProduccionDiaria,
   ProduccionTrabajador,
   Producto,
@@ -204,6 +205,32 @@ export const updateProduccionTrabajador = (
     body: patch,
   })
 
+export const getMonoHiloMasas = (): Promise<MonoHiloMasa[]> =>
+  apiRequest<MonoHiloMasa[]>('/mono-hilo/masas')
+
+export const createMonoHiloMasas = (input: {
+  bloqueId: string
+  masas: Array<{
+    largoCm: number
+    anchoCm: number
+    profundidadCm: number
+    observaciones?: string
+  }>
+}): Promise<MonoHiloMasa[]> =>
+  apiRequest<MonoHiloMasa[]>('/mono-hilo/masas', {
+    method: 'POST',
+    body: input,
+  })
+
+export const updateMonoHiloMasaUbicacion = (
+  masaId: string,
+  input: { ubicacionDestino: 'almacen' | 'proceso' },
+): Promise<MonoHiloMasa> =>
+  apiRequest<MonoHiloMasa>(`/mono-hilo/masas/${masaId}/ubicacion`, {
+    method: 'PATCH',
+    body: input,
+  })
+
 export const getMermas = (): Promise<Merma[]> => apiRequest<Merma[]>('/mermas')
 
 export const createMerma = (input: Omit<Merma, 'id'>): Promise<Merma> =>
@@ -299,6 +326,7 @@ export const createRetornoProcesoInventario = (input: {
   productoId: string
   cantidadLosas: number
   motivo: string
+  estadoObjetivo?: Producto['estado']
 }): Promise<InventarioMovimiento> =>
   apiRequest<InventarioMovimiento>('/inventario-movimientos/proceso-retorno', {
     method: 'POST',
@@ -386,3 +414,4 @@ export const deleteCatalogoItem = async (itemId: string): Promise<boolean> => {
   })
   return true
 }
+

@@ -1,6 +1,7 @@
 export type { ConfiguracionPort } from './configuracion.port.js'
 export type { BloqueRepositoryPort } from './bloque.port.js'
 export type { ProductoRepositoryPort } from './producto.port.js'
+export type { MonoHiloMasaRepositoryPort } from './mono-hilo-masa.port.js'
 export type { CatalogoRepositoryPort } from './catalogo.port.js'
 export type { TrabajadorRepositoryPort } from './trabajador.port.js'
 export type { EquipoRepositoryPort } from './equipo.port.js'
@@ -24,3 +25,4 @@ export type {
   PermissionGroupUpdateInput,
   UserAccessUpdateInput,
 } from './permission.port.js'
+

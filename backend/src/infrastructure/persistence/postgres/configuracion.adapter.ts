@@ -1,4 +1,4 @@
-﻿import type { ConfiguracionPort } from '../../../domain/ports/index.js'
+import type { ConfiguracionPort } from '../../../domain/ports/index.js'
 import type { ConfiguracionSistema } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
 import { getCurrentWorkshopId } from './tenant.js'
@@ -22,6 +22,8 @@ const emptyConfiguracion: ConfiguracionSistema = {
     '60x40': { crudo: 0, pulido: 0 },
     '80x40': { crudo: 0, pulido: 0 },
   },
+  monoHiloGrosorDiscoMm: 8,
+  monoHiloEspesorLosaCm: 3,
   nombreEmpresa: '',
   email: '',
   telefono: '',
@@ -36,6 +38,8 @@ function rowToConfig(r: Record<string, unknown>): ConfiguracionSistema {
     tarifasGlobales: r.tarifas_globales as ConfiguracionSistema['tarifasGlobales'],
     salariosFijosPorRol: r.salarios_fijos_por_rol as ConfiguracionSistema['salariosFijosPorRol'],
     preciosM2: r.precios_m2 as ConfiguracionSistema['preciosM2'],
+    monoHiloGrosorDiscoMm: Number(r.mono_hilo_grosor_disco_mm ?? emptyConfiguracion.monoHiloGrosorDiscoMm),
+    monoHiloEspesorLosaCm: Number(r.mono_hilo_espesor_losa_cm ?? emptyConfiguracion.monoHiloEspesorLosaCm),
     nombreEmpresa: r.nombre_empresa as string,
     email: r.email as string,
     telefono: r.telefono as string,
@@ -71,12 +75,14 @@ export class PostgresConfiguracionAdapter implements ConfiguracionPort {
     const configId = `default:${workshopId}`
 
     await pool.query(
-      `INSERT INTO configuracion (id, workshop_id, tarifas_globales, salarios_fijos_por_rol, precios_m2, nombre_empresa, email, telefono, direccion, notificaciones_email, alertas_stock_bajo, reportes_ventas)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO configuracion (id, workshop_id, tarifas_globales, salarios_fijos_por_rol, precios_m2, mono_hilo_grosor_disco_mm, mono_hilo_espesor_losa_cm, nombre_empresa, email, telefono, direccion, notificaciones_email, alertas_stock_bajo, reportes_ventas)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (id) DO UPDATE SET
          tarifas_globales = EXCLUDED.tarifas_globales,
          salarios_fijos_por_rol = EXCLUDED.salarios_fijos_por_rol,
          precios_m2 = EXCLUDED.precios_m2,
+         mono_hilo_grosor_disco_mm = EXCLUDED.mono_hilo_grosor_disco_mm,
+         mono_hilo_espesor_losa_cm = EXCLUDED.mono_hilo_espesor_losa_cm,
          nombre_empresa = EXCLUDED.nombre_empresa,
          email = EXCLUDED.email,
          telefono = EXCLUDED.telefono,
@@ -91,6 +97,8 @@ export class PostgresConfiguracionAdapter implements ConfiguracionPort {
         JSON.stringify(config.tarifasGlobales),
         JSON.stringify(config.salariosFijosPorRol),
         JSON.stringify(config.preciosM2),
+        config.monoHiloGrosorDiscoMm,
+        config.monoHiloEspesorLosaCm,
         config.nombreEmpresa,
         config.email,
         config.telefono,

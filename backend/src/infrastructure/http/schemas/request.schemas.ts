@@ -6,6 +6,7 @@ const tipoProductoSchema = z.enum(['Piso', 'Plancha'])
 const estadoCatalogoSchema = z.enum(['Crudo', 'Pulido'])
 const estadoInventarioSchema = z.enum(['Picado', 'Escuadrado', 'Devastado', 'Resinado', 'Pulido'])
 const ubicacionInventarioSchema = z.enum(['almacen', 'proceso'])
+const ubicacionMasaMonoHiloSchema = z.enum(['almacen', 'proceso'])
 const tipoEquipoSchema = z.enum(['Pulidora', 'Cortadora', 'Escuadradora'])
 const accionLosaSchema = z.enum(['picar', 'escuadrar', 'devastar', 'resinar', 'pulir'])
 const rolTrabajadorSchema = z.string().transform((value, ctx) => {
@@ -258,6 +259,8 @@ export const updateConfiguracionSchema = z.object({
   tarifasGlobales: z.record(accionLosaSchema, z.number()).optional(),
   salariosFijosPorRol: z.record(z.string(), z.number()).optional(),
   preciosM2: z.record(dimensionSchema, z.object({ crudo: z.number(), pulido: z.number() })).optional(),
+  monoHiloGrosorDiscoMm: z.number().positive().optional(),
+  monoHiloEspesorLosaCm: z.number().positive().optional(),
   nombreEmpresa: z.string().optional(),
   email: z.string().email().optional(),
   telefono: z.string().optional(),
@@ -368,10 +371,29 @@ export const createSalidaProcesoInventarioSchema = z.object({
   motivo: z.string().trim().optional(),
 })
 
+export const createMonoHiloMasasSchema = z.object({
+  bloqueId: z.string().min(1),
+  masas: z
+    .array(
+      z.object({
+        largoCm: z.number().positive(),
+        anchoCm: z.number().positive(),
+        profundidadCm: z.number().positive(),
+        observaciones: z.string().optional(),
+      }),
+    )
+    .min(1),
+})
+
+export const updateMonoHiloMasaUbicacionSchema = z.object({
+  ubicacionDestino: ubicacionMasaMonoHiloSchema,
+})
+
 export const createRetornoProcesoInventarioSchema = z.object({
   productoId: z.string().min(1),
   cantidadLosas: z.number().int().positive(),
   motivo: z.string().min(5),
+  estadoObjetivo: estadoInventarioSchema.optional(),
 })
 
 // ----- Historial de pagos -----

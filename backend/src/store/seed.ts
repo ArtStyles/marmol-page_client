@@ -10,6 +10,7 @@ import type {
   ProduccionDiaria,
   ProduccionTrabajador,
   Producto,
+  MonoHiloMasa,
   SystemLog,
   Trabajador,
   Venta,
@@ -25,6 +26,8 @@ export const configuracionInicial: ConfiguracionSistema = {
   tarifasGlobales: { ...TARIFAS_ACCION_DEFAULT },
   salariosFijosPorRol: { ...SALARIOS_FIJOS_POR_ROL_DEFAULT },
   preciosM2: { ...PRECIOS_M2_DEFAULT },
+  monoHiloGrosorDiscoMm: 8,
+  monoHiloEspesorLosaCm: 3,
   nombreEmpresa: 'Mármoles Elegance',
   email: 'info@marmoleselegance.com',
   telefono: '+52 555 123 4567',
@@ -470,6 +473,5 @@ export const workshops: WorkshopTenant[] = [
   { id: 'TLR-003', nombre: 'Taller Monterrey', ciudad: 'Monterrey', direccion: 'Av. Lazaro Cardenas 1340, Sur', encargado: 'Marco Salinas', telefono: '+52 818 555 3020', correo: 'mty@marmol.local', estado: 'en-implementacion', empleados: 9, capacidadM2Mes: 780, ventasMes: 98000, produccionMesM2: 520, margenOperativo: 0.18, ordenesActivas: 6, ultimaActualizacion: '2026-02-02' },
 ]
 
-
-
+export const monoHiloMasas: MonoHiloMasa[] = []
 
