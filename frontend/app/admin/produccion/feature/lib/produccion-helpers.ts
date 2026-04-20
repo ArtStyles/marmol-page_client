@@ -43,6 +43,7 @@ export const createUsageDimensionRow = (
 
 export const createUsageRow = (): ActionUsageForm => ({
   id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+  masaId: '',
   origenId: '',
   tipo: '',
   trabajadorIds: [],

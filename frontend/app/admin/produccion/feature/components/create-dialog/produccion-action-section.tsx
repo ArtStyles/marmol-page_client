@@ -16,11 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import {
   TIPO_EQUIPO_POR_ACCION,
   type AccionLosa,
-  type BloqueOLote,
   type Dimension,
   type Equipo,
   type TipoProducto,
@@ -31,11 +29,13 @@ import { ChevronDown, Plus, Trash2, X } from 'lucide-react'
 import {
   actionColors,
   actionLabels,
+  createUsageDimensionRow,
   updateUsageDimensionNumericInput,
 } from '../../lib/produccion-helpers'
 import type {
+  ActionUsageComboOption,
   ActionFormState,
-  ActionUsageForm,
+  PicarUsageOption,
   UpdateActionUsageDimensionFn,
   UpdateActionUsageFn,
 } from '../../model/types'
@@ -47,10 +47,6 @@ const actionSectionBackgrounds: Record<AccionLosa, string> = {
   resinar: 'border-cyan-200/70 bg-cyan-50/40',
   pulir: 'border-emerald-200/70 bg-emerald-50/40',
 }
-
-const dimensionOptions: Dimension[] = ['40x40', '60x40', '80x40']
-const processActions: AccionLosa[] = ['escuadrar', 'devastar', 'resinar', 'pulir']
-const tipoProductoOptions: TipoProducto[] = ['Piso', 'Plancha']
 
 const triggerSurfaceClasses =
   'rounded-xl border border-[var(--field-border)] bg-[var(--field-surface)] px-3 text-sm shadow-[0_1px_0_rgba(15,23,42,0.03)] transition-[color,background-color,box-shadow,border-color] hover:border-[var(--field-border-hover)] focus-visible:border-[var(--field-ring)] focus-visible:ring-ring/30 focus-visible:ring-[3px]'
@@ -68,8 +64,10 @@ type ProduccionActionSectionProps = {
     origenId: string,
     tipo: TipoProducto | '',
     dimension: Dimension,
+    masaId?: string,
   ) => number | null
-  origenesActivos: BloqueOLote[]
+  picarUsageOptions: PicarUsageOption[]
+  usageComboOptions: ActionUsageComboOption[]
   removeUsage: (accion: AccionLosa, usageId: string) => void
   toggleUsageDimension: (
     accion: AccionLosa,
@@ -88,7 +86,8 @@ export function ProduccionActionSection({
   addUsage,
   equiposActivos,
   getLosasDisponiblesParaAccion,
-  origenesActivos,
+  picarUsageOptions,
+  usageComboOptions,
   removeUsage,
   toggleUsageDimension,
   trabajadoresActivos,
@@ -110,12 +109,6 @@ export function ProduccionActionSection({
     0,
   )
 
-  const selectedDimensionsLabel = (uso: ActionUsageForm): string => {
-    if (uso.dimensiones.length === 0) return 'Seleccionar dimensiones'
-    if (uso.dimensiones.length === dimensionOptions.length) return 'Todas'
-    return uso.dimensiones.map((item) => item.dimension).join(', ')
-  }
-
   return (
     <div className={cn('overflow-hidden rounded-[16px] border', actionSectionBackgrounds[accion])}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 px-3 py-2.5">
@@ -136,15 +129,33 @@ export function ProduccionActionSection({
               ? personalSeleccionado.map((trabajador) => trabajador.nombre).join(', ')
               : 'Seleccionar personal'
           const dimensionesUso = uso.dimensiones
-          const isProcesoAction = processActions.includes(accion)
-          const dimensionesDisponiblesParaUso = dimensionOptions.filter((dimension) => {
-            if (!isProcesoAction || !uso.origenId) return true
-            const disponibles = getLosasDisponiblesParaAccion(accion, uso.origenId, uso.tipo, dimension) ?? 0
-            const isSelected = uso.dimensiones.some(
-              (dimensionUso) => dimensionUso.dimension === dimension,
-            )
-            return isSelected || disponibles > 0
-          })
+          const isPicar = accion === 'picar'
+          const picarSelectedDimension = uso.dimensiones[0]?.dimension
+          const selectedPicarOption = isPicar
+            ? picarUsageOptions.find(
+                (option) =>
+                  option.masaId === uso.masaId &&
+                  option.tipo === uso.tipo &&
+                  option.dimension === picarSelectedDimension,
+              ) ??
+              picarUsageOptions.find(
+                (option) =>
+                  !uso.masaId &&
+                  option.origenId === uso.origenId &&
+                  option.tipo === uso.tipo &&
+                  option.dimension === picarSelectedDimension,
+              )
+            : null
+          const picarSelectValue = selectedPicarOption?.value ?? ''
+          const selectedProcessOption = !isPicar
+            ? usageComboOptions.find(
+                (option) =>
+                  option.origenId === uso.origenId &&
+                  option.tipo === uso.tipo &&
+                  option.dimension === picarSelectedDimension,
+              )
+            : null
+          const processSelectValue = selectedProcessOption?.value ?? ''
 
           return (
             <div key={uso.id} className="bg-white/85 px-3 py-3">
@@ -168,28 +179,103 @@ export function ProduccionActionSection({
                 className={cn(
                   'mt-3 grid gap-3 md:grid-cols-2',
                   isResinar
-                    ? 'lg:grid-cols-[170px_280px_140px_170px] lg:items-end'
-                    : 'lg:grid-cols-[170px_170px_280px_140px_170px] lg:items-end',
+                    ? 'lg:grid-cols-[minmax(260px,1.4fr)_280px] lg:items-end'
+                    : 'lg:grid-cols-[minmax(260px,1.4fr)_170px_280px] lg:items-end',
                 )}
               >
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Codigo</p>
-                  <Select
-                    value={uso.origenId}
-                    onValueChange={(value) => updateUsage(accion, uso.id, { origenId: value })}
-                  >
-                    <SelectTrigger size="sm" className={compactFieldTriggerClasses}>
-                      <SelectValue placeholder="Seleccionar origen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {origenesActivos.map((bloque) => (
-                        <SelectItem key={bloque.id} value={bloque.id}>
-                          {getBloqueCodigo(bloque)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {isPicar ? (
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                      Masa / Bloque / Tipo / Dimension
+                    </p>
+                    <Select
+                      value={picarSelectValue}
+                      onValueChange={(value) => {
+                        const option = picarUsageOptions.find((item) => item.value === value)
+                        if (!option) return
+
+                        const dimensionActual =
+                          uso.dimensiones.find(
+                            (dimensionUso) => dimensionUso.dimension === option.dimension,
+                          ) ?? uso.dimensiones[0]
+
+                        updateUsage(accion, uso.id, {
+                          masaId: option.masaId,
+                          origenId: option.origenId,
+                          tipo: option.tipo,
+                          dimensiones: [
+                            dimensionActual
+                              ? { ...dimensionActual, dimension: option.dimension }
+                              : createUsageDimensionRow(option.dimension),
+                          ],
+                        })
+                      }}
+                    >
+                      <SelectTrigger size="sm" className={compactFieldTriggerClasses}>
+                        <SelectValue placeholder="Seleccionar masa y detalle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {picarUsageOptions.length === 0 ? (
+                          <p className="px-2 py-1.5 text-xs text-slate-500">
+                            No hay masas disponibles en proceso.
+                          </p>
+                        ) : (
+                          picarUsageOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {`${option.origenCodigo} - Masa ${option.masaCodigo} - ${option.tipo} - ${option.dimension}`}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                      Bloque / Tipo / Dimension
+                    </p>
+                    <Select
+                      value={processSelectValue}
+                      onValueChange={(value) => {
+                        const option = usageComboOptions.find((item) => item.value === value)
+                        if (!option) return
+
+                        const dimensionActual =
+                          uso.dimensiones.find(
+                            (dimensionUso) => dimensionUso.dimension === option.dimension,
+                          ) ?? uso.dimensiones[0]
+
+                        updateUsage(accion, uso.id, {
+                          masaId: '',
+                          origenId: option.origenId,
+                          tipo: option.tipo,
+                          dimensiones: [
+                            dimensionActual
+                              ? { ...dimensionActual, dimension: option.dimension }
+                              : createUsageDimensionRow(option.dimension),
+                          ],
+                        })
+                      }}
+                    >
+                      <SelectTrigger size="sm" className={compactFieldTriggerClasses}>
+                        <SelectValue placeholder="Seleccionar bloque, tipo y dimension" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {usageComboOptions.length === 0 ? (
+                          <p className="px-2 py-1.5 text-xs text-slate-500">
+                            No hay combinaciones disponibles para esta accion.
+                          </p>
+                        ) : (
+                          usageComboOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {`${option.origenCodigo} - ${option.tipo} - ${option.dimension}`}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 {!isResinar ? (
                   <div className="space-y-1">
@@ -270,89 +356,6 @@ export function ProduccionActionSection({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Tipo</p>
-                  <Select
-                    value={uso.tipo}
-                    onValueChange={(value) =>
-                      updateUsage(accion, uso.id, {
-                        tipo: value as TipoProducto,
-                      })
-                    }
-                  >
-                    <SelectTrigger size="sm" className={compactFieldTriggerClasses}>
-                      <SelectValue placeholder="Seleccionar tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tipoProductoOptions.map((tipo) => (
-                        <SelectItem key={`${uso.id}-${tipo}`} value={tipo}>
-                          {tipo}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Dimensiones disponibles</p>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className={cn(
-                          'inline-flex items-center justify-between gap-2 text-left font-normal',
-                          compactFieldTriggerClasses,
-                        )}
-                      >
-                        <span className="truncate">{selectedDimensionsLabel(uso)}</span>
-                        <div className="ml-2 flex items-center gap-2">
-                          <span className="text-[10px] text-slate-500">{uso.dimensiones.length}</span>
-                          <ChevronDown className="size-4 opacity-50" />
-                        </div>
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="start"
-                      className="w-[var(--radix-dropdown-menu-trigger-width)]"
-                    >
-                      {dimensionesDisponiblesParaUso.length === 0 ? (
-                        <p className="px-2 py-1.5 text-xs text-slate-500">
-                          Sin dimensiones disponibles para esta accion.
-                        </p>
-                      ) : (
-                        dimensionesDisponiblesParaUso.map((dimension) => {
-                          const isSelected = uso.dimensiones.some(
-                            (dimensionUso) => dimensionUso.dimension === dimension,
-                          )
-
-                          return (
-                            <DropdownMenuCheckboxItem
-                              key={`${uso.id}-${dimension}`}
-                              checked={isSelected}
-                              onSelect={(event) => event.preventDefault()}
-                              onCheckedChange={(checked) => {
-                                toggleUsageDimension(accion, uso.id, dimension, checked === true)
-                              }}
-                            >
-                              {dimension}
-                            </DropdownMenuCheckboxItem>
-                          )
-                        })
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {dimensionesUso.length > 0
-                  ? dimensionesUso.map((dimensionUso) => (
-                      <Badge key={dimensionUso.id} variant="outline" className="bg-white">
-                        {dimensionUso.dimension}
-                      </Badge>
-                    ))
-                  : null}
               </div>
 
               {dimensionesUso.length > 0 && (
@@ -402,6 +405,7 @@ export function ProduccionActionSection({
                                   uso.origenId,
                                   uso.tipo,
                                   dimensionUso.dimension,
+                                  uso.masaId,
                                 )
                                 if (disponibles === null) return null
 
@@ -442,6 +446,7 @@ export function ProduccionActionSection({
                                   uso.origenId,
                                   uso.tipo,
                                   dimensionUso.dimension,
+                                  uso.masaId,
                                 )
                                 if (disponibles === null) return null
 

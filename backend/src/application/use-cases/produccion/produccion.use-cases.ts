@@ -31,7 +31,8 @@ interface ProduccionActor {
   userName: string
 }
 
-const PLANCHA_DIMENSION = '80x40' as const
+const PLANCHA_DIMENSIONS = ['160x65', '160x60'] as const
+const DEFAULT_PLANCHA_DIMENSION = PLANCHA_DIMENSIONS[0]
 
 export class GetProduccionUseCase {
   constructor(private readonly repository: ProduccionRepositoryPort) {}
@@ -471,6 +472,7 @@ function buildPerdidasPorAccion(
 
 function normalizeProduccionDto(dto: CreateProduccionDto): CreateProduccionDto {
   if (dto.tipo !== 'Plancha') return dto
+  const planchaDimension = normalizePlanchaDimension(dto.dimension)
 
   const detallesAcciones = dto.detallesAcciones?.map((detalle) => {
     const losasMermaTotal = detalle.losasMermaTotal ?? 0
@@ -478,16 +480,16 @@ function normalizeProduccionDto(dto: CreateProduccionDto): CreateProduccionDto {
 
     return {
       ...detalle,
-      metrosCuadrados: round2(detalle.cantidadLosas * dimensionToArea(PLANCHA_DIMENSION)),
-      metrosMermaTotal: round2(losasMermaTotal * dimensionToArea(PLANCHA_DIMENSION)),
-      metrosReutilizables: round2(losasReutilizables * dimensionToArea(PLANCHA_DIMENSION)),
+      metrosCuadrados: round2(detalle.cantidadLosas * dimensionToArea(planchaDimension)),
+      metrosMermaTotal: round2(losasMermaTotal * dimensionToArea(planchaDimension)),
+      metrosReutilizables: round2(losasReutilizables * dimensionToArea(planchaDimension)),
     }
   })
 
   return {
     ...dto,
-    dimension: PLANCHA_DIMENSION,
-    totalM2: round2(dto.totalLosas * dimensionToArea(PLANCHA_DIMENSION)),
+    dimension: planchaDimension,
+    totalM2: round2(dto.totalLosas * dimensionToArea(planchaDimension)),
     detallesAcciones,
   }
 }
@@ -495,7 +497,18 @@ function normalizeProduccionDto(dto: CreateProduccionDto): CreateProduccionDto {
 function dimensionToArea(dimension: ProduccionDiaria['dimension']): number {
   if (dimension === '40x40') return 1 / 6
   if (dimension === '60x40') return 1 / 4
+  if (dimension === '80x40') return 1 / 3
+  if (dimension === '160x60') return 0.96
+  if (dimension === '160x65') return 1.04
   return 1 / 3
+}
+
+function normalizePlanchaDimension(
+  dimension: ProduccionDiaria['dimension'],
+): ProduccionDiaria['dimension'] {
+  return PLANCHA_DIMENSIONS.includes(dimension as (typeof PLANCHA_DIMENSIONS)[number])
+    ? dimension
+    : DEFAULT_PLANCHA_DIMENSION
 }
 
 function round2(value: number): number {

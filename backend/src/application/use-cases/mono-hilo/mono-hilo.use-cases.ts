@@ -20,7 +20,11 @@ import type {
 const DEFAULT_GROSOR_DISCO_MM = 8
 const DEFAULT_ESPESOR_LOSA_CM = 3
 
+const MONO_HILO_DIMENSIONS: Dimension[] = ['160x65', '160x60', '80x40', '60x40', '40x40']
+
 const dimensionObjetivoSpecs: Record<Dimension, { largoCm: number; anchoCm: number }> = {
+  '160x65': { largoCm: 160, anchoCm: 65 },
+  '160x60': { largoCm: 160, anchoCm: 60 },
   '80x40': { largoCm: 80, anchoCm: 40 },
   '60x40': { largoCm: 60, anchoCm: 40 },
   '40x40': { largoCm: 40, anchoCm: 40 },
@@ -338,7 +342,7 @@ function buildMonoHiloEstimados(params: {
 
   const estimados = {} as MonoHiloEstimados
 
-  ;(['80x40', '60x40', '40x40'] as const).forEach((dimension) => {
+  MONO_HILO_DIMENSIONS.forEach((dimension) => {
     const spec = dimensionObjetivoSpecs[dimension]
 
     const cortesLargo = resolveCortesLineales(params.largoCm, spec.largoCm, kerfCm)
@@ -387,7 +391,7 @@ function resolveMargenAutomaticoCm(
   grosorDiscoMm: number,
 ): number {
   const kerfCm = grosorDiscoMm / 10
-  const candidatos = (['80x40', '60x40', '40x40'] as const)
+  const candidatos = MONO_HILO_DIMENSIONS
     .map((dimension) => {
       const spec = dimensionObjetivoSpecs[dimension]
       const cortesLargo = resolveCortesLineales(largoCm, spec.largoCm, kerfCm)
@@ -428,7 +432,7 @@ function resolveLosasDisponibles(masa: MonoHiloMasa, dimension: Dimension): numb
 }
 
 function hasDisponibilidad(estimados: MonoHiloEstimados): boolean {
-  return (['40x40', '60x40', '80x40'] as const).some((dimension) => {
+  return MONO_HILO_DIMENSIONS.some((dimension) => {
     const item = estimados[dimension]
     return item.losasEstimadas - item.losasConsumidas > 0
   })

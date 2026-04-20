@@ -272,7 +272,7 @@ export default function VentasPage() {
                             </Button>
                           </div>
 
-                          <div className={`grid gap-3 ${detalle.tipo === 'Plancha' ? 'sm:grid-cols-3' : 'sm:grid-cols-4'}`}>
+                          <div className="grid gap-3 sm:grid-cols-4">
                             <div className="min-w-0 space-y-2">
                               <Label>Tipo</Label>
                               <Select
@@ -316,29 +316,27 @@ export default function VentasPage() {
                               </Select>
                             </div>
 
-                            {detalle.tipo !== 'Plancha' ? (
-                              <div className="min-w-0 space-y-2">
-                                <Label>Dimension</Label>
-                                <Select
-                                  value={detalle.dimension}
-                                  onValueChange={(value) =>
-                                    updateDetalleFormulario(detalle.id, { dimension: value as typeof detalle.dimension })
-                                  }
-                                  disabled={!detalle.tipo || !detalle.origenId}
-                                >
-                                  <SelectTrigger className="w-full min-w-0">
-                                    <SelectValue placeholder="Seleccionar" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {dimensionesDisponibles.map((dimension) => (
-                                      <SelectItem key={`${detalle.id}-${dimension}`} value={dimension}>
-                                        {dimension}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            ) : null}
+                            <div className="min-w-0 space-y-2">
+                              <Label>Dimension</Label>
+                              <Select
+                                value={detalle.dimension}
+                                onValueChange={(value) =>
+                                  updateDetalleFormulario(detalle.id, { dimension: value as typeof detalle.dimension })
+                                }
+                                disabled={!detalle.tipo || !detalle.origenId}
+                              >
+                                <SelectTrigger className="w-full min-w-0">
+                                  <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {dimensionesDisponibles.map((dimension) => (
+                                    <SelectItem key={`${detalle.id}-${dimension}`} value={dimension}>
+                                      {dimension}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
 
                             <div className="min-w-0 space-y-2">
                               <Label>Estado</Label>
@@ -408,9 +406,7 @@ export default function VentasPage() {
                             <p>
                               Dimension:{' '}
                               {productoSeleccionado
-                                ? isPlancha
-                                  ? `${productoSeleccionado.dimension} (fija)`
-                                  : productoSeleccionado.dimension
+                                ? productoSeleccionado.dimension
                                 : '-'}
                             </p>
                             {isPlancha ? <p>Total m² eq: {metrosDetalle.toFixed(2)} m²</p> : null}

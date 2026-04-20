@@ -18,8 +18,9 @@ import {
   updateCatalogoItem,
 } from '@/lib/resources-api'
 import {
+  DIMENSIONES_PISO,
   losasAMetros,
-  PLANCHA_DIMENSION,
+  PLANCHA_DIMENSIONES,
   type CatalogoItem,
   type Dimension,
   type EstadoLosa,
@@ -44,7 +45,14 @@ import {
 type CatalogoAdminItem = CatalogoItem & { visible: boolean }
 
 function normalizeDimensionByTipo(tipo: TipoProducto, dimension: Dimension): Dimension {
-  return tipo === 'Plancha' ? PLANCHA_DIMENSION : dimension
+  if (tipo === 'Plancha') {
+    return PLANCHA_DIMENSIONES.includes(dimension as (typeof PLANCHA_DIMENSIONES)[number])
+      ? dimension
+      : PLANCHA_DIMENSIONES[0]
+  }
+  return DIMENSIONES_PISO.includes(dimension as (typeof DIMENSIONES_PISO)[number])
+    ? dimension
+    : DIMENSIONES_PISO[0]
 }
 
 export default function CatalogoAdminPage() {
@@ -378,7 +386,7 @@ export default function CatalogoAdminPage() {
                 <Input
                   value={formData.nombre}
                   onChange={(event) => setFormData({ ...formData, nombre: event.target.value })}
-                  placeholder="Calacatta Gold Signature 80x40"
+                  placeholder="Calacatta Gold Signature 160x65"
                   required
                 />
               </div>
@@ -430,27 +438,25 @@ export default function CatalogoAdminPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Dimension</Label>
-                  {formData.tipo === 'Plancha' ? (
-                    <Input value={`${PLANCHA_DIMENSION} (fija)`} disabled />
-                  ) : (
-                    <Select
-                      value={formData.dimension}
-                      onValueChange={(value: Dimension) =>
-                        setFormData({ ...formData, dimension: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {dimensiones.map((dimensionValue) => (
+                  <Select
+                    value={formData.dimension}
+                    onValueChange={(value: Dimension) =>
+                      setFormData({ ...formData, dimension: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(formData.tipo === 'Plancha' ? PLANCHA_DIMENSIONES : DIMENSIONES_PISO).map(
+                        (dimensionValue) => (
                           <SelectItem key={dimensionValue} value={dimensionValue}>
                             {dimensionValue}
                           </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

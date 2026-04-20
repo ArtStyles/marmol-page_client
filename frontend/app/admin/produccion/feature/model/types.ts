@@ -15,11 +15,32 @@ export type ActionUsageDimensionForm = {
 
 export type ActionUsageForm = {
   id: string
+  masaId: string
   origenId: string
   tipo: TipoProducto | ''
   trabajadorIds: string[]
   equipoId: string
   dimensiones: ActionUsageDimensionForm[]
+}
+
+export type PicarUsageOption = {
+  value: string
+  masaId: string
+  masaCodigo: string
+  origenId: string
+  origenCodigo: string
+  tipo: TipoProducto
+  dimension: Dimension
+  disponibleLosas: number
+}
+
+export type ActionUsageComboOption = {
+  value: string
+  origenId: string
+  origenCodigo: string
+  tipo: TipoProducto
+  dimension: Dimension
+  disponibleLosas: number
 }
 
 export type ActionFormState = {
@@ -73,4 +94,14 @@ export type UpdateUsageDimensionNumericInputParams = {
   numericField: UsageDimensionNumericField
   touchedField: UsageDimensionTouchedField
   updateUsageDimension: UpdateActionUsageDimensionFn
+}
+
+export type RegistrarMonoHiloDesdeProduccionInput = {
+  bloqueId: string
+  largoCm: number
+  anchoCm: number
+  profundidadCm: number
+  observaciones?: string
+  equipoId: string
+  trabajadorIds: string[]
 }

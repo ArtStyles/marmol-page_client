@@ -31,6 +31,8 @@ function normalizeEstimados(value: unknown): MonoHiloEstimados {
     '40x40': normalizeEstimadoItem(raw['40x40']),
     '60x40': normalizeEstimadoItem(raw['60x40']),
     '80x40': normalizeEstimadoItem(raw['80x40']),
+    '160x60': normalizeEstimadoItem(raw['160x60']),
+    '160x65': normalizeEstimadoItem(raw['160x65']),
   }
 }
 
@@ -50,6 +52,16 @@ function sanitizeEstimados(estimados: MonoHiloEstimados): MonoHiloEstimados {
       ...estimados['80x40'],
       losasEstimadas: Math.max(0, Math.trunc(estimados['80x40'].losasEstimadas)),
       losasConsumidas: Math.max(0, Math.trunc(estimados['80x40'].losasConsumidas)),
+    },
+    '160x60': {
+      ...estimados['160x60'],
+      losasEstimadas: Math.max(0, Math.trunc(estimados['160x60'].losasEstimadas)),
+      losasConsumidas: Math.max(0, Math.trunc(estimados['160x60'].losasConsumidas)),
+    },
+    '160x65': {
+      ...estimados['160x65'],
+      losasEstimadas: Math.max(0, Math.trunc(estimados['160x65'].losasEstimadas)),
+      losasConsumidas: Math.max(0, Math.trunc(estimados['160x65'].losasConsumidas)),
     },
   }
 }

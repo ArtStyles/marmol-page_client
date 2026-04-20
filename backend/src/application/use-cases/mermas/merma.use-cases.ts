@@ -16,7 +16,8 @@ interface MermaActor {
   userName: string
 }
 
-const PLANCHA_DIMENSION = '80x40' as const
+const PLANCHA_DIMENSIONS = ['160x65', '160x60'] as const
+const DEFAULT_PLANCHA_DIMENSION = PLANCHA_DIMENSIONS[0]
 
 export class GetMermasUseCase {
   constructor(private readonly repository: MermaRepositoryPort) {}
@@ -42,7 +43,7 @@ export class CreateMermaUseCase {
   ) {}
 
   async execute(dto: CreateMermaDto, actor: MermaActor): Promise<MermaResponseDto> {
-    const dimension = dto.tipo === 'Plancha' ? PLANCHA_DIMENSION : dto.dimension
+    const dimension = dto.tipo === 'Plancha' ? normalizePlanchaDimension(dto.dimension) : dto.dimension
     const normalizedDto: CreateMermaDto = {
       ...dto,
       dimension,
@@ -126,7 +127,16 @@ export class DeleteMermaUseCase {
 function dimensionToArea(dimension: CreateMermaDto['dimension']): number {
   if (dimension === '40x40') return 1 / 6
   if (dimension === '60x40') return 1 / 4
+  if (dimension === '80x40') return 1 / 3
+  if (dimension === '160x60') return 0.96
+  if (dimension === '160x65') return 1.04
   return 1 / 3
+}
+
+function normalizePlanchaDimension(dimension: CreateMermaDto['dimension']): CreateMermaDto['dimension'] {
+  return PLANCHA_DIMENSIONS.includes(dimension as (typeof PLANCHA_DIMENSIONS)[number])
+    ? dimension
+    : DEFAULT_PLANCHA_DIMENSION
 }
 
 function round2(value: number): number {

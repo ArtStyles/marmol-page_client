@@ -32,6 +32,7 @@ import {
   createSalidaProcesoInventario,
   getBloques,
   getInventarioMovimientosPage,
+  getMonoHiloMasas,
   rejectInventarioMovimiento,
 } from '@/lib/resources-api'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
@@ -41,6 +42,7 @@ import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import {
   type BloqueOLote,
   losasAMetros,
+  type MonoHiloMasa,
   type Dimension,
   type InventarioMovimiento,
   type Producto,
@@ -93,7 +95,7 @@ const inventoryChartConfig = {
     color: 'hsl(222, 47%, 11%)',
   },
   m2: {
-    label: 'mÂ²',
+    label: 'm2',
     color: 'hsl(160, 84%, 39%)',
   },
 } satisfies ChartConfig
@@ -107,7 +109,7 @@ const rankingLosasConfig = {
 
 const rankingM2Config = {
   m2: {
-    label: 'mÂ²',
+    label: 'm2',
     color: 'hsl(160, 84%, 39%)',
   },
 } satisfies ChartConfig
@@ -190,7 +192,15 @@ function buildProductoProcesoOptionLabel(
   origenCodigo: string,
   producto: Pick<Producto, 'estado' | 'cantidadLosas'>,
 ): string {
-  return [origenCodigo, producto.estado, `${producto.cantidadLosas} losas`].join(' Â· ')
+  return [origenCodigo, producto.estado, `${producto.cantidadLosas} losas`].join(' - ')
+}
+function getMonoHiloLosasDisponibles(
+  masa: MonoHiloMasa,
+  dimension: Dimension,
+): number {
+  const estimado = masa.estimados[dimension]
+  if (!estimado) return 0
+  return Math.max(0, estimado.losasEstimadas - estimado.losasConsumidas)
 }
 
 function formatDateTime(value: string | undefined): string {
@@ -288,6 +298,9 @@ export default function InventarioPage() {
   const [procesoCantidadTouched, setProcesoCantidadTouched] = useState(false)
   const [procesoDialogError, setProcesoDialogError] = useState<string | null>(null)
   const [procesoDialogSubmitting, setProcesoDialogSubmitting] = useState(false)
+  const [monoHiloMasas, setMonoHiloMasas] = useState<MonoHiloMasa[]>([])
+  const [monoHiloLoading, setMonoHiloLoading] = useState(true)
+  const [monoHiloError, setMonoHiloError] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -356,11 +369,41 @@ export default function InventarioPage() {
       alive = false
     }
   }, [])
+  useEffect(() => {
+    let alive = true
+
+    const loadMonoHiloMasas = async () => {
+      setMonoHiloLoading(true)
+      setMonoHiloError(null)
+      try {
+        const items = await getMonoHiloMasas()
+        if (!alive) return
+        setMonoHiloMasas(items)
+      } catch (error) {
+        if (!alive) return
+        setMonoHiloError(
+          error instanceof Error
+            ? error.message
+            : 'No se pudo cargar el inventario de masas de mono hilo.',
+        )
+        setMonoHiloMasas([])
+      } finally {
+        if (alive) setMonoHiloLoading(false)
+      }
+    }
+
+    void loadMonoHiloMasas()
+
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const canApproveMovimientos = currentUser ? hasPermission(currentUser, 'inventario:approve') : false
-  const canSolicitarSalidaProceso = currentUser
+  const canWriteInventario = currentUser
     ? hasPermission(currentUser, 'inventario:write')
     : false
+  const canSolicitarSalidaProceso = canWriteInventario
 
   const bloquesPorId = useMemo(() => {
     const map = new Map<string, BloqueOLote>()
@@ -389,6 +432,27 @@ export default function InventarioPage() {
     })
     return map
   }, [bloquesYLotes])
+  const monoHiloMasasOrdenadas = useMemo(
+    () =>
+      [...monoHiloMasas].sort((a, b) =>
+        b.fechaRegistro.localeCompare(a.fechaRegistro) || b.codigo.localeCompare(a.codigo),
+      ),
+    [monoHiloMasas],
+  )
+  const monoHiloResumen = useMemo(
+    () =>
+      monoHiloMasas.reduce(
+        (acc, masa) => {
+          acc.total += 1
+          if (masa.ubicacion === 'almacen') acc.almacen += 1
+          if (masa.ubicacion === 'proceso') acc.proceso += 1
+          if (masa.ubicacion === 'consumida') acc.consumida += 1
+          return acc
+        },
+        { total: 0, almacen: 0, proceso: 0, consumida: 0 },
+      ),
+    [monoHiloMasas],
+  )
 
   const resolveLegacyCodigo = useCallback((value: string): string | null => {
     const normalized = value.trim().toUpperCase()
@@ -434,10 +498,10 @@ export default function InventarioPage() {
   const showBothMetrics = showLosas && showM2
   const generalMetricTitle =
     metricView === 'both'
-      ? 'Losas y mÂ² por estado operativo'
+      ? 'Losas y m2 por estado operativo'
       : metricView === 'losas'
         ? 'Losas por estado operativo'
-        : 'mÂ² por estado operativo'
+        : 'm2 por estado operativo'
 
   const filteredProductos = useMemo(() => {
     return productos.filter((producto) => {
@@ -842,7 +906,7 @@ export default function InventarioPage() {
               </div>
               <div className="mt-1 flex items-center justify-between text-xs">
                 <span>{row.losas.toLocaleString()} losas</span>
-                <span>{row.m2.toFixed(2)} mÂ²</span>
+                <span>{row.m2.toFixed(2)} m2</span>
               </div>
             </div>
           ))}
@@ -854,13 +918,13 @@ export default function InventarioPage() {
           <div className="flex items-center justify-between">
             <span>Merma total</span>
             <span className="font-semibold text-rose-700">
-              {resumenPartidas.mermaLosas.toLocaleString()} / {resumenPartidas.mermaM2.toFixed(2)} mÂ²
+              {resumenPartidas.mermaLosas.toLocaleString()} / {resumenPartidas.mermaM2.toFixed(2)} m2
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span>Reutilizable</span>
             <span className="font-semibold text-sky-700">
-              {resumenPartidas.reutilizableLosas.toLocaleString()} / {resumenPartidas.reutilizableM2.toFixed(2)} mÂ²
+              {resumenPartidas.reutilizableLosas.toLocaleString()} / {resumenPartidas.reutilizableM2.toFixed(2)} m2
             </span>
           </div>
           <p className="text-[11px] text-slate-500">
@@ -902,7 +966,7 @@ export default function InventarioPage() {
       )}
 
       {showM2 && (
-        <AdminPanelCard title="Top bloques" meta="Por mÂ²">
+        <AdminPanelCard title="Top bloques" meta="Por m2">
           {topM2ByOrigen.length === 0 ? (
             <p className="text-xs text-slate-500">Sin datos para mostrar.</p>
           ) : (
@@ -922,7 +986,7 @@ export default function InventarioPage() {
                   cursor={false}
                   content={
                     <ChartTooltipContent
-                      formatter={(value) => `${Number(value).toFixed(2)} mÂ²`}
+                      formatter={(value) => `${Number(value).toFixed(2)} m2`}
                     />
                   }
                 />
@@ -1038,6 +1102,91 @@ export default function InventarioPage() {
           </div>
         </div>
 
+        <div className="rounded-[24px] border border-amber-200/70 bg-amber-50/40 p-4 shadow-[var(--dash-shadow)]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-amber-700">Mono hilo</p>
+              <h2 className="text-lg font-semibold text-amber-950">Inventario de masas para picado</h2>
+              <p className="text-xs text-amber-800">
+                Total: {monoHiloResumen.total} | Almacen: {monoHiloResumen.almacen} | Proceso: {monoHiloResumen.proceso} | Consumidas: {monoHiloResumen.consumida}
+              </p>
+            </div>
+          </div>
+
+          {monoHiloLoading ? (
+            <div className="mt-3 rounded-lg border border-dashed border-amber-200 bg-white/70 p-3 text-sm text-amber-800">
+              Cargando masas de mono hilo...
+            </div>
+          ) : monoHiloError ? (
+            <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+              {monoHiloError}
+            </div>
+          ) : monoHiloMasasOrdenadas.length === 0 ? (
+            <p className="mt-3 rounded-lg border border-dashed border-amber-200 bg-white/70 p-3 text-sm text-amber-800">
+              No hay masas registradas desde produccion diaria.
+            </p>
+          ) : (
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-amber-200 text-xs uppercase tracking-wide text-amber-700">
+                    <th className="px-2 py-2">Masa</th>
+                    <th className="px-2 py-2">Bloque</th>
+                    <th className="px-2 py-2">Dimensiones (cm)</th>
+                    <th className="px-2 py-2">Estimado / disponible</th>
+                    <th className="px-2 py-2">Merma estimada</th>
+                    <th className="px-2 py-2">Ubicacion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monoHiloMasasOrdenadas.map((masa) => {
+                    const dimensionesMonoHilo = dimensiones as Dimension[]
+                    const resumenDimensiones = dimensionesMonoHilo.map((dimension) => {
+                      const estimado = masa.estimados[dimension]
+                      return {
+                        dimension,
+                        estimado,
+                        disponibles: getMonoHiloLosasDisponibles(masa, dimension),
+                      }
+                    })
+
+                    return (
+                      <tr key={masa.id} className="border-b border-amber-100/70 text-amber-950 last:border-b-0">
+                        <td className="px-2 py-2">
+                          <p className="font-semibold">{masa.codigo}</p>
+                          <p className="text-xs text-amber-800">{masa.fechaRegistro.slice(0, 10)}</p>
+                        </td>
+                        <td className="px-2 py-2 text-xs text-amber-900">
+                          {resolveOrigenCodigo(masa.bloqueId, masa.bloqueCodigo || masa.bloqueNombre)}
+                        </td>
+                        <td className="px-2 py-2 text-xs text-amber-900">
+                          {masa.largoCm.toFixed(2)} x {masa.anchoCm.toFixed(2)} x {masa.profundidadCm.toFixed(2)}
+                        </td>
+                        <td className="px-2 py-2 text-xs text-amber-900">
+                          {resumenDimensiones.map((item) => (
+                            <p key={`stock-${masa.id}-${item.dimension}`}>
+                              {item.dimension}: {item.estimado.losasEstimadas} / {item.disponibles}
+                            </p>
+                          ))}
+                        </td>
+                        <td className="px-2 py-2 text-xs text-amber-900">
+                          {resumenDimensiones.map((item) => (
+                            <p key={`merma-${masa.id}-${item.dimension}`}>
+                              {item.dimension}: {item.estimado.mermaEstimadaPorcentaje.toFixed(2)}%
+                              {' '}
+                              ({item.estimado.mermaEstimadaM3.toFixed(4)} m3)
+                            </p>
+                          ))}
+                        </td>
+                        <td className="px-2 py-2 text-xs font-medium uppercase text-amber-800">{masa.ubicacion}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
         <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1141,7 +1290,7 @@ export default function InventarioPage() {
                                   Fecha: {formatDateTime(movimiento.fechaSolicitud)} - Motivo: {movimiento.motivo}
                                 </p>
                                 <p className="mt-1 text-xs text-slate-500">
-                                  {totalLosas.toLocaleString()} losas - {totalM2.toFixed(2)} mÂ² - {movimiento.detalles.length} detalle(s)
+                                  {totalLosas.toLocaleString()} losas - {totalM2.toFixed(2)} m2 - {movimiento.detalles.length} detalle(s)
                                 </p>
                                 {detalleResumen ? (
                                   <p className="mt-1 text-[11px] text-slate-500">{detalleResumen}</p>
@@ -1337,13 +1486,13 @@ export default function InventarioPage() {
             <DialogHeader>
               <DialogTitle>Solicitar salida a proceso</DialogTitle>
               <DialogDescription>
-                Esta salida queda pendiente hasta aprobaciÃ³n de jefatura de almacÃ©n.
+                Esta salida queda pendiente hasta aprobacion de jefatura de almacen.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3">
               <div className="space-y-1">
-                <Label>AcciÃ³n objetivo</Label>
+                <Label>Accion objetivo</Label>
                 <Select
                   value={procesoAccionObjetivo}
                   onValueChange={(value) => {
@@ -1367,7 +1516,7 @@ export default function InventarioPage() {
               </div>
 
               <div className="space-y-1">
-                <Label>Producto en almacÃ©n</Label>
+                <Label>Producto en almacen</Label>
                 <Select
                   value={procesoProductoId}
                   onValueChange={setProcesoProductoId}
@@ -1379,7 +1528,7 @@ export default function InventarioPage() {
                   <SelectContent>
                     {productosAlmacenParaProceso.length === 0 ? (
                       <SelectItem value="__empty__" disabled>
-                        Sin stock disponible para esta acciÃ³n
+                        Sin stock disponible para esta accion
                       </SelectItem>
                     ) : (
                       productosAlmacenParaProceso.map((producto) => (
@@ -1398,7 +1547,7 @@ export default function InventarioPage() {
               {procesoProductoSeleccionado && (
                 <p className="text-xs text-slate-600">
                   Disponible: {procesoProductoSeleccionado.cantidadLosas} losas (
-                  {procesoProductoSeleccionado.metrosCuadrados.toFixed(2)} mÂ²)
+                  {procesoProductoSeleccionado.metrosCuadrados.toFixed(2)} m2)
                 </p>
               )}
 
@@ -1475,7 +1624,7 @@ export default function InventarioPage() {
                   Losas
                 </ToggleGroupItem>
                 <ToggleGroupItem value="m2" className="px-3 text-xs">
-                  mÂ²
+                  m2
                 </ToggleGroupItem>
                 <ToggleGroupItem value="both" className="px-3 text-xs">
                   Ambos
@@ -1505,15 +1654,15 @@ export default function InventarioPage() {
                     formatter={(value, name) => {
                       const numeric = Number(value ?? 0)
                       const normalizedName = String(name).toLowerCase()
-                      const isM2 = normalizedName.includes('m2') || normalizedName.includes('mÂ²')
-                      return isM2 ? `${numeric.toFixed(2)} mÂ²` : `${Math.round(numeric).toLocaleString()} losas`
+                      const isM2 = normalizedName.includes('m2')
+                      return isM2 ? `${numeric.toFixed(2)} m2` : `${Math.round(numeric).toLocaleString()} losas`
                     }}
                   />
                 }
               />
               {showBothMetrics && <ChartLegend content={<ChartLegendContent />} />}
               {showLosas && <Bar yAxisId="losas" dataKey="losas" name="Losas" fill="var(--color-losas)" radius={[8, 8, 0, 0]} />}
-              {showM2 && <Bar yAxisId="m2" dataKey="m2" name="mÂ²" fill="var(--color-m2)" radius={[8, 8, 0, 0]} />}
+              {showM2 && <Bar yAxisId="m2" dataKey="m2" name="m2" fill="var(--color-m2)" radius={[8, 8, 0, 0]} />}
             </BarChart>
           </ChartContainer>
         </div>
@@ -1530,7 +1679,7 @@ export default function InventarioPage() {
               </p>
             </div>
             <p className="text-xs text-slate-500">
-              Vista en {showLosas ? 'losas' : 'mÂ²'} segun selector activo
+              Vista en {showLosas ? 'losas' : 'm2'} segun selector activo
             </p>
           </div>
 
@@ -1553,7 +1702,7 @@ export default function InventarioPage() {
                           const numeric = Number(value ?? 0)
                           return showLosas
                             ? `${Math.round(numeric).toLocaleString()} losas`
-                            : `${numeric.toFixed(2)} mÂ²`
+                            : `${numeric.toFixed(2)} m2`
                         }}
                       />
                     }
@@ -1576,7 +1725,7 @@ export default function InventarioPage() {
                       >
                         <p className="text-sm font-semibold text-slate-900">{group.origenNombre}</p>
                         <p className="mt-1 text-[11px] text-rose-700">
-                          {group.mermaLosas} losas / {group.mermaM2.toFixed(2)} mÂ²
+                          {group.mermaLosas} losas / {group.mermaM2.toFixed(2)} m2
                         </p>
                       </div>
                     ))
@@ -1595,7 +1744,7 @@ export default function InventarioPage() {
                       >
                         <p className="text-sm font-semibold text-slate-900">{group.origenNombre}</p>
                         <p className="mt-1 text-[11px] text-sky-700">
-                          {group.reutilizableLosas} losas / {group.reutilizableM2.toFixed(2)} mÂ²
+                          {group.reutilizableLosas} losas / {group.reutilizableM2.toFixed(2)} m2
                         </p>
                       </div>
                     ))
@@ -1688,14 +1837,14 @@ export default function InventarioPage() {
                                   formatter={(value, name) => {
                                     const numeric = Number(value ?? 0)
                                     const normalizedName = String(name).toLowerCase()
-                                    const isM2 = normalizedName.includes('m2') || normalizedName.includes('mÂ²')
-                                    return isM2 ? `${numeric.toFixed(2)} mÂ²` : `${Math.round(numeric).toLocaleString()} losas`
+                                    const isM2 = normalizedName.includes('m2')
+                                    return isM2 ? `${numeric.toFixed(2)} m2` : `${Math.round(numeric).toLocaleString()} losas`
                                   }}
                                 />
                               }
                             />
                             {showLosas && <Bar yAxisId="losas" dataKey="losas" name="Losas" fill="var(--color-losas)" radius={[6, 6, 0, 0]} />}
-                            {showM2 && <Bar yAxisId="m2" dataKey="m2" name="mÂ²" fill="var(--color-m2)" radius={[6, 6, 0, 0]} />}
+                            {showM2 && <Bar yAxisId="m2" dataKey="m2" name="m2" fill="var(--color-m2)" radius={[6, 6, 0, 0]} />}
                           </BarChart>
                         </ChartContainer>
                       </div>
@@ -1704,7 +1853,7 @@ export default function InventarioPage() {
                         {[
                           `${group.items.length} items`,
                           showLosas ? `${group.totalLosas.toLocaleString()} losas` : null,
-                          showM2 ? `${group.totalM2.toFixed(2)} mÂ²` : null,
+                          showM2 ? `${group.totalM2.toFixed(2)} m2` : null,
                         ]
                           .filter(Boolean)
                           .join(' - ')}

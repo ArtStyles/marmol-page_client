@@ -19,4 +19,6 @@ export const PRECIOS_M2_DEFAULT: Record<Dimension, { crudo: number; pulido: numb
   '40x40': { crudo: 120, pulido: 180 },
   '60x40': { crudo: 140, pulido: 200 },
   '80x40': { crudo: 160, pulido: 220 },
+  '160x60': { crudo: 160, pulido: 220 },
+  '160x65': { crudo: 160, pulido: 220 },
 }

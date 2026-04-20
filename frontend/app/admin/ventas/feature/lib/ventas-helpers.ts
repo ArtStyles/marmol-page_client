@@ -8,11 +8,16 @@ export const createEmptyMetros = (): Record<Dimension, number> => ({
   '40x40': 0,
   '60x40': 0,
   '80x40': 0,
+  '160x60': 0,
+  '160x65': 0,
 })
 
 export const getDimensionAreaM2 = (dimension: Dimension): number => {
   if (dimension === '40x40') return 1 / 6
   if (dimension === '60x40') return 1 / 4
+  if (dimension === '80x40') return 1 / 3
+  if (dimension === '160x60') return 0.96
+  if (dimension === '160x65') return 1.04
   return 1 / 3
 }
 
@@ -59,6 +64,8 @@ export const getMetrosVenta = (
       '40x40': venta.metrosPorDimension['40x40'] ?? 0,
       '60x40': venta.metrosPorDimension['60x40'] ?? 0,
       '80x40': venta.metrosPorDimension['80x40'] ?? 0,
+      '160x60': venta.metrosPorDimension['160x60'] ?? 0,
+      '160x65': venta.metrosPorDimension['160x65'] ?? 0,
     }
   }
 

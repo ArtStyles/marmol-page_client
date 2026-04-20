@@ -3,7 +3,12 @@
  * Re-exporta desde tipos centrales para mantener una única fuente de verdad.
  */
 
-export type Dimension = '40x40' | '60x40' | '80x40'
+export const DIMENSIONES_PISO = ['40x40', '60x40', '80x40'] as const
+export const DIMENSIONES_PLANCHA = ['160x65', '160x60'] as const
+
+export type PisoDimension = (typeof DIMENSIONES_PISO)[number]
+export type PlanchaDimension = (typeof DIMENSIONES_PLANCHA)[number]
+export type Dimension = PisoDimension | PlanchaDimension
 export type TipoProducto = 'Piso' | 'Plancha'
 export type EstadoLosa = 'Crudo' | 'Pulido'
 export type EstadoInventario = 'Picado' | 'Escuadrado' | 'Devastado' | 'Resinado' | 'Pulido'

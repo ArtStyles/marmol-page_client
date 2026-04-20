@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useInventarioStore } from '@/hooks/use-inventario'
 import { createVenta, getVentas } from '@/lib/resources-api'
-import { PLANCHA_DIMENSION, type Dimension, type Producto, type Venta, type VentaDetalleProducto } from '@/lib/types'
+import { type Dimension, type Producto, type Venta, type VentaDetalleProducto } from '@/lib/types'
 import {
   createDetalleFormulario,
   createEmptyMetros,
+  dimensionOptions,
   getDimensionAreaM2,
   getMetrosVenta as resolveMetrosVenta,
   metrosToLosasEquivalentes,
@@ -210,27 +211,31 @@ export const useVentasPageState = () => {
   const totalM2PorDimension = ventasCompletadas.reduce<Record<Dimension, number>>(
     (acc, venta) => {
       const metros = getMetrosVenta(venta)
-      acc['40x40'] += metros['40x40']
-      acc['60x40'] += metros['60x40']
-      acc['80x40'] += metros['80x40']
+      for (const dimension of dimensionOptions) {
+        acc[dimension] += metros[dimension]
+      }
       return acc
     },
     createEmptyMetros(),
   )
 
-  const totalM2Vendidos =
-    totalM2PorDimension['40x40'] + totalM2PorDimension['60x40'] + totalM2PorDimension['80x40']
+  const totalM2Vendidos = dimensionOptions.reduce(
+    (sum, dimension) => sum + totalM2PorDimension[dimension],
+    0,
+  )
 
-  const totalLosasEquivalentesPorDimension = {
-    '40x40': metrosToLosasEquivalentes(totalM2PorDimension['40x40'], '40x40'),
-    '60x40': metrosToLosasEquivalentes(totalM2PorDimension['60x40'], '60x40'),
-    '80x40': metrosToLosasEquivalentes(totalM2PorDimension['80x40'], '80x40'),
-  } satisfies Record<Dimension, number>
+  const totalLosasEquivalentesPorDimension = dimensionOptions.reduce<Record<Dimension, number>>(
+    (acc, dimension) => {
+      acc[dimension] = metrosToLosasEquivalentes(totalM2PorDimension[dimension], dimension)
+      return acc
+    },
+    createEmptyMetros(),
+  )
 
-  const totalLosasEquivalentesVendidas =
-    totalLosasEquivalentesPorDimension['40x40'] +
-    totalLosasEquivalentesPorDimension['60x40'] +
-    totalLosasEquivalentesPorDimension['80x40']
+  const totalLosasEquivalentesVendidas = dimensionOptions.reduce(
+    (sum, dimension) => sum + totalLosasEquivalentesPorDimension[dimension],
+    0,
+  )
 
   const avgSaleValue = ventasCompletadas.length > 0 ? totalRevenue / ventasCompletadas.length : 0
 
@@ -249,11 +254,13 @@ export const useVentasPageState = () => {
     return acc
   }, createEmptyMetros())
 
-  const losasEquivalentesPorDimensionForm = {
-    '40x40': metrosToLosasEquivalentes(metrosPorDimensionForm['40x40'], '40x40'),
-    '60x40': metrosToLosasEquivalentes(metrosPorDimensionForm['60x40'], '60x40'),
-    '80x40': metrosToLosasEquivalentes(metrosPorDimensionForm['80x40'], '80x40'),
-  } satisfies Record<Dimension, number>
+  const losasEquivalentesPorDimensionForm = dimensionOptions.reduce<Record<Dimension, number>>(
+    (acc, dimension) => {
+      acc[dimension] = metrosToLosasEquivalentes(metrosPorDimensionForm[dimension], dimension)
+      return acc
+    },
+    createEmptyMetros(),
+  )
 
   const descuentoCalculado = subtotalCalculado * (formData.descuento / 100)
   const totalCalculado = subtotalCalculado - descuentoCalculado
@@ -276,12 +283,12 @@ export const useVentasPageState = () => {
 
         if (tipoChanged) {
           nextDetalle.origenId = ''
-          nextDetalle.dimension = nextDetalle.tipo === 'Plancha' ? PLANCHA_DIMENSION : ''
+          nextDetalle.dimension = ''
           nextDetalle.estado = ''
         }
 
         if (origenChanged) {
-          nextDetalle.dimension = nextDetalle.tipo === 'Plancha' ? PLANCHA_DIMENSION : ''
+          nextDetalle.dimension = ''
           nextDetalle.estado = ''
         }
 
@@ -359,11 +366,10 @@ export const useVentasPageState = () => {
 
   const getLosasEquivalentesPorDimensionVenta = (venta: Venta): Record<Dimension, number> => {
     const metros = getMetrosVenta(venta)
-    return {
-      '40x40': metrosToLosasEquivalentes(metros['40x40'], '40x40'),
-      '60x40': metrosToLosasEquivalentes(metros['60x40'], '60x40'),
-      '80x40': metrosToLosasEquivalentes(metros['80x40'], '80x40'),
-    }
+    return dimensionOptions.reduce<Record<Dimension, number>>((acc, dimension) => {
+      acc[dimension] = metrosToLosasEquivalentes(metros[dimension], dimension)
+      return acc
+    }, createEmptyMetros())
   }
 
   const handleSubmit = async () => {

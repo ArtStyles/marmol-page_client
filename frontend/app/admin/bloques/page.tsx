@@ -8,7 +8,13 @@ import { Badge } from '@/components/ui/badge'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { Card, CardContent } from '@/components/ui/card'
 import { dimensiones } from '@/lib/data'
-import { PLANCHA_DIMENSION, losasAMetros, type BloqueOLote, type Dimension } from '@/lib/types'
+import {
+  DIMENSIONES_PLANCHA,
+  DIMENSIONES_PISO,
+  losasAMetros,
+  type BloqueOLote,
+  type Dimension,
+} from '@/lib/types'
 import {
   createBloque,
   createProducto,
@@ -46,7 +52,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 
-type LoteSeleccionKey = Dimension | 'Plancha'
+type LoteSeleccionKey = Dimension
 
 type LoteSeleccionValores = {
   metrosComprados: number
@@ -60,7 +66,7 @@ type LoteSeleccionTouched = {
   costoTransporte: boolean
 }
 
-const LOTE_SELECCION_OPCIONES: LoteSeleccionKey[] = ['40x40', '60x40', '80x40', 'Plancha']
+const LOTE_SELECCION_OPCIONES: LoteSeleccionKey[] = [...DIMENSIONES_PISO, ...DIMENSIONES_PLANCHA]
 
 const LOTE_SELECCION_CONFIG: Record<
   LoteSeleccionKey,
@@ -85,9 +91,14 @@ const LOTE_SELECCION_CONFIG: Record<
     dimensionBase: '80x40',
     tipoProducto: 'Piso',
   },
-  Plancha: {
-    label: `Plancha (${PLANCHA_DIMENSION})`,
-    dimensionBase: PLANCHA_DIMENSION,
+  '160x60': {
+    label: 'Plancha (160x60)',
+    dimensionBase: '160x60',
+    tipoProducto: 'Plancha',
+  },
+  '160x65': {
+    label: 'Plancha (160x65)',
+    dimensionBase: '160x65',
     tipoProducto: 'Plancha',
   },
 }
@@ -96,14 +107,16 @@ const createLoteValoresIniciales = (): Record<LoteSeleccionKey, LoteSeleccionVal
   '40x40': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
   '60x40': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
   '80x40': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
-  Plancha: { metrosComprados: 0, costo: 0, costoTransporte: 0 },
+  '160x60': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
+  '160x65': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
 })
 
 const createLoteTouchedInicial = (): Record<LoteSeleccionKey, LoteSeleccionTouched> => ({
   '40x40': { metrosComprados: false, costo: false, costoTransporte: false },
   '60x40': { metrosComprados: false, costo: false, costoTransporte: false },
   '80x40': { metrosComprados: false, costo: false, costoTransporte: false },
-  Plancha: { metrosComprados: false, costo: false, costoTransporte: false },
+  '160x60': { metrosComprados: false, costo: false, costoTransporte: false },
+  '160x65': { metrosComprados: false, costo: false, costoTransporte: false },
 })
 const bloqueEstadoLabel: Record<BloqueOLote['estado'], string> = {
   activo: 'Activo',

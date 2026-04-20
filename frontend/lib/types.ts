@@ -1,8 +1,18 @@
 import React from 'react'
 
-export type Dimension = '40x40' | '60x40' | '80x40'
+export const DIMENSIONES_PISO = ['40x40', '60x40', '80x40'] as const
+export const DIMENSIONES_PLANCHA = ['160x65', '160x60'] as const
+
+export type PisoDimension = (typeof DIMENSIONES_PISO)[number]
+export type PlanchaDimension = (typeof DIMENSIONES_PLANCHA)[number]
+export type Dimension = PisoDimension | PlanchaDimension
 export type TipoProducto = 'Piso' | 'Plancha'
-export const PLANCHA_DIMENSION: Dimension = '80x40'
+export const PLANCHA_DIMENSION: PlanchaDimension = DIMENSIONES_PLANCHA[0]
+export const PLANCHA_DIMENSIONES: PlanchaDimension[] = [...DIMENSIONES_PLANCHA]
+export const isPlanchaDimension = (dimension: Dimension): dimension is PlanchaDimension =>
+  DIMENSIONES_PLANCHA.includes(dimension as PlanchaDimension)
+export const isPisoDimension = (dimension: Dimension): dimension is PisoDimension =>
+  DIMENSIONES_PISO.includes(dimension as PisoDimension)
 export type EstadoLosa = 'Crudo' | 'Pulido'
 export type EstadoInventario = 'Picado' | 'Escuadrado' | 'Devastado' | 'Resinado' | 'Pulido'
 export type UbicacionInventario = 'almacen' | 'proceso'
@@ -56,6 +66,8 @@ export const PRECIOS_M2_DEFAULT: Record<Dimension, { crudo: number; pulido: numb
   '40x40': { crudo: 120, pulido: 180 },
   '60x40': { crudo: 140, pulido: 200 },
   '80x40': { crudo: 160, pulido: 220 },
+  '160x60': { crudo: 160, pulido: 220 },
+  '160x65': { crudo: 160, pulido: 220 },
 }
 
 export interface ConfiguracionSistema {
@@ -151,6 +163,8 @@ export function losasAMetros(losas: number, dimension: Dimension): number {
     '40x40': 1 / 6,
     '60x40': 1 / 4,
     '80x40': 1 / 3,
+    '160x60': 0.96,
+    '160x65': 1.04,
   }
   return losas * dimensiones[dimension]
 }

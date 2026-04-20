@@ -94,7 +94,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     id: 'BL003',
     nombre: 'A-003',
     tipo: 'Bloque',
-    dimensionBase: '80x40',
+    dimensionBase: '160x65',
     costo: 25000,
     costoTransporte: 2600,
     metrosComprados: 21.0,
@@ -125,15 +125,15 @@ export const productos: Producto[] = [
   },
   {
     id: 'P002',
-    nombre: 'Plancha Carrara 80x40 Picado',
+    nombre: 'Plancha Carrara 160x60 Picado',
     tipo: 'Plancha',
     estado: 'Picado',
     ubicacion: 'almacen',
-    dimension: '80x40',
+    dimension: '160x60',
     origenId: 'BL001',
     origenNombre: 'A-001',
     cantidadLosas: 30,
-    metrosCuadrados: 10.0,
+    metrosCuadrados: 28.8,
     precioM2: 160,
     imagen: '/marble-carrara.jpg'
   },
@@ -167,15 +167,15 @@ export const productos: Producto[] = [
   },
   {
     id: 'P005',
-    nombre: 'Plancha Calacatta 80x40 Pulido',
+    nombre: 'Plancha Calacatta 160x65 Pulido',
     tipo: 'Plancha',
     estado: 'Pulido',
     ubicacion: 'almacen',
-    dimension: '80x40',
+    dimension: '160x65',
     origenId: 'BL003',
     origenNombre: 'A-003',
     cantidadLosas: 20,
-    metrosCuadrados: 6.67,
+    metrosCuadrados: 20.8,
     precioM2: 320,
     imagen: '/marble-calacatta.jpg'
   },
@@ -427,14 +427,14 @@ export const produccionDiaria: ProduccionDiaria[] = [
     origenId: 'BL002',
     origenNombre: 'A-002',
     tipo: 'Plancha',
-    dimension: '80x40',
+    dimension: '160x60',
     cantidadPicar: 12,
     cantidadPulir: 0,
     cantidadEscuadrar: 0,
     cantidadDevastar: 0,
     cantidadResinar: 0,
     totalLosas: 12,
-    totalM2: 4.0
+    totalM2: 11.52
   }
 ]
 
@@ -533,7 +533,7 @@ export const produccionTrabajadores: ProduccionTrabajador[] = [
     origenId: 'BL002',
     origenNombre: 'A-002',
     tipo: 'Plancha',
-    dimension: '80x40',
+    dimension: '160x60',
     cantidadLosas: 12,
     pagoPorLosa: 420,
     pagoTotal: 5040,
@@ -587,9 +587,9 @@ export const mermas: Merma[] = [
     origenId: 'BL003',
     origenNombre: 'A-003',
     tipo: 'Plancha',
-    dimension: '80x40',
+    dimension: '160x65',
     cantidadLosas: 2,
-    metrosCuadrados: 0.67,
+    metrosCuadrados: 2.08,
     motivo: 'Defecto de material',
     observaciones: 'Grieta natural descubierta al procesar'
   }
@@ -601,7 +601,7 @@ export const ventas: Venta[] = [
     productoId: 'P001',
     productoNombre: 'Piso Carrara 60x40 Pulido',
     cantidadM2: 5.5,
-    metrosPorDimension: { '40x40': 0, '60x40': 5.5, '80x40': 0 },
+    metrosPorDimension: { '40x40': 0, '60x40': 5.5, '80x40': 0, '160x60': 0, '160x65': 0 },
     precioM2: 200,
     descuento: 5,
     fondoOperativo: 50,
@@ -616,14 +616,14 @@ export const ventas: Venta[] = [
   {
     id: 'V002',
     productoId: 'P005',
-    productoNombre: 'Plancha Calacatta 80x40 Pulido',
-    cantidadM2: 3.2,
-    metrosPorDimension: { '40x40': 0, '60x40': 0, '80x40': 3.2 },
+    productoNombre: 'Plancha Calacatta 160x65 Pulido',
+    cantidadM2: 3.12,
+    metrosPorDimension: { '40x40': 0, '60x40': 0, '80x40': 0, '160x60': 0, '160x65': 3.12 },
     precioM2: 320,
     descuento: 0,
     fondoOperativo: 100,
-    subtotal: 1024,
-    total: 1124,
+    subtotal: 998.4,
+    total: 1098.4,
     clienteNombre: 'DiseÃ±os Interiores Premium',
     clienteEmail: 'pedidos@diseÃ±ospremium.com',
     clienteTelefono: '+52 555 333 4444',
@@ -635,7 +635,7 @@ export const ventas: Venta[] = [
     productoId: 'P004',
     productoNombre: 'Piso Crema Marfil 60x40 Pulido',
     cantidadM2: 12.0,
-    metrosPorDimension: { '40x40': 0, '60x40': 12.0, '80x40': 0 },
+    metrosPorDimension: { '40x40': 0, '60x40': 12.0, '80x40': 0, '160x60': 0, '160x65': 0 },
     precioM2: 200,
     descuento: 10,
     fondoOperativo: 75,
@@ -652,7 +652,7 @@ export const ventas: Venta[] = [
     productoId: 'P003',
     productoNombre: 'Piso Emperador 40x40 Pulido',
     cantidadM2: 8.0,
-    metrosPorDimension: { '40x40': 8.0, '60x40': 0, '80x40': 0 },
+    metrosPorDimension: { '40x40': 8.0, '60x40': 0, '80x40': 0, '160x60': 0, '160x65': 0 },
     precioM2: 180,
     descuento: 0,
     fondoOperativo: 60,
@@ -758,7 +758,7 @@ export const logsSistema: SystemLog[] = [
 export const categories = ['Todos', 'Piso', 'Plancha', 'Pulido', 'Crudo']
 
 // Dimensiones disponibles
-export const dimensiones = ['40x40', '60x40', '80x40']
+export const dimensiones = ['40x40', '60x40', '80x40', '160x60', '160x65']
 
 // Motivos de merma actualizados
 export const motivosMerma = [

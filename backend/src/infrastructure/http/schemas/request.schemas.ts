@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { parseTrabajadorRole } from '../../../application/security/role-normalization.js'
 
-const dimensionSchema = z.enum(['40x40', '60x40', '80x40'])
+const dimensionSchema = z.enum(['40x40', '60x40', '80x40', '160x60', '160x65'])
 const tipoProductoSchema = z.enum(['Piso', 'Plancha'])
 const estadoCatalogoSchema = z.enum(['Crudo', 'Pulido'])
 const estadoInventarioSchema = z.enum(['Picado', 'Escuadrado', 'Devastado', 'Resinado', 'Pulido'])
@@ -219,6 +219,8 @@ export const createVentaSchema = z.object({
     '40x40': z.number(),
     '60x40': z.number(),
     '80x40': z.number(),
+    '160x60': z.number(),
+    '160x65': z.number(),
   }),
   precioM2: z.number(),
   descuento: z.number(),

@@ -28,6 +28,8 @@ const emptyConfiguracion: ConfiguracionSistema = {
     '40x40': { crudo: 0, pulido: 0 },
     '60x40': { crudo: 0, pulido: 0 },
     '80x40': { crudo: 0, pulido: 0 },
+    '160x60': { crudo: 0, pulido: 0 },
+    '160x65': { crudo: 0, pulido: 0 },
   },
   nombreEmpresa: '',
   email: '',

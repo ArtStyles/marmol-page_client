@@ -8,7 +8,12 @@ import type {
   InventarioMovimientoResponseDto,
   RechazarInventarioMovimientoDto,
 } from '../../dtos/index.js'
-import type { EstadoInventario, InventarioMovimientoDetalle, Venta } from '../../../domain/entities/index.js'
+import type {
+  Dimension,
+  EstadoInventario,
+  InventarioMovimientoDetalle,
+  Venta,
+} from '../../../domain/entities/index.js'
 import type {
   BloqueRepositoryPort,
   InventarioMovimientoPageCursor,
@@ -138,9 +143,12 @@ function resolveEstadoRetornoProceso(
   )
 }
 
-function dimensionToArea(dimension: '40x40' | '60x40' | '80x40'): number {
+function dimensionToArea(dimension: Dimension): number {
   if (dimension === '40x40') return 1 / 6
   if (dimension === '60x40') return 1 / 4
+  if (dimension === '80x40') return 1 / 3
+  if (dimension === '160x60') return 0.96
+  if (dimension === '160x65') return 1.04
   return 1 / 3
 }
 
@@ -148,7 +156,10 @@ function round2(value: number): number {
   return Number(value.toFixed(2))
 }
 
-function resolveMetrosParaMovimiento(producto: { cantidadLosas: number; metrosCuadrados: number; dimension: '40x40' | '60x40' | '80x40' }, cantidadLosas: number): number {
+function resolveMetrosParaMovimiento(
+  producto: { cantidadLosas: number; metrosCuadrados: number; dimension: Dimension },
+  cantidadLosas: number,
+): number {
   if (producto.cantidadLosas > 0 && producto.metrosCuadrados > 0) {
     const proporcion = cantidadLosas / producto.cantidadLosas
     return round2(proporcion * producto.metrosCuadrados)
