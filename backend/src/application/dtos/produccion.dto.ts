@@ -1,4 +1,4 @@
-import type { ProduccionDiaria, ProduccionTrabajador } from '../../domain/entities/index.js'
+import type { MonoHiloMasa, ProduccionDiaria, ProduccionTrabajador } from '../../domain/entities/index.js'
 
 export type CreateProduccionDto = Omit<ProduccionDiaria, 'id'>
 export type UpdateProduccionDto = Partial<Omit<ProduccionDiaria, 'id'>>
@@ -11,6 +11,15 @@ export interface AprobarProduccionTallerDto {
 
 export interface AprobarEntradaProduccionAlmacenDto {
   motivo: string
+}
+
+export interface AnularProduccionMonoHiloDto {
+  motivo: string
+}
+
+export interface AnularProduccionMonoHiloResponseDto {
+  produccion: ProduccionDiaria
+  masas: MonoHiloMasa[]
 }
 
 export type CreateProduccionTrabajadorDto = Omit<ProduccionTrabajador, 'id'>

@@ -1,6 +1,8 @@
 import { DomainError } from '../../errors/domain.error.js'
 import type {
   AprobarEntradaProduccionAlmacenDto,
+  AnularProduccionMonoHiloDto,
+  AnularProduccionMonoHiloResponseDto,
   AprobarProduccionTallerDto,
   CreateProduccionDto,
   CreateProduccionTrabajadorDto,
@@ -14,14 +16,18 @@ import type {
   InventarioMovimientoDetalle,
   ProduccionDetalleAccion,
   ProduccionDiaria,
+  ProduccionTrabajador,
+  Trabajador,
 } from '../../../domain/entities/index.js'
 import type {
   BloqueRepositoryPort,
+  ConfiguracionPort,
   InventarioMovimientoRepositoryPort,
   ProduccionRepositoryPort,
   ProduccionTrabajadorRepositoryPort,
   ProductoRepositoryPort,
   MonoHiloMasaRepositoryPort,
+  TrabajadorRepositoryPort,
 } from '../../../domain/ports/index.js'
 import { applyInventarioEntrada } from '../inventario-movimientos/inventario-movimiento.helpers.js'
 import { consumeMonoHiloMasasParaPicado } from '../mono-hilo/mono-hilo.use-cases.js'
@@ -55,28 +61,48 @@ export class CreateProduccionUseCase {
     private readonly repository: ProduccionRepositoryPort,
     private readonly productoRepository: ProductoRepositoryPort,
     private readonly monoHiloRepository: MonoHiloMasaRepositoryPort,
+    private readonly produccionTrabajadorRepository: ProduccionTrabajadorRepositoryPort,
+    private readonly trabajadorRepository: TrabajadorRepositoryPort,
+    private readonly configuracionPort: ConfiguracionPort,
   ) {}
 
   async execute(dto: CreateProduccionDto): Promise<ProduccionResponseDto> {
     const normalizedDto = normalizeProduccionDto(dto)
-    validateResinaConsumo(normalizedDto)
-    await consumeMonoHiloMasasParaPicado(
-      {
-        bloqueId: normalizedDto.origenId,
-        dimension: normalizedDto.dimension,
-        cantidadLosas: normalizedDto.cantidadPicar,
-      },
-      this.monoHiloRepository,
-    )
-    await consumeProcesoStockParaProduccion(normalizedDto, this.productoRepository)
+    if (isMonoHiloWorkflow(normalizedDto)) {
+      validateMonoHiloProduccionDto(normalizedDto)
+    } else {
+      validateResinaConsumo(normalizedDto)
+      await consumeMonoHiloMasasParaPicado(
+        {
+          bloqueId: normalizedDto.origenId,
+          dimension: normalizedDto.dimension,
+          cantidadLosas: normalizedDto.cantidadPicar,
+        },
+        this.monoHiloRepository,
+      )
+      await consumeProcesoStockParaProduccion(normalizedDto, this.productoRepository)
+    }
 
-    return this.repository.create({
+    const created = await this.repository.create({
       ...normalizedDto,
+      workflowTipo: normalizedDto.workflowTipo ?? 'regular',
+      estadoRegistro: normalizedDto.estadoRegistro ?? 'activo',
       aprobacionTallerEstado: 'pendiente',
       aprobacionAlmacenEstado: 'pendiente',
       inventarioAplicado: false,
       movimientoInventarioIds: [],
     })
+
+    if (!isMonoHiloWorkflow(created)) {
+      await createProduccionTrabajadoresForRegistro(
+        created,
+        this.produccionTrabajadorRepository,
+        this.trabajadorRepository,
+        this.configuracionPort,
+      )
+    }
+
+    return created
   }
 }
 
@@ -91,6 +117,14 @@ export class ApproveProduccionTallerUseCase {
     const produccion = await this.repository.findById(id)
     if (!produccion) {
       throw new DomainError(`Produccion ${id} no existe`, 404, 'PRODUCCION_NOT_FOUND')
+    }
+
+    if (isMonoHiloWorkflow(produccion)) {
+      throw new DomainError(
+        'Los registros de mono hilo no participan en la aprobacion de taller.',
+        409,
+        'PRODUCCION_MONO_HILO_TALLER_INVALIDA',
+      )
     }
 
     if (produccion.inventarioAplicado) {
@@ -176,6 +210,14 @@ export class ApproveEntradaProduccionAlmacenUseCase {
       throw new DomainError(`Produccion ${id} no existe`, 404, 'PRODUCCION_NOT_FOUND')
     }
 
+    if (isMonoHiloWorkflow(produccion)) {
+      throw new DomainError(
+        'Los registros de mono hilo no generan entrada a almacen.',
+        409,
+        'PRODUCCION_MONO_HILO_ALMACEN_INVALIDA',
+      )
+    }
+
     if (produccion.aprobacionTallerEstado !== 'aprobado') {
       throw new DomainError(
         'La produccion debe estar aprobada por taller antes de dar entrada a almacen.',
@@ -256,6 +298,151 @@ export class ApproveEntradaProduccionAlmacenUseCase {
   }
 }
 
+export class CancelMonoHiloProduccionUseCase {
+  constructor(
+    private readonly repository: ProduccionRepositoryPort,
+    private readonly monoHiloRepository: MonoHiloMasaRepositoryPort,
+  ) {}
+
+  async execute(
+    id: string,
+    dto: AnularProduccionMonoHiloDto,
+    actor: ProduccionActor,
+  ): Promise<AnularProduccionMonoHiloResponseDto> {
+    const produccion = await this.repository.findById(id)
+    if (!produccion) {
+      throw new DomainError(`Produccion ${id} no existe`, 404, 'PRODUCCION_NOT_FOUND')
+    }
+
+    if (!isMonoHiloWorkflow(produccion)) {
+      throw new DomainError(
+        'Solo los registros de mono hilo admiten anulacion controlada.',
+        409,
+        'PRODUCCION_ANULACION_NO_MONO_HILO',
+      )
+    }
+
+    if (produccion.estadoRegistro === 'anulado') {
+      throw new DomainError(
+        'El registro de mono hilo ya fue anulado.',
+        409,
+        'PRODUCCION_MONO_HILO_YA_ANULADA',
+      )
+    }
+
+    const motivo = dto.motivo.trim()
+    if (motivo.length < 5) {
+      throw new DomainError(
+        'Debe indicar un motivo de anulacion de al menos 5 caracteres.',
+        400,
+        'PRODUCCION_MONO_HILO_MOTIVO_REQUERIDO',
+      )
+    }
+
+    const masaIds = [...new Set((produccion.monoHiloDetalle?.masas ?? []).map((masa) => masa.masaId).filter(Boolean))]
+    if (masaIds.length === 0) {
+      throw new DomainError(
+        'El registro de mono hilo no tiene masas enlazadas para anular.',
+        409,
+        'PRODUCCION_MONO_HILO_SIN_MASAS',
+      )
+    }
+
+    const masas = await Promise.all(
+      masaIds.map(async (masaId) => {
+        const masa = await this.monoHiloRepository.findById(masaId)
+        if (!masa) {
+          throw new DomainError(
+            `La masa ${masaId} asociada al registro no existe.`,
+            404,
+            'MONO_HILO_MASA_NOT_FOUND',
+          )
+        }
+        return masa
+      }),
+    )
+
+    const masaConsumida = masas.find((masa) =>
+      Object.values(masa.estimados).some((estimado) => estimado.losasConsumidas > 0),
+    )
+    if (masaConsumida) {
+      throw new DomainError(
+        `No se puede anular el registro porque la masa ${masaConsumida.codigo} ya tiene consumo en picado.`,
+        409,
+        'PRODUCCION_MONO_HILO_ANULACION_CONSUMIDA',
+      )
+    }
+
+    const now = new Date().toISOString()
+
+    try {
+      const masasActualizadas = await Promise.all(
+        masas.map(async (masa) => {
+          const updated = await this.monoHiloRepository.update(masa.id, {
+            estado: 'anulada',
+            ubicacion: 'almacen',
+            anulacionMotivo: motivo,
+            anuladoPorId: actor.userId,
+            anuladoPorNombre: actor.userName,
+            anuladoFecha: now,
+          })
+
+          if (!updated) {
+            throw new DomainError(
+              `No se pudo anular la masa ${masa.id}.`,
+              500,
+              'MONO_HILO_MASA_ANULACION_FAILED',
+            )
+          }
+
+          return updated
+        }),
+      )
+
+      const updatedProduccion = await this.repository.update(id, {
+        estadoRegistro: 'anulado',
+        anulacionMotivo: motivo,
+        anuladoPorId: actor.userId,
+        anuladoPorNombre: actor.userName,
+        anuladoFecha: now,
+      })
+
+      if (!updatedProduccion) {
+        throw new DomainError(
+          `No se pudo actualizar produccion ${id}.`,
+          500,
+          'PRODUCCION_UPDATE_FAILED',
+        )
+      }
+
+      return {
+        produccion: updatedProduccion,
+        masas: masasActualizadas,
+      }
+    } catch (error) {
+      await Promise.all(
+        masas.map(async (masa) => {
+          try {
+            await this.monoHiloRepository.update(masa.id, {
+              produccionId: masa.produccionId,
+              ubicacion: masa.ubicacion,
+              estado: masa.estado,
+              anulacionMotivo: masa.anulacionMotivo,
+              anuladoPorId: masa.anuladoPorId,
+              anuladoPorNombre: masa.anuladoPorNombre,
+              anuladoFecha: masa.anuladoFecha,
+            })
+          } catch {
+            // Best effort rollback.
+          }
+        }),
+      )
+
+      throw error
+    }
+  }
+}
+
 export class UpdateProduccionUseCase {
   constructor(private readonly repository: ProduccionRepositoryPort) {}
 
@@ -270,6 +457,22 @@ export class UpdateProduccionUseCase {
         'No se puede editar una produccion ya aprobada.',
         409,
         'PRODUCCION_EDIT_LOCKED',
+      )
+    }
+
+    if (isMonoHiloWorkflow(current)) {
+      throw new DomainError(
+        'Los registros de mono hilo no se editan desde este modulo.',
+        409,
+        'PRODUCCION_MONO_HILO_EDIT_LOCKED',
+      )
+    }
+
+    if (current.cantidadPicar > 0) {
+      throw new DomainError(
+        'No se puede editar una produccion de picado porque ya consumio masas de mono hilo.',
+        409,
+        'PRODUCCION_EDIT_PICADO_LOCKED',
       )
     }
 
@@ -299,11 +502,27 @@ export class DeleteProduccionUseCase {
       return false
     }
 
+    if (isMonoHiloWorkflow(current)) {
+      throw new DomainError(
+        'No se puede eliminar un registro de mono hilo porque dejaria masas sin trazabilidad.',
+        409,
+        'PRODUCCION_DELETE_MONO_HILO_LOCKED',
+      )
+    }
+
     if (current.inventarioAplicado) {
       throw new DomainError(
         'No se puede eliminar una produccion que ya movio inventario.',
         409,
         'PRODUCCION_DELETE_LOCKED',
+      )
+    }
+
+    if (!isMonoHiloWorkflow(current) && current.cantidadPicar > 0) {
+      throw new DomainError(
+        'No se puede eliminar una produccion de picado porque ya consumio masas de mono hilo.',
+        409,
+        'PRODUCCION_DELETE_PICADO_LOCKED',
       )
     }
 
@@ -537,6 +756,182 @@ function validateResinaConsumo(dto: CreateProduccionDto): void {
       'PRODUCCION_RESINA_CANTIDAD_INVALIDA',
     )
   }
+}
+
+function isMonoHiloWorkflow(
+  dto: Pick<ProduccionDiaria, 'workflowTipo'> | Pick<CreateProduccionDto, 'workflowTipo'>,
+): boolean {
+  return dto.workflowTipo === 'mono_hilo'
+}
+
+function validateMonoHiloProduccionDto(dto: CreateProduccionDto): void {
+  if (
+    dto.cantidadPicar > 0 ||
+    dto.cantidadEscuadrar > 0 ||
+    dto.cantidadDevastar > 0 ||
+    dto.cantidadResinar > 0 ||
+    dto.cantidadPulir > 0
+  ) {
+    throw new DomainError(
+      'El registro de mono hilo no puede crear acciones de losas directas.',
+      400,
+      'PRODUCCION_MONO_HILO_ACCIONES_INVALIDAS',
+    )
+  }
+
+  if ((dto.detallesAcciones?.length ?? 0) > 0) {
+    throw new DomainError(
+      'El registro de mono hilo no admite detalles de acciones de losas.',
+      400,
+      'PRODUCCION_MONO_HILO_DETALLES_INVALIDOS',
+    )
+  }
+
+  const detalle = dto.monoHiloDetalle
+  if (!detalle || detalle.masas.length === 0) {
+    throw new DomainError(
+      'El registro de mono hilo requiere las masas creadas y el personal participante.',
+      400,
+      'PRODUCCION_MONO_HILO_DETALLE_REQUERIDO',
+    )
+  }
+}
+
+async function createProduccionTrabajadoresForRegistro(
+  produccion: ProduccionDiaria,
+  produccionTrabajadorRepository: ProduccionTrabajadorRepositoryPort,
+  trabajadorRepository: TrabajadorRepositoryPort,
+  configuracionPort: ConfiguracionPort,
+): Promise<void> {
+  const registros = await buildProduccionTrabajadores(produccion, trabajadorRepository, configuracionPort)
+  if (registros.length === 0) {
+    return
+  }
+
+  const impactos = new Map<string, { losas: number; pago: number }>()
+
+  for (const registro of registros) {
+    await produccionTrabajadorRepository.create(registro)
+    const impacto = impactos.get(registro.trabajadorId) ?? { losas: 0, pago: 0 }
+    impacto.losas += registro.cantidadLosas
+    impacto.pago += registro.pagoFinal
+    impactos.set(registro.trabajadorId, impacto)
+  }
+
+  const trabajadores = await trabajadorRepository.findAll()
+  const trabajadoresById = new Map(trabajadores.map((trabajador) => [trabajador.id, trabajador]))
+
+  for (const [trabajadorId, impacto] of impactos.entries()) {
+    const trabajador = trabajadoresById.get(trabajadorId)
+    if (!trabajador) continue
+
+    const updated = await trabajadorRepository.update(trabajadorId, {
+      losasProducidas: trabajador.losasProducidas + impacto.losas,
+      acumuladoPendiente: round2(trabajador.acumuladoPendiente + impacto.pago),
+    })
+
+    if (!updated) {
+      throw new DomainError(
+        `No se pudo actualizar trabajador ${trabajadorId} tras registrar produccion.`,
+        500,
+        'PRODUCCION_TRABAJADOR_UPDATE_FAILED',
+      )
+    }
+  }
+}
+
+async function buildProduccionTrabajadores(
+  produccion: ProduccionDiaria,
+  trabajadorRepository: TrabajadorRepositoryPort,
+  configuracionPort: ConfiguracionPort,
+): Promise<Array<Omit<ProduccionTrabajador, 'id'>>> {
+  const detalles = produccion.detallesAcciones ?? []
+  if (detalles.length === 0) {
+    return []
+  }
+
+  const configuracion = await configuracionPort.get()
+  const trabajadores = await trabajadorRepository.findAll()
+  const trabajadoresById = new Map(trabajadores.map((trabajador) => [trabajador.id, trabajador]))
+  const registros: Array<Omit<ProduccionTrabajador, 'id'>> = []
+
+  for (const detalle of detalles) {
+    const trabajadoresDetalle = resolveDetalleObreros(detalle, trabajadoresById)
+    if (trabajadoresDetalle.length === 0) {
+      continue
+    }
+
+    const repartoLosas = splitIntegerTotal(detalle.cantidadLosas, trabajadoresDetalle.length)
+    const losasPagablesEquipo = Math.max(
+      0,
+      detalle.cantidadLosas - Math.max(0, detalle.losasMermaTotal ?? 0),
+    )
+    const repartoPagable = splitIntegerTotal(losasPagablesEquipo, trabajadoresDetalle.length)
+
+    trabajadoresDetalle.forEach((trabajador, index) => {
+      const cantidadLosas = repartoLosas[index] ?? 0
+      const losasPagables = repartoPagable[index] ?? 0
+      if (cantidadLosas <= 0 && losasPagables <= 0) {
+        return
+      }
+      const tarifa = resolveTarifaProduccion(trabajador, detalle.accion, configuracion)
+      const pagoTotal = round2(losasPagables * tarifa)
+
+      registros.push({
+        fecha: produccion.fecha,
+        produccionId: produccion.id,
+        produccionDetalleId: detalle.id,
+        trabajadorId: trabajador.id,
+        trabajadorNombre: trabajador.nombre,
+        accion: detalle.accion,
+        origenId: produccion.origenId,
+        origenNombre: produccion.origenNombre,
+        tipo: produccion.tipo,
+        dimension: produccion.dimension,
+        cantidadLosas,
+        pagoPorLosa: tarifa,
+        pagoTotal,
+        bono: 0,
+        pagoFinal: pagoTotal,
+        pagado: false,
+      })
+    })
+  }
+
+  return registros
+}
+
+function resolveDetalleObreros(
+  detalle: ProduccionDetalleAccion,
+  trabajadoresById: Map<string, Trabajador>,
+): Trabajador[] {
+  const ids = (detalle.trabajadores?.length ?? 0) > 0
+    ? detalle.trabajadores!.map((trabajador) => trabajador.id)
+    : detalle.trabajadorId
+      ? [detalle.trabajadorId]
+      : []
+
+  return [...new Set(ids)]
+    .map((trabajadorId) => trabajadoresById.get(trabajadorId))
+    .filter((trabajador): trabajador is Trabajador => Boolean(trabajador))
+    .filter((trabajador) => trabajador.estado === 'activo' && trabajador.rol === 'Obrero')
+}
+
+function resolveTarifaProduccion(
+  trabajador: Trabajador,
+  accion: ProduccionDetalleAccion['accion'],
+  configuracion: Awaited<ReturnType<ConfiguracionPort['get']>>,
+): number {
+  return trabajador.tarifasPersonalizadas?.[accion] ?? configuracion.tarifasGlobales[accion]
+}
+
+function splitIntegerTotal(total: number, parts: number): number[] {
+  if (parts <= 0) return []
+  const normalizedTotal = Math.max(0, Math.trunc(total))
+  const base = Math.floor(normalizedTotal / parts)
+  const remainder = normalizedTotal % parts
+
+  return Array.from({ length: parts }, (_, index) => (index < remainder ? base + 1 : base))
 }
 
 const estadoRequeridoProcesoPorAccion: Record<

@@ -22,6 +22,7 @@ import {
   createProduccionSchema,
   approveProduccionTallerSchema,
   approveProduccionAlmacenSchema,
+  cancelMonoHiloProduccionSchema,
   updateProduccionSchema,
   createProduccionTrabajadorSchema,
   updateProduccionTrabajadorSchema,
@@ -30,6 +31,7 @@ import {
   createSalidaProcesoInventarioSchema,
   createRetornoProcesoInventarioSchema,
   createMonoHiloMasasSchema,
+  registerMonoHiloProduccionSchema,
   updateMonoHiloMasaUbicacionSchema,
   createHistorialPagoSchema,
   updateHistorialPagoSchema,
@@ -158,6 +160,12 @@ api.post(
   validateBody(createMonoHiloMasasSchema),
   asyncHandler(monoHiloCtrl.createMonoHiloMasas),
 )
+api.post(
+  '/mono-hilo/registro',
+  requirePermission('produccion:write'),
+  validateBody(registerMonoHiloProduccionSchema),
+  asyncHandler(monoHiloCtrl.registerMonoHiloProduccion),
+)
 api.patch(
   '/mono-hilo/masas/:id/ubicacion',
   requirePermission('produccion:write'),
@@ -251,6 +259,12 @@ api.patch(
   requirePermission('inventario:approve'),
   validateBody(approveProduccionAlmacenSchema),
   asyncHandler(produccionCtrl.approveProduccionAlmacen),
+)
+api.patch(
+  '/produccion/:id/anular-mono-hilo',
+  requirePermission('produccion:write'),
+  validateBody(cancelMonoHiloProduccionSchema),
+  asyncHandler(produccionCtrl.cancelMonoHiloProduccion),
 )
 api.patch(
   '/produccion/:id',

@@ -13,6 +13,8 @@ function rowToProduccion(r: Record<string, unknown>): ProduccionDiaria {
     fecha: toDateOnly(r.fecha),
     origenId: r.origen_id as string,
     origenNombre: r.origen_nombre as string,
+    workflowTipo: (r.workflow_tipo as ProduccionDiaria['workflowTipo']) ?? 'regular',
+    estadoRegistro: (r.estado_registro as ProduccionDiaria['estadoRegistro']) ?? 'activo',
     tipo: r.tipo as ProduccionDiaria['tipo'],
     dimension: r.dimension as ProduccionDiaria['dimension'],
     cantidadPicar: Number(r.cantidad_picar),
@@ -23,6 +25,7 @@ function rowToProduccion(r: Record<string, unknown>): ProduccionDiaria {
     totalLosas: Number(r.total_losas),
     totalM2: Number(r.total_m2),
     detallesAcciones: r.detalles_acciones as ProduccionDiaria['detallesAcciones'],
+    monoHiloDetalle: (r.mono_hilo_detalle as ProduccionDiaria['monoHiloDetalle']) ?? undefined,
     canEdit: r.can_edit as boolean | undefined,
     editableUntil: toTimestampIso(r.editable_until),
     aprobacionTallerEstado:
@@ -40,6 +43,10 @@ function rowToProduccion(r: Record<string, unknown>): ProduccionDiaria {
     aprobacionAlmacenMotivo: (r.aprobacion_almacen_motivo as string | null) ?? undefined,
     inventarioAplicado: (r.inventario_aplicado as boolean | null) ?? false,
     movimientoInventarioIds: (r.movimiento_inventario_ids as string[] | null) ?? [],
+    anulacionMotivo: (r.anulacion_motivo as string | null) ?? undefined,
+    anuladoPorId: (r.anulado_por_id as string | null) ?? undefined,
+    anuladoPorNombre: (r.anulado_por_nombre as string | null) ?? undefined,
+    anuladoFecha: toTimestampIso(r.anulado_fecha),
   }
 }
 
@@ -71,19 +78,21 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
     const id = await nextId(pool, 'PG', 'produccion')
     await pool.query(
       `INSERT INTO produccion (
-        id, workshop_id, fecha, origen_id, origen_nombre, tipo, dimension, cantidad_picar, cantidad_pulir, cantidad_escuadrar, cantidad_devastar, cantidad_resinar,
-        total_losas, total_m2, detalles_acciones, can_edit, editable_until,
+        id, workshop_id, fecha, origen_id, origen_nombre, workflow_tipo, estado_registro, tipo, dimension, cantidad_picar, cantidad_pulir, cantidad_escuadrar, cantidad_devastar, cantidad_resinar,
+        total_losas, total_m2, detalles_acciones, mono_hilo_detalle, can_edit, editable_until,
         aprobacion_taller_estado, aprobacion_taller_por_id, aprobacion_taller_por_nombre, aprobacion_taller_fecha, aprobacion_taller_motivo_rechazo,
         aprobacion_almacen_estado, aprobacion_almacen_por_id, aprobacion_almacen_por_nombre, aprobacion_almacen_fecha, aprobacion_almacen_motivo,
-        inventario_aplicado, movimiento_inventario_ids
+        inventario_aplicado, movimiento_inventario_ids, anulacion_motivo, anulado_por_id, anulado_por_nombre, anulado_fecha
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)`,
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36)`,
       [
         id,
         workshopId,
         data.fecha,
         data.origenId,
         data.origenNombre,
+        data.workflowTipo ?? 'regular',
+        data.estadoRegistro ?? 'activo',
         data.tipo,
         data.dimension,
         data.cantidadPicar,
@@ -94,6 +103,7 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
         data.totalLosas,
         data.totalM2,
         data.detallesAcciones ? JSON.stringify(data.detallesAcciones) : null,
+        data.monoHiloDetalle ? JSON.stringify(data.monoHiloDetalle) : null,
         data.canEdit ?? null,
         data.editableUntil ?? null,
         data.aprobacionTallerEstado ?? 'pendiente',
@@ -108,6 +118,10 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
         data.aprobacionAlmacenMotivo ?? null,
         data.inventarioAplicado ?? false,
         JSON.stringify(data.movimientoInventarioIds ?? []),
+        data.anulacionMotivo ?? null,
+        data.anuladoPorId ?? null,
+        data.anuladoPorNombre ?? null,
+        data.anuladoFecha ?? null,
       ]
     )
     return this.findById(id) as Promise<ProduccionDiaria>
@@ -121,17 +135,19 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
     const workshopId = getCurrentWorkshopId()
     await pool.query(
       `UPDATE produccion SET
-        fecha=$2, origen_id=$3, origen_nombre=$4, tipo=$5, dimension=$6, cantidad_picar=$7, cantidad_pulir=$8, cantidad_escuadrar=$9, cantidad_devastar=$10, cantidad_resinar=$11,
-        total_losas=$12, total_m2=$13, detalles_acciones=$14, can_edit=$15, editable_until=$16,
-        aprobacion_taller_estado=$17, aprobacion_taller_por_id=$18, aprobacion_taller_por_nombre=$19, aprobacion_taller_fecha=$20, aprobacion_taller_motivo_rechazo=$21,
-        aprobacion_almacen_estado=$22, aprobacion_almacen_por_id=$23, aprobacion_almacen_por_nombre=$24, aprobacion_almacen_fecha=$25, aprobacion_almacen_motivo=$26,
-        inventario_aplicado=$27, movimiento_inventario_ids=$28
-      WHERE id=$1 AND workshop_id=$29`,
+        fecha=$2, origen_id=$3, origen_nombre=$4, workflow_tipo=$5, estado_registro=$6, tipo=$7, dimension=$8, cantidad_picar=$9, cantidad_pulir=$10, cantidad_escuadrar=$11, cantidad_devastar=$12, cantidad_resinar=$13,
+        total_losas=$14, total_m2=$15, detalles_acciones=$16, mono_hilo_detalle=$17, can_edit=$18, editable_until=$19,
+        aprobacion_taller_estado=$20, aprobacion_taller_por_id=$21, aprobacion_taller_por_nombre=$22, aprobacion_taller_fecha=$23, aprobacion_taller_motivo_rechazo=$24,
+        aprobacion_almacen_estado=$25, aprobacion_almacen_por_id=$26, aprobacion_almacen_por_nombre=$27, aprobacion_almacen_fecha=$28, aprobacion_almacen_motivo=$29,
+        inventario_aplicado=$30, movimiento_inventario_ids=$31, anulacion_motivo=$32, anulado_por_id=$33, anulado_por_nombre=$34, anulado_fecha=$35
+      WHERE id=$1 AND workshop_id=$36`,
       [
         id,
         merged.fecha,
         merged.origenId,
         merged.origenNombre,
+        merged.workflowTipo ?? 'regular',
+        merged.estadoRegistro ?? 'activo',
         merged.tipo,
         merged.dimension,
         merged.cantidadPicar,
@@ -142,6 +158,7 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
         merged.totalLosas,
         merged.totalM2,
         merged.detallesAcciones ? JSON.stringify(merged.detallesAcciones) : null,
+        merged.monoHiloDetalle ? JSON.stringify(merged.monoHiloDetalle) : null,
         merged.canEdit ?? null,
         merged.editableUntil ?? null,
         merged.aprobacionTallerEstado ?? 'pendiente',
@@ -156,6 +173,10 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
         merged.aprobacionAlmacenMotivo ?? null,
         merged.inventarioAplicado ?? false,
         JSON.stringify(merged.movimientoInventarioIds ?? []),
+        merged.anulacionMotivo ?? null,
+        merged.anuladoPorId ?? null,
+        merged.anuladoPorNombre ?? null,
+        merged.anuladoFecha ?? null,
         workshopId,
       ]
     )
@@ -177,6 +198,8 @@ function rowToProduccionTrabajador(r: Record<string, unknown>): ProduccionTrabaj
   return {
     id: r.id as string,
     fecha: toDateOnly(r.fecha),
+    produccionId: (r.produccion_id as string | null) ?? undefined,
+    produccionDetalleId: (r.produccion_detalle_id as string | null) ?? undefined,
     trabajadorId: r.trabajador_id as string,
     trabajadorNombre: r.trabajador_nombre as string,
     accion: r.accion as ProduccionTrabajador['accion'],
@@ -220,12 +243,14 @@ export class PostgresProduccionTrabajadorRepository implements ProduccionTrabaja
     const workshopId = getCurrentWorkshopId()
     const id = await nextId(pool, 'PD', 'produccion_trabajadores')
     await pool.query(
-      `INSERT INTO produccion_trabajadores (id, workshop_id, fecha, trabajador_id, trabajador_nombre, accion, origen_id, origen_nombre, tipo, dimension, cantidad_losas, pago_por_losa, pago_total, bono, pago_final, pagado)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      `INSERT INTO produccion_trabajadores (id, workshop_id, fecha, produccion_id, produccion_detalle_id, trabajador_id, trabajador_nombre, accion, origen_id, origen_nombre, tipo, dimension, cantidad_losas, pago_por_losa, pago_total, bono, pago_final, pagado)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
       [
         id,
         workshopId,
         data.fecha,
+        data.produccionId ?? null,
+        data.produccionDetalleId ?? null,
         data.trabajadorId,
         data.trabajadorNombre,
         data.accion,
@@ -251,10 +276,12 @@ export class PostgresProduccionTrabajadorRepository implements ProduccionTrabaja
     const pool = getPool()
     const workshopId = getCurrentWorkshopId()
     await pool.query(
-      `UPDATE produccion_trabajadores SET fecha=$2, trabajador_id=$3, trabajador_nombre=$4, accion=$5, origen_id=$6, origen_nombre=$7, tipo=$8, dimension=$9, cantidad_losas=$10, pago_por_losa=$11, pago_total=$12, bono=$13, pago_final=$14, pagado=$15 WHERE id=$1 AND workshop_id=$16`,
+      `UPDATE produccion_trabajadores SET fecha=$2, produccion_id=$3, produccion_detalle_id=$4, trabajador_id=$5, trabajador_nombre=$6, accion=$7, origen_id=$8, origen_nombre=$9, tipo=$10, dimension=$11, cantidad_losas=$12, pago_por_losa=$13, pago_total=$14, bono=$15, pago_final=$16, pagado=$17 WHERE id=$1 AND workshop_id=$18`,
       [
         id,
         merged.fecha,
+        merged.produccionId ?? null,
+        merged.produccionDetalleId ?? null,
         merged.trabajadorId,
         merged.trabajadorNombre,
         merged.accion,

@@ -19,6 +19,7 @@ type Props = {
   resumenPartidas: ResumenPartidas
   topOrigenesResumen: ProduccionDiaria[]
   totalLosasResumen: number
+  totalMonoHiloResumen: number
   totalM2Resumen: number
 }
 
@@ -29,6 +30,7 @@ export function ProduccionRightPanel({
   resumenPartidas,
   topOrigenesResumen,
   totalLosasResumen,
+  totalMonoHiloResumen,
   totalM2Resumen,
 }: Props) {
   return (
@@ -42,6 +44,10 @@ export function ProduccionRightPanel({
           <div className="flex items-center justify-between">
             <span>Losas fecha</span>
             <span className="font-semibold">{totalLosasResumen}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Masas mono hilo</span>
+            <span className="font-semibold">{totalMonoHiloResumen}</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Origenes activos</span>

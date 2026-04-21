@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS mono_hilo_masas (
   bloque_id TEXT NOT NULL,
   bloque_codigo TEXT NOT NULL,
   bloque_nombre TEXT NOT NULL,
+  produccion_id TEXT,
   codigo TEXT NOT NULL,
   largo_cm NUMERIC(10,2) NOT NULL,
   ancho_cm NUMERIC(10,2) NOT NULL,
@@ -73,9 +74,14 @@ CREATE TABLE IF NOT EXISTS mono_hilo_masas (
   grosor_disco_mm NUMERIC(10,2) NOT NULL DEFAULT 8,
   espesor_losa_cm NUMERIC(10,2) NOT NULL DEFAULT 3,
   ubicacion TEXT NOT NULL DEFAULT 'almacen' CHECK (ubicacion IN ('almacen', 'proceso', 'consumida')),
+  estado TEXT NOT NULL DEFAULT 'activa' CHECK (estado IN ('activa', 'anulada')),
   observaciones TEXT NOT NULL DEFAULT '',
   fecha_registro TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   estimados JSONB NOT NULL DEFAULT '{}'::jsonb,
+  anulacion_motivo TEXT,
+  anulado_por_id TEXT,
+  anulado_por_nombre TEXT,
+  anulado_fecha TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -135,6 +141,8 @@ CREATE TABLE IF NOT EXISTS produccion (
   fecha DATE NOT NULL,
   origen_id TEXT NOT NULL,
   origen_nombre TEXT NOT NULL,
+  workflow_tipo TEXT NOT NULL DEFAULT 'regular' CHECK (workflow_tipo IN ('regular', 'mono_hilo')),
+  estado_registro TEXT NOT NULL DEFAULT 'activo' CHECK (estado_registro IN ('activo', 'anulado')),
   tipo TEXT NOT NULL CHECK (tipo IN ('Piso', 'Plancha')),
   dimension TEXT NOT NULL CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65')),
   cantidad_picar INTEGER NOT NULL DEFAULT 0,
@@ -145,6 +153,7 @@ CREATE TABLE IF NOT EXISTS produccion (
   total_losas INTEGER NOT NULL,
   total_m2 NUMERIC(10,2) NOT NULL,
   detalles_acciones JSONB,
+  mono_hilo_detalle JSONB,
   can_edit BOOLEAN,
   editable_until TIMESTAMPTZ,
   aprobacion_taller_estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (aprobacion_taller_estado IN ('pendiente', 'aprobado', 'rechazado')),
@@ -159,6 +168,10 @@ CREATE TABLE IF NOT EXISTS produccion (
   aprobacion_almacen_motivo TEXT,
   inventario_aplicado BOOLEAN NOT NULL DEFAULT false,
   movimiento_inventario_ids JSONB NOT NULL DEFAULT '[]',
+  anulacion_motivo TEXT,
+  anulado_por_id TEXT,
+  anulado_por_nombre TEXT,
+  anulado_fecha TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -167,6 +180,8 @@ CREATE TABLE IF NOT EXISTS produccion_trabajadores (
   id TEXT PRIMARY KEY,
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   fecha DATE NOT NULL,
+  produccion_id TEXT,
+  produccion_detalle_id TEXT,
   trabajador_id TEXT NOT NULL,
   trabajador_nombre TEXT NOT NULL,
   accion TEXT NOT NULL CHECK (accion IN ('picar', 'escuadrar', 'devastar', 'resinar', 'pulir')),
@@ -393,6 +408,7 @@ ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL D
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS bloque_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS bloque_codigo TEXT NOT NULL DEFAULT '';
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS bloque_nombre TEXT NOT NULL DEFAULT '';
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS produccion_id TEXT;
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS codigo TEXT NOT NULL DEFAULT '';
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS largo_cm NUMERIC(10,2) NOT NULL DEFAULT 0;
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS ancho_cm NUMERIC(10,2) NOT NULL DEFAULT 0;
@@ -401,22 +417,48 @@ ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS margen_cm NUMERIC(10,2) NOT
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS grosor_disco_mm NUMERIC(10,2) NOT NULL DEFAULT 8;
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS espesor_losa_cm NUMERIC(10,2) NOT NULL DEFAULT 3;
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS ubicacion TEXT NOT NULL DEFAULT 'almacen';
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'activa';
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS observaciones TEXT NOT NULL DEFAULT '';
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS fecha_registro TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS estimados JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS anulacion_motivo TEXT;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS anulado_por_id TEXT;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS anulado_por_nombre TEXT;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS anulado_fecha TIMESTAMPTZ;
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE mono_hilo_masas DROP CONSTRAINT IF EXISTS mono_hilo_masas_ubicacion_check;
 ALTER TABLE mono_hilo_masas
   ADD CONSTRAINT mono_hilo_masas_ubicacion_check
   CHECK (ubicacion IN ('almacen', 'proceso', 'consumida'));
+ALTER TABLE mono_hilo_masas DROP CONSTRAINT IF EXISTS mono_hilo_masas_estado_check;
+ALTER TABLE mono_hilo_masas
+  ADD CONSTRAINT mono_hilo_masas_estado_check
+  CHECK (estado IN ('activa', 'anulada'));
 ALTER TABLE trabajadores ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE equipos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS workflow_tipo TEXT NOT NULL DEFAULT 'regular';
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS estado_registro TEXT NOT NULL DEFAULT 'activo';
 ALTER TABLE produccion DROP CONSTRAINT IF EXISTS produccion_dimension_check;
 ALTER TABLE produccion
   ADD CONSTRAINT produccion_dimension_check
   CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65'));
+ALTER TABLE produccion DROP CONSTRAINT IF EXISTS produccion_workflow_tipo_check;
+ALTER TABLE produccion
+  ADD CONSTRAINT produccion_workflow_tipo_check
+  CHECK (workflow_tipo IN ('regular', 'mono_hilo'));
+ALTER TABLE produccion DROP CONSTRAINT IF EXISTS produccion_estado_registro_check;
+ALTER TABLE produccion
+  ADD CONSTRAINT produccion_estado_registro_check
+  CHECK (estado_registro IN ('activo', 'anulado'));
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS mono_hilo_detalle JSONB;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS anulacion_motivo TEXT;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS anulado_por_id TEXT;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS anulado_por_nombre TEXT;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS anulado_fecha TIMESTAMPTZ;
 ALTER TABLE produccion_trabajadores ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE produccion_trabajadores ADD COLUMN IF NOT EXISTS produccion_id TEXT;
+ALTER TABLE produccion_trabajadores ADD COLUMN IF NOT EXISTS produccion_detalle_id TEXT;
 ALTER TABLE produccion_trabajadores DROP CONSTRAINT IF EXISTS produccion_trabajadores_dimension_check;
 ALTER TABLE produccion_trabajadores
   ADD CONSTRAINT produccion_trabajadores_dimension_check
@@ -478,6 +520,8 @@ CREATE INDEX IF NOT EXISTS idx_mono_hilo_masas_workshop_bloque
   ON mono_hilo_masas(workshop_id, bloque_id);
 CREATE INDEX IF NOT EXISTS idx_mono_hilo_masas_workshop_ubicacion
   ON mono_hilo_masas(workshop_id, ubicacion);
+CREATE INDEX IF NOT EXISTS idx_mono_hilo_masas_workshop_produccion
+  ON mono_hilo_masas(workshop_id, produccion_id);
 CREATE INDEX IF NOT EXISTS idx_catalogo_items_workshop_id ON catalogo_items(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_trabajadores_workshop_id ON trabajadores(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_equipos_workshop_id ON equipos(workshop_id);
@@ -488,6 +532,12 @@ DROP INDEX IF EXISTS idx_produccion_unique_daily_combo;
 CREATE INDEX IF NOT EXISTS idx_produccion_daily_combo
   ON produccion(workshop_id, fecha, origen_id, tipo, dimension);
 CREATE INDEX IF NOT EXISTS idx_produccion_trabajadores_workshop_id ON produccion_trabajadores(workshop_id);
+CREATE INDEX IF NOT EXISTS idx_produccion_workshop_workflow
+  ON produccion(workshop_id, workflow_tipo);
+CREATE INDEX IF NOT EXISTS idx_produccion_workshop_estado_registro
+  ON produccion(workshop_id, estado_registro);
+CREATE INDEX IF NOT EXISTS idx_produccion_trabajadores_produccion
+  ON produccion_trabajadores(workshop_id, produccion_id);
 CREATE INDEX IF NOT EXISTS idx_mermas_workshop_id ON mermas(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_ventas_workshop_id ON ventas(workshop_id);
 CREATE INDEX IF NOT EXISTS idx_gastos_workshop_id ON gastos(workshop_id);

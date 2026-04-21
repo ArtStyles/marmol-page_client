@@ -50,6 +50,7 @@ import {
   CreateProduccionUseCase,
   ApproveProduccionTallerUseCase,
   ApproveEntradaProduccionAlmacenUseCase,
+  CancelMonoHiloProduccionUseCase,
   UpdateProduccionUseCase,
   DeleteProduccionUseCase,
   GetProduccionTrabajadoresUseCase,
@@ -61,6 +62,7 @@ import {
 import {
   GetMonoHiloMasasUseCase,
   CreateMonoHiloMasasUseCase,
+  RegisterMonoHiloProduccionUseCase,
   UpdateMonoHiloMasaUbicacionUseCase,
 } from '../application/use-cases/mono-hilo/mono-hilo.use-cases.js'
 import {
@@ -218,6 +220,9 @@ export const createProduccionUseCase = new CreateProduccionUseCase(
   produccionRepo,
   productoRepo,
   monoHiloMasaRepo,
+  produccionTrabajadorRepo,
+  trabajadorRepo,
+  configuracionPort,
 )
 export const approveProduccionTallerUseCase = new ApproveProduccionTallerUseCase(produccionRepo)
 export const approveEntradaProduccionAlmacenUseCase = new ApproveEntradaProduccionAlmacenUseCase(
@@ -225,6 +230,10 @@ export const approveEntradaProduccionAlmacenUseCase = new ApproveEntradaProducci
   bloqueRepo,
   productoRepo,
   inventarioMovimientoRepo,
+)
+export const cancelMonoHiloProduccionUseCase = new CancelMonoHiloProduccionUseCase(
+  produccionRepo,
+  monoHiloMasaRepo,
 )
 export const updateProduccionUseCase = new UpdateProduccionUseCase(produccionRepo)
 export const deleteProduccionUseCase = new DeleteProduccionUseCase(produccionRepo)
@@ -240,6 +249,14 @@ export const createMonoHiloMasasUseCase = new CreateMonoHiloMasasUseCase(
   monoHiloMasaRepo,
   bloqueRepo,
   configuracionPort,
+)
+export const registerMonoHiloProduccionUseCase = new RegisterMonoHiloProduccionUseCase(
+  monoHiloMasaRepo,
+  bloqueRepo,
+  configuracionPort,
+  produccionRepo,
+  equipoRepo,
+  trabajadorRepo,
 )
 export const updateMonoHiloMasaUbicacionUseCase = new UpdateMonoHiloMasaUbicacionUseCase(
   monoHiloMasaRepo,
@@ -277,6 +294,7 @@ export const createHistorialPagoUseCase = new CreateHistorialPagoUseCase(
   historialPagoRepo,
   produccionTrabajadorRepo,
   trabajadorRepo,
+  configuracionPort,
 )
 export const updateHistorialPagoUseCase = new UpdateHistorialPagoUseCase(historialPagoRepo)
 export const deleteHistorialPagoUseCase = new DeleteHistorialPagoUseCase(historialPagoRepo)

@@ -60,6 +60,7 @@ function resolveEstadoRetornoObjetivo(estadoActual: Producto['estado']): Product
 export default function ProduccionPage() {
   const {
     addUsage,
+    cancelMonoHiloProduccionRegistro,
     dependenciesError,
     deleteProduccionRegistro,
     dateEditPolicy,
@@ -98,6 +99,7 @@ export default function ProduccionPage() {
     topOrigenesResumen,
     today,
     totalLosasResumen,
+    totalMonoHiloResumen,
     totalM2Resumen,
     toggleUsageDimension,
     trabajadoresActivos,
@@ -121,6 +123,10 @@ export default function ProduccionPage() {
   const [entryDeleteDialogOpen, setEntryDeleteDialogOpen] = useState(false)
   const [entryEditTarget, setEntryEditTarget] = useState<ProduccionDiaria | null>(null)
   const [entryDeleteTarget, setEntryDeleteTarget] = useState<ProduccionDiaria | null>(null)
+  const [monoHiloCancelDialogOpen, setMonoHiloCancelDialogOpen] = useState(false)
+  const [monoHiloCancelTarget, setMonoHiloCancelTarget] = useState<ProduccionDiaria | null>(null)
+  const [monoHiloCancelMotivo, setMonoHiloCancelMotivo] = useState('')
+  const [monoHiloCancelError, setMonoHiloCancelError] = useState<string | null>(null)
   const [entryEditLosas, setEntryEditLosas] = useState(0)
   const [entryEditLosasTouched, setEntryEditLosasTouched] = useState(false)
   const [entryEditEquipoId, setEntryEditEquipoId] = useState('')
@@ -444,9 +450,47 @@ export default function ProduccionPage() {
     }
   }
 
+  const openMonoHiloCancelDialog = (registro: ProduccionDiaria) => {
+    if (!canWriteProduccion) return
+    setEntryActionError(null)
+    setMonoHiloCancelError(null)
+    setMonoHiloCancelMotivo('')
+    setMonoHiloCancelTarget(registro)
+    setMonoHiloCancelDialogOpen(true)
+  }
+
+  const closeMonoHiloCancelDialog = () => {
+    if (monoHiloCancelTarget && entryDeleteLoadingById[monoHiloCancelTarget.id]) return
+    setMonoHiloCancelDialogOpen(false)
+    setMonoHiloCancelTarget(null)
+    setMonoHiloCancelMotivo('')
+    setMonoHiloCancelError(null)
+    setEntryActionError(null)
+  }
+
+  const confirmMonoHiloCancel = async () => {
+    if (!monoHiloCancelTarget) return
+    if (!canWriteProduccion) return
+
+    const motivo = monoHiloCancelMotivo.trim()
+    if (motivo.length < 5) {
+      setMonoHiloCancelError('El motivo debe tener al menos 5 caracteres.')
+      return
+    }
+
+    setMonoHiloCancelError(null)
+    const ok = await cancelMonoHiloProduccionRegistro(monoHiloCancelTarget.id, motivo)
+    if (ok) {
+      closeMonoHiloCancelDialog()
+    }
+  }
+
   const entryEditSubmitting = entryEditTarget ? Boolean(entryUpdateLoadingById[entryEditTarget.id]) : false
   const entryDeleteSubmitting = entryDeleteTarget
     ? Boolean(entryDeleteLoadingById[entryDeleteTarget.id])
+    : false
+  const monoHiloCancelSubmitting = monoHiloCancelTarget
+    ? Boolean(entryDeleteLoadingById[monoHiloCancelTarget.id])
     : false
 
   const rightPanel = (
@@ -457,6 +501,7 @@ export default function ProduccionPage() {
       resumenPartidas={resumenPartidas}
       topOrigenesResumen={topOrigenesResumen}
       totalLosasResumen={totalLosasResumen}
+      totalMonoHiloResumen={totalMonoHiloResumen}
       totalM2Resumen={totalM2Resumen}
     />
   )
@@ -853,6 +898,83 @@ export default function ProduccionPage() {
           </AlertDialogContent>
         </AlertDialog>
 
+        <Dialog
+          open={monoHiloCancelDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) closeMonoHiloCancelDialog()
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Anular registro de mono hilo</DialogTitle>
+              <DialogDescription>
+                La anulacion conserva la auditoria, marca la masa como anulada y la saca del flujo operativo.
+              </DialogDescription>
+            </DialogHeader>
+
+            {monoHiloCancelTarget ? (
+              <div className="space-y-3">
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  <p>
+                    Bloque:{' '}
+                    <span className="font-semibold">
+                      {resolveOrigenCodigo(monoHiloCancelTarget.origenId, monoHiloCancelTarget.origenNombre)}
+                    </span>
+                  </p>
+                  <p>
+                    Masas:{' '}
+                    <span className="font-semibold">
+                      {monoHiloCancelTarget.monoHiloDetalle?.masas.map((masa) => masa.masaCodigo).join(', ') ?? 'N/A'}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Motivo de anulacion</Label>
+                  <Textarea
+                    value={monoHiloCancelMotivo}
+                    onChange={(event) => {
+                      setMonoHiloCancelMotivo(event.target.value)
+                      if (monoHiloCancelError) setMonoHiloCancelError(null)
+                      if (entryActionError) setEntryActionError(null)
+                    }}
+                    rows={3}
+                    placeholder="Explica por que se anula este registro."
+                    disabled={monoHiloCancelSubmitting}
+                  />
+                </div>
+
+                {monoHiloCancelError || entryActionError ? (
+                  <p className="text-xs text-destructive">
+                    {monoHiloCancelError ?? entryActionError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeMonoHiloCancelDialog}
+                disabled={monoHiloCancelSubmitting}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                className="bg-rose-600 hover:bg-rose-700"
+                onClick={() => {
+                  void confirmMonoHiloCancel()
+                }}
+                disabled={!monoHiloCancelTarget || monoHiloCancelSubmitting}
+              >
+                {monoHiloCancelSubmitting ? 'Anulando...' : 'Anular registro'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <ProduccionRegistrosList
           canWriteProduccion={canWriteProduccion}
           fechasOrdenadas={fechasOrdenadas}
@@ -860,6 +982,7 @@ export default function ProduccionPage() {
           resolveEquipoCodigo={resolveEquipoCodigo}
           resolveOrigenCodigo={resolveOrigenCodigo}
           onEditRegistro={openEntryEditDialog}
+          onCancelMonoHiloRegistro={openMonoHiloCancelDialog}
           onDeleteRegistro={openEntryDeleteDialog}
           editLoadingById={entryUpdateLoadingById}
           deleteLoadingById={entryDeleteLoadingById}

@@ -6,7 +6,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Button } from '@/components/admin/admin-button'
 import type { ProduccionDiaria } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Ban, Pencil, Trash2 } from 'lucide-react'
 import {
   actionColors,
   actionLabels,
@@ -19,6 +19,7 @@ import {
   getDetalleTrabajadores,
   getProduccionDeleteLockReason,
   getProduccionEditLockReason,
+  isMonoHiloProduccion,
   isProduccionEnAlmacen,
 } from '../lib/produccion-helpers'
 
@@ -29,6 +30,7 @@ type Props = {
   resolveEquipoCodigo: (equipoId: string, equipoNombre: string) => string
   resolveOrigenCodigo: (origenId: string, origenNombre: string) => string
   onEditRegistro: (registro: ProduccionDiaria) => void
+  onCancelMonoHiloRegistro: (registro: ProduccionDiaria) => void
   onDeleteRegistro: (registro: ProduccionDiaria) => void
   editLoadingById: Record<string, boolean>
   deleteLoadingById: Record<string, boolean>
@@ -54,6 +56,7 @@ export function ProduccionRegistrosList({
   resolveEquipoCodigo,
   resolveOrigenCodigo,
   onEditRegistro,
+  onCancelMonoHiloRegistro,
   onDeleteRegistro,
   editLoadingById,
   deleteLoadingById,
@@ -147,91 +150,93 @@ export function ProduccionRegistrosList({
                               </div>
                               <div className="flex flex-wrap items-center justify-end gap-3 text-sm">
                                 <span className="font-medium text-slate-700">Losas: {totalLosasGrupo}</span>
-                                <span className="font-semibold text-emerald-700">M²: {totalM2Grupo.toFixed(2)}</span>
+                                <span className="font-semibold text-emerald-700">M2: {totalM2Grupo.toFixed(2)}</span>
                               </div>
                             </div>
                           </AccordionTrigger>
 
                           <AccordionContent className="space-y-2 pt-2 pb-1">
                             {grupo.registros.map((registro) => {
-                                const enAlmacen = isProduccionEnAlmacen(registro)
-                                const canEditByState = canEditProduccionEntrada(registro)
-                                const canDeleteByState = canDeleteProduccionEntrada(registro)
-                                const canEdit = canWriteProduccion && canEditByState
-                                const canDelete = canWriteProduccion && canDeleteByState
-                                const editReason = canWriteProduccion
-                                  ? getProduccionEditLockReason(registro)
-                                  : 'No tienes permiso para editar produccion.'
-                                const deleteReason = canWriteProduccion
-                                  ? getProduccionDeleteLockReason(registro)
-                                  : 'No tienes permiso para eliminar produccion.'
+                              const enAlmacen = isProduccionEnAlmacen(registro)
+                              const monoHiloRegistro = isMonoHiloProduccion(registro)
+                              const canEditByState = canEditProduccionEntrada(registro)
+                              const canDeleteByState = canDeleteProduccionEntrada(registro)
+                              const canCancelMonoHilo = canWriteProduccion && monoHiloRegistro
+                              const canEdit = canWriteProduccion && canEditByState
+                              const canDelete = canWriteProduccion && canDeleteByState
+                              const editReason = canWriteProduccion
+                                ? getProduccionEditLockReason(registro)
+                                : 'No tienes permiso para editar produccion.'
+                              const deleteReason = canWriteProduccion
+                                ? getProduccionDeleteLockReason(registro)
+                                : 'No tienes permiso para eliminar produccion.'
 
-                                const accionesEntrada = actionOrder
-                                  .map((accion) => {
-                                    const detallesConContexto = getAccionDetalles(registro, accion).map((detalle) => ({
-                                      detalle,
-                                      tipo: registro.tipo,
-                                      dimension: registro.dimension,
-                                    }))
+                              const accionesEntrada = actionOrder
+                                .map((accion) => {
+                                  const detallesConContexto = getAccionDetalles(registro, accion).map((detalle) => ({
+                                    detalle,
+                                    tipo: registro.tipo,
+                                    dimension: registro.dimension,
+                                  }))
 
-                                    const dimensionesMap = detallesConContexto.reduce((map, item) => {
-                                      const key = `${item.tipo}::${item.dimension}`
-                                      const current: DimensionAggregate = map.get(key) ?? {
-                                        key,
-                                        tipo: item.tipo,
-                                        dimension: item.dimension,
-                                        totalLosas: 0,
-                                        totalM2: 0,
-                                        totalMerma: 0,
-                                        totalReutilizable: 0,
-                                        totalResina: 0,
-                                        equipos: new Set<string>(),
-                                        personal: new Set<string>(),
-                                      }
-
-                                      current.totalLosas += item.detalle.cantidadLosas
-                                      current.totalM2 += item.detalle.metrosCuadrados
-                                      current.totalMerma += getDetalleMermaLosas(item.detalle)
-                                      current.totalReutilizable += getDetalleReutilizableLosas(item.detalle)
-                                      current.totalResina += item.detalle.cantidadResina ?? 0
-
-                                      current.equipos.add(
-                                        resolveEquipoCodigo(
-                                          item.detalle.equipoId,
-                                          item.detalle.equipoNombre,
-                                        ),
-                                      )
-
-                                      const trabajadores = getDetalleTrabajadores(item.detalle)
-                                      if (trabajadores.length === 0) {
-                                        current.personal.add('Sin personal')
-                                      } else {
-                                        trabajadores.forEach((trabajador) => current.personal.add(trabajador.nombre))
-                                      }
-
-                                      map.set(key, current)
-                                      return map
-                                    }, new Map<string, DimensionAggregate>())
-
-                                    const dimensiones = Array.from(dimensionesMap.values())
-                                      .map((item) => ({
-                                        ...item,
-                                        equipos: Array.from(item.equipos).sort((a, b) => a.localeCompare(b)),
-                                        personal: Array.from(item.personal).sort((a, b) => a.localeCompare(b)),
-                                      }))
-                                      .sort(
-                                        (a, b) =>
-                                          a.dimension.localeCompare(b.dimension) || a.tipo.localeCompare(b.tipo),
-                                      )
-
-                                    const totalLosasAccion = dimensiones.reduce((sum, item) => sum + item.totalLosas, 0)
-                                    return {
-                                      accion,
-                                      dimensiones,
-                                      totalLosasAccion,
+                                  const dimensionesMap = detallesConContexto.reduce((map, item) => {
+                                    const key = `${item.tipo}::${item.dimension}`
+                                    const current: DimensionAggregate = map.get(key) ?? {
+                                      key,
+                                      tipo: item.tipo,
+                                      dimension: item.dimension,
+                                      totalLosas: 0,
+                                      totalM2: 0,
+                                      totalMerma: 0,
+                                      totalReutilizable: 0,
+                                      totalResina: 0,
+                                      equipos: new Set<string>(),
+                                      personal: new Set<string>(),
                                     }
-                                  })
-                                  .filter((accion) => accion.totalLosasAccion > 0)
+
+                                    current.totalLosas += item.detalle.cantidadLosas
+                                    current.totalM2 += item.detalle.metrosCuadrados
+                                    current.totalMerma += getDetalleMermaLosas(item.detalle)
+                                    current.totalReutilizable += getDetalleReutilizableLosas(item.detalle)
+                                    current.totalResina += item.detalle.cantidadResina ?? 0
+
+                                    current.equipos.add(
+                                      resolveEquipoCodigo(
+                                        item.detalle.equipoId,
+                                        item.detalle.equipoNombre,
+                                      ),
+                                    )
+
+                                    const trabajadores = getDetalleTrabajadores(item.detalle)
+                                    if (trabajadores.length === 0) {
+                                      current.personal.add('Sin personal')
+                                    } else {
+                                      trabajadores.forEach((trabajador) => current.personal.add(trabajador.nombre))
+                                    }
+
+                                    map.set(key, current)
+                                    return map
+                                  }, new Map<string, DimensionAggregate>())
+
+                                  const dimensiones = Array.from(dimensionesMap.values())
+                                    .map((item) => ({
+                                      ...item,
+                                      equipos: Array.from(item.equipos).sort((a, b) => a.localeCompare(b)),
+                                      personal: Array.from(item.personal).sort((a, b) => a.localeCompare(b)),
+                                    }))
+                                    .sort(
+                                      (a, b) =>
+                                        a.dimension.localeCompare(b.dimension) || a.tipo.localeCompare(b.tipo),
+                                    )
+
+                                  const totalLosasAccion = dimensiones.reduce((sum, item) => sum + item.totalLosas, 0)
+                                  return {
+                                    accion,
+                                    dimensiones,
+                                    totalLosasAccion,
+                                  }
+                                })
+                                .filter((accion) => accion.totalLosasAccion > 0)
 
                               return (
                                 <div key={registro.id} className="rounded-lg border border-slate-200/80 px-3 py-3">
@@ -240,25 +245,50 @@ export function ProduccionRegistrosList({
                                       <Badge
                                         className={cn(
                                           'w-fit',
-                                          enAlmacen
-                                            ? 'border-emerald-200 bg-emerald-100 text-emerald-800'
-                                            : 'border-amber-200 bg-amber-100 text-amber-800',
+                                          monoHiloRegistro
+                                            ? 'border-sky-200 bg-sky-100 text-sky-800'
+                                            : enAlmacen
+                                              ? 'border-emerald-200 bg-emerald-100 text-emerald-800'
+                                              : 'border-amber-200 bg-amber-100 text-amber-800',
                                         )}
                                         variant="outline"
                                       >
-                                        {enAlmacen ? 'En almacen' : 'Fuera de almacen'}
+                                        {monoHiloRegistro ? 'Mono hilo' : enAlmacen ? 'En almacen' : 'Fuera de almacen'}
                                       </Badge>
-                                      {accionesEntrada.map((accion) => (
-                                        <Badge
-                                          key={`${registro.id}-${accion.accion}`}
-                                          className={cn('w-fit', actionColors[accion.accion])}
-                                        >
-                                          {actionLabels[accion.accion]}
-                                        </Badge>
-                                      ))}
+                                      {!monoHiloRegistro
+                                        ? accionesEntrada.map((accion) => (
+                                            <Badge
+                                              key={`${registro.id}-${accion.accion}`}
+                                              className={cn('w-fit', actionColors[accion.accion])}
+                                            >
+                                              {actionLabels[accion.accion]}
+                                            </Badge>
+                                          ))
+                                        : null}
                                     </div>
 
                                     <div className="flex items-center gap-1.5">
+                                      {monoHiloRegistro ? (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-8 w-8 text-rose-700 hover:text-rose-800"
+                                          title={
+                                            canCancelMonoHilo
+                                              ? 'Anular registro mono hilo'
+                                              : 'No tienes permiso para anular mono hilo.'
+                                          }
+                                          disabled={
+                                            !canCancelMonoHilo ||
+                                            editLoadingById[registro.id] ||
+                                            deleteLoadingById[registro.id]
+                                          }
+                                          onClick={() => onCancelMonoHiloRegistro(registro)}
+                                        >
+                                          <Ban className="h-4 w-4" />
+                                        </Button>
+                                      ) : null}
                                       <Button
                                         type="button"
                                         variant="outline"
@@ -272,90 +302,143 @@ export function ProduccionRegistrosList({
                                       >
                                         <Pencil className="h-4 w-4" />
                                       </Button>
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        className="h-8 w-8 text-rose-700 hover:text-rose-800"
-                                        title={
-                                          canDelete ? 'Eliminar entrada' : (deleteReason ?? 'No se puede eliminar')
-                                        }
-                                        disabled={
-                                          !canDelete ||
-                                          editLoadingById[registro.id] ||
-                                          deleteLoadingById[registro.id]
-                                        }
-                                        onClick={() => onDeleteRegistro(registro)}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
+                                      {!monoHiloRegistro ? (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-8 w-8 text-rose-700 hover:text-rose-800"
+                                          title={
+                                            canDelete ? 'Eliminar entrada' : (deleteReason ?? 'No se puede eliminar')
+                                          }
+                                          disabled={
+                                            !canDelete ||
+                                            editLoadingById[registro.id] ||
+                                            deleteLoadingById[registro.id]
+                                          }
+                                          onClick={() => onDeleteRegistro(registro)}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      ) : null}
                                     </div>
                                   </div>
 
-                                  <div className="mt-2 space-y-2">
-                                    {accionesEntrada.map((accion) => (
-                                      <div key={`${registro.id}-${accion.accion}-detalle`} className="space-y-1">
-                                        <div className="space-y-1.5">
-                                          {accion.dimensiones.map((dimensionItem, index) => (
-                                            <div
-                                              key={`${registro.id}-${accion.accion}-${dimensionItem.key}`}
-                                              className={cn(
-                                                'px-1 py-1.5',
-                                                index < accion.dimensiones.length - 1 &&
-                                                  'border-b border-slate-200/70',
-                                              )}
-                                            >
-                                              <div className="flex flex-wrap items-start justify-between gap-2">
-                                                <div className="min-w-0 flex-1">
-                                                  <p className="text-base font-semibold text-slate-800">
-                                                    {dimensionItem.tipo.toLowerCase() === 'plancha'
-                                                      ? dimensionItem.tipo
-                                                      : `${dimensionItem.tipo} / ${dimensionItem.dimension}`}
-                                                  </p>
-                                                  <p className="truncate text-base text-slate-500">
-                                                    Equipos:{' '}
-                                                    {dimensionItem.equipos.length > 0
-                                                      ? dimensionItem.equipos.join(', ')
-                                                      : 'SIN-EQUIPO'}
-                                                  </p>
-                                                  <p className="truncate text-base text-slate-500">
-                                                    Personal: {dimensionItem.personal.join(', ')}
-                                                  </p>
-                                                </div>
+                                  {monoHiloRegistro ? (
+                                    <div className="mt-2 space-y-2">
+                                      <div className="rounded-lg border border-sky-200/70 bg-sky-50/70 px-3 py-2 text-sm text-slate-700">
+                                        <p>
+                                          Equipo:{' '}
+                                          <span className="font-semibold">
+                                            {registro.monoHiloDetalle?.equipoNombre ?? 'SIN-EQUIPO'}
+                                          </span>
+                                        </p>
+                                        <p>
+                                          Personal:{' '}
+                                          <span className="font-semibold">
+                                            {(registro.monoHiloDetalle?.trabajadores ?? [])
+                                              .map((trabajador) => trabajador.nombre)
+                                              .join(', ') || 'Sin personal'}
+                                          </span>
+                                        </p>
+                                        {registro.monoHiloDetalle?.observaciones ? (
+                                          <p>
+                                            Observaciones:{' '}
+                                            <span className="font-medium">{registro.monoHiloDetalle.observaciones}</span>
+                                          </p>
+                                        ) : null}
+                                      </div>
 
-                                                <div className="flex flex-wrap items-center justify-end gap-2 text-base">
-                                                  <span className="font-medium text-slate-700">
-                                                    Losas:{' '}
-                                                    <span className="font-semibold text-slate-900">
-                                                      {dimensionItem.totalLosas}
+                                      <div className="space-y-1.5">
+                                        {(registro.monoHiloDetalle?.masas ?? []).map((masa, index, masas) => (
+                                          <div
+                                            key={`${registro.id}-${masa.masaId}`}
+                                            className={cn(
+                                              'px-1 py-1.5',
+                                              index < masas.length - 1 && 'border-b border-slate-200/70',
+                                            )}
+                                          >
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                              <div>
+                                                <p className="text-base font-semibold text-slate-800">{masa.masaCodigo}</p>
+                                                <p className="text-base text-slate-500">
+                                                  Masa {masa.largoCm} x {masa.anchoCm} x {masa.profundidadCm} cm
+                                                </p>
+                                              </div>
+                                              <Badge variant="outline" className="border-sky-200 bg-sky-100 text-sky-800">
+                                                En proceso
+                                              </Badge>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="mt-2 space-y-2">
+                                      {accionesEntrada.map((accion) => (
+                                        <div key={`${registro.id}-${accion.accion}-detalle`} className="space-y-1">
+                                          <div className="space-y-1.5">
+                                            {accion.dimensiones.map((dimensionItem, index) => (
+                                              <div
+                                                key={`${registro.id}-${accion.accion}-${dimensionItem.key}`}
+                                                className={cn(
+                                                  'px-1 py-1.5',
+                                                  index < accion.dimensiones.length - 1 &&
+                                                    'border-b border-slate-200/70',
+                                                )}
+                                              >
+                                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                                  <div className="min-w-0 flex-1">
+                                                    <p className="text-base font-semibold text-slate-800">
+                                                      {dimensionItem.tipo.toLowerCase() === 'plancha'
+                                                        ? dimensionItem.tipo
+                                                        : `${dimensionItem.tipo} / ${dimensionItem.dimension}`}
+                                                    </p>
+                                                    <p className="truncate text-base text-slate-500">
+                                                      Equipos:{' '}
+                                                      {dimensionItem.equipos.length > 0
+                                                        ? dimensionItem.equipos.join(', ')
+                                                        : 'SIN-EQUIPO'}
+                                                    </p>
+                                                    <p className="truncate text-base text-slate-500">
+                                                      Personal: {dimensionItem.personal.join(', ')}
+                                                    </p>
+                                                  </div>
+
+                                                  <div className="flex flex-wrap items-center justify-end gap-2 text-base">
+                                                    <span className="font-medium text-slate-700">
+                                                      Losas:{' '}
+                                                      <span className="font-semibold text-slate-900">
+                                                        {dimensionItem.totalLosas}
+                                                      </span>
                                                     </span>
-                                                  </span>
-                                                  <span className="font-medium text-emerald-700">
-                                                    M²: {dimensionItem.totalM2.toFixed(2)}
-                                                  </span>
-                                                  {accion.accion !== 'picar' ? (
-                                                    <span className="font-medium text-rose-700">
-                                                      Merma: {dimensionItem.totalMerma}
+                                                    <span className="font-medium text-emerald-700">
+                                                      M2: {dimensionItem.totalM2.toFixed(2)}
                                                     </span>
-                                                  ) : null}
-                                                  {accion.accion !== 'picar' ? (
-                                                    <span className="font-medium text-sky-700">
-                                                      Reutilizable: {dimensionItem.totalReutilizable}
-                                                    </span>
-                                                  ) : null}
-                                                  {dimensionItem.totalResina > 0 ? (
-                                                    <span className="font-medium text-cyan-700">
-                                                      Resina: {dimensionItem.totalResina.toFixed(2)}
-                                                    </span>
-                                                  ) : null}
+                                                    {accion.accion !== 'picar' ? (
+                                                      <span className="font-medium text-rose-700">
+                                                        Merma: {dimensionItem.totalMerma}
+                                                      </span>
+                                                    ) : null}
+                                                    {accion.accion !== 'picar' ? (
+                                                      <span className="font-medium text-sky-700">
+                                                        Reutilizable: {dimensionItem.totalReutilizable}
+                                                      </span>
+                                                    ) : null}
+                                                    {dimensionItem.totalResina > 0 ? (
+                                                      <span className="font-medium text-cyan-700">
+                                                        Resina: {dimensionItem.totalResina.toFixed(2)}
+                                                      </span>
+                                                    ) : null}
+                                                  </div>
                                                 </div>
                                               </div>
-                                            </div>
-                                          ))}
+                                            ))}
+                                          </div>
                                         </div>
-                                      </div>
-                                    ))}
-                                  </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })}

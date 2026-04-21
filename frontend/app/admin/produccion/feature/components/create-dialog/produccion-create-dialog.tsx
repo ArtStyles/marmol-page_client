@@ -188,6 +188,7 @@ export function ProduccionCreateDialog({
     setMonoHiloSubmitting(true)
     try {
       await registrarMonoHiloDesdeProduccion({
+        fecha: formData.fecha,
         bloqueId: monoHiloBloqueId,
         largoCm: monoHiloLargoCm,
         anchoCm: monoHiloAnchoCm,
@@ -578,7 +579,7 @@ export function ProduccionCreateDialog({
               </div>
 
               <p className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
-                El registro de masa mono hilo se integra en Produccion diaria y se envia automaticamente al flujo de proceso.
+                La masa se registra, se envia automaticamente a proceso y deja un registro diario de mono hilo. El stock de losas sigue naciendo cuando esa masa se consume despues en picado.
               </p>
             </div>
           )}

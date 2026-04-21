@@ -177,6 +177,18 @@ export const approveProduccionAlmacen = (
     body: input,
   })
 
+export const cancelMonoHiloProduccion = (
+  produccionId: string,
+  input: { motivo: string },
+): Promise<{ produccion: ProduccionDiaria; masas: MonoHiloMasa[] }> =>
+  apiRequest<{ produccion: ProduccionDiaria; masas: MonoHiloMasa[] }>(
+    `/produccion/${produccionId}/anular-mono-hilo`,
+    {
+      method: 'PATCH',
+      body: input,
+    },
+  )
+
 export const updateProduccion = (
   produccionId: string,
   patch: Partial<ProduccionDiaria>,
@@ -218,6 +230,21 @@ export const createMonoHiloMasas = (input: {
   }>
 }): Promise<MonoHiloMasa[]> =>
   apiRequest<MonoHiloMasa[]>('/mono-hilo/masas', {
+    method: 'POST',
+    body: input,
+  })
+
+export const registerMonoHiloProduccion = (input: {
+  fecha: string
+  bloqueId: string
+  largoCm: number
+  anchoCm: number
+  profundidadCm: number
+  observaciones?: string
+  equipoId: string
+  trabajadorIds: string[]
+}): Promise<{ produccion: ProduccionDiaria; masas: MonoHiloMasa[] }> =>
+  apiRequest<{ produccion: ProduccionDiaria; masas: MonoHiloMasa[] }>('/mono-hilo/registro', {
     method: 'POST',
     body: input,
   })

@@ -97,6 +97,7 @@ export type UpdateUsageDimensionNumericInputParams = {
 }
 
 export type RegistrarMonoHiloDesdeProduccionInput = {
+  fecha: string
   bloqueId: string
   largoCm: number
   anchoCm: number

@@ -17,6 +17,9 @@ export type AccionLosa = 'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir
 export type UbicacionMasaMonoHilo = 'almacen' | 'proceso' | 'consumida'
 export type TipoEquipo = 'Pulidora' | 'Cortadora' | 'Escuadradora'
 export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado'
+export type ProduccionWorkflowTipo = 'regular' | 'mono_hilo'
+export type EstadoProduccionRegistro = 'activo' | 'anulado'
+export type EstadoMonoHiloMasa = 'activa' | 'anulada'
 
 export type RolTrabajador =
   | 'Administrador'
@@ -88,6 +91,7 @@ export interface MonoHiloMasa {
   bloqueId: string
   bloqueCodigo: string
   bloqueNombre: string
+  produccionId?: string
   codigo: string
   largoCm: number
   anchoCm: number
@@ -96,9 +100,14 @@ export interface MonoHiloMasa {
   grosorDiscoMm: number
   espesorLosaCm: number
   ubicacion: UbicacionMasaMonoHilo
+  estado?: EstadoMonoHiloMasa
   observaciones: string
   fechaRegistro: string
   estimados: MonoHiloEstimados
+  anulacionMotivo?: string
+  anuladoPorId?: string
+  anuladoPorNombre?: string
+  anuladoFecha?: string
 }
 
 export interface CatalogoItem {
@@ -148,6 +157,22 @@ export interface ProduccionDetalleAccion {
   cantidadResina?: number
 }
 
+export interface ProduccionMonoHiloMasaDetalle {
+  masaId: string
+  masaCodigo: string
+  largoCm: number
+  anchoCm: number
+  profundidadCm: number
+}
+
+export interface ProduccionMonoHiloDetalle {
+  equipoId: string
+  equipoNombre: string
+  trabajadores: Array<{ id: string; nombre: string }>
+  masas: ProduccionMonoHiloMasaDetalle[]
+  observaciones?: string
+}
+
 export interface ProduccionDiaria {
   id: string
   fecha: string
@@ -155,6 +180,8 @@ export interface ProduccionDiaria {
   origenNombre: string
   tipo: TipoProducto
   dimension: Dimension
+  workflowTipo?: ProduccionWorkflowTipo
+  estadoRegistro?: EstadoProduccionRegistro
   cantidadPicar: number
   cantidadEscuadrar: number
   cantidadDevastar: number
@@ -163,6 +190,7 @@ export interface ProduccionDiaria {
   totalLosas: number
   totalM2: number
   detallesAcciones?: ProduccionDetalleAccion[]
+  monoHiloDetalle?: ProduccionMonoHiloDetalle
   canEdit?: boolean
   editableUntil?: string
   aprobacionTallerEstado?: EstadoAprobacion
@@ -177,11 +205,17 @@ export interface ProduccionDiaria {
   aprobacionAlmacenMotivo?: string
   inventarioAplicado?: boolean
   movimientoInventarioIds?: string[]
+  anulacionMotivo?: string
+  anuladoPorId?: string
+  anuladoPorNombre?: string
+  anuladoFecha?: string
 }
 
 export interface ProduccionTrabajador {
   id: string
   fecha: string
+  produccionId?: string
+  produccionDetalleId?: string
   trabajadorId: string
   trabajadorNombre: string
   accion: AccionLosa

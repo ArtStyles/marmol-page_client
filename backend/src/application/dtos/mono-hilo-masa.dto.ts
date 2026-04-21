@@ -1,4 +1,9 @@
-import type { Dimension, MonoHiloMasa, UbicacionMasaMonoHilo } from '../../domain/entities/index.js'
+import type {
+  Dimension,
+  MonoHiloMasa,
+  ProduccionDiaria,
+  UbicacionMasaMonoHilo,
+} from '../../domain/entities/index.js'
 
 export type MonoHiloMasaResponseDto = MonoHiloMasa
 
@@ -22,4 +27,20 @@ export interface ConsumeMonoHiloParaPicadoDto {
   bloqueId: string
   dimension: Dimension
   cantidadLosas: number
+}
+
+export interface RegisterMonoHiloProduccionDto {
+  fecha: string
+  bloqueId: string
+  largoCm: number
+  anchoCm: number
+  profundidadCm: number
+  observaciones?: string
+  equipoId: string
+  trabajadorIds: string[]
+}
+
+export interface RegisterMonoHiloProduccionResponseDto {
+  produccion: ProduccionDiaria
+  masas: MonoHiloMasa[]
 }

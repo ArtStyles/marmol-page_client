@@ -9,6 +9,7 @@ const ubicacionInventarioSchema = z.enum(['almacen', 'proceso'])
 const ubicacionMasaMonoHiloSchema = z.enum(['almacen', 'proceso'])
 const tipoEquipoSchema = z.enum(['Pulidora', 'Cortadora', 'Escuadradora'])
 const accionLosaSchema = z.enum(['picar', 'escuadrar', 'devastar', 'resinar', 'pulir'])
+const produccionWorkflowTipoSchema = z.enum(['regular', 'mono_hilo'])
 const rolTrabajadorSchema = z.string().transform((value, ctx) => {
   const parsedRole = parseTrabajadorRole(value)
   if (!parsedRole) {
@@ -274,6 +275,7 @@ export const updateConfiguracionSchema = z.object({
 
 // ----- ProducciÃƒÂ³n diaria -----
 const produccionDetalleAccionSchema = z.object({
+  id: z.string().min(1),
   accion: accionLosaSchema,
   trabajadorId: z.string().optional(),
   trabajadorNombre: z.string().optional(),
@@ -296,10 +298,34 @@ const produccionDetalleAccionSchema = z.object({
   cantidadResina: z.number().optional(),
 })
 
+const produccionMonoHiloMasaDetalleSchema = z.object({
+  masaId: z.string().min(1),
+  masaCodigo: z.string().min(1),
+  largoCm: z.number().positive(),
+  anchoCm: z.number().positive(),
+  profundidadCm: z.number().positive(),
+})
+
+const produccionMonoHiloDetalleSchema = z.object({
+  equipoId: z.string().min(1),
+  equipoNombre: z.string().min(1),
+  trabajadores: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        nombre: z.string().min(1),
+      }),
+    )
+    .min(1),
+  masas: z.array(produccionMonoHiloMasaDetalleSchema).min(1),
+  observaciones: z.string().optional(),
+})
+
 export const createProduccionSchema = z.object({
   fecha: z.string(),
   origenId: z.string(),
   origenNombre: z.string(),
+  workflowTipo: produccionWorkflowTipoSchema.optional(),
   tipo: tipoProductoSchema,
   dimension: dimensionSchema,
   cantidadPicar: z.number(),
@@ -310,6 +336,7 @@ export const createProduccionSchema = z.object({
   totalLosas: z.number(),
   totalM2: z.number(),
   detallesAcciones: z.array(produccionDetalleAccionSchema).optional(),
+  monoHiloDetalle: produccionMonoHiloDetalleSchema.optional(),
 })
 
 export const approveProduccionTallerSchema = z
@@ -331,6 +358,10 @@ export const approveProduccionAlmacenSchema = z.object({
   motivo: z.string().min(5),
 })
 
+export const cancelMonoHiloProduccionSchema = z.object({
+  motivo: z.string().min(5),
+})
+
 export const updateProduccionSchema = createProduccionSchema
   .extend({
     canEdit: z.boolean().optional(),
@@ -341,6 +372,8 @@ export const updateProduccionSchema = createProduccionSchema
 // ----- ProducciÃƒÂ³n por trabajador -----
 export const createProduccionTrabajadorSchema = z.object({
   fecha: z.string(),
+  produccionId: z.string().optional(),
+  produccionDetalleId: z.string().optional(),
   trabajadorId: z.string(),
   trabajadorNombre: z.string(),
   accion: accionLosaSchema,
@@ -385,6 +418,17 @@ export const createMonoHiloMasasSchema = z.object({
       }),
     )
     .min(1),
+})
+
+export const registerMonoHiloProduccionSchema = z.object({
+  fecha: z.string(),
+  bloqueId: z.string().min(1),
+  largoCm: z.number().positive(),
+  anchoCm: z.number().positive(),
+  profundidadCm: z.number().positive(),
+  observaciones: z.string().optional(),
+  equipoId: z.string().min(1),
+  trabajadorIds: z.array(z.string().min(1)).min(1),
 })
 
 export const updateMonoHiloMasaUbicacionSchema = z.object({

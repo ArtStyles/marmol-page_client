@@ -131,6 +131,12 @@ export const resolveDateEditPolicy = (
 export const isProduccionEnAlmacen = (registro: ProduccionDiaria): boolean =>
   registro.inventarioAplicado === true || registro.aprobacionAlmacenEstado === 'aprobado'
 
+export const isMonoHiloProduccion = (registro: ProduccionDiaria): boolean =>
+  registro.workflowTipo === 'mono_hilo'
+
+export const isProduccionAnulada = (registro: ProduccionDiaria): boolean =>
+  registro.estadoRegistro === 'anulado'
+
 export const isProduccionProceso = (registro: ProduccionDiaria): boolean =>
   registro.cantidadEscuadrar > 0 ||
   registro.cantidadDevastar > 0 ||
@@ -138,19 +144,35 @@ export const isProduccionProceso = (registro: ProduccionDiaria): boolean =>
   registro.cantidadPulir > 0
 
 export const canEditProduccionEntrada = (registro: ProduccionDiaria): boolean =>
+  !isProduccionAnulada(registro) &&
+  !isMonoHiloProduccion(registro) &&
   !isProduccionEnAlmacen(registro) &&
   registro.aprobacionTallerEstado !== 'aprobado' &&
+  registro.cantidadPicar <= 0 &&
   !isProduccionProceso(registro)
 
 export const canDeleteProduccionEntrada = (registro: ProduccionDiaria): boolean =>
-  !isProduccionEnAlmacen(registro) && !isProduccionProceso(registro)
+  !isProduccionAnulada(registro) &&
+  !isMonoHiloProduccion(registro) &&
+  !isProduccionEnAlmacen(registro) &&
+  !isProduccionProceso(registro) &&
+  registro.cantidadPicar <= 0
 
 export const getProduccionEditLockReason = (registro: ProduccionDiaria): string | null => {
+  if (isProduccionAnulada(registro)) {
+    return 'La entrada fue anulada.'
+  }
+  if (isMonoHiloProduccion(registro)) {
+    return 'Los registros de mono hilo no se editan desde este modulo.'
+  }
   if (isProduccionEnAlmacen(registro)) {
     return 'La entrada ya esta en almacen.'
   }
   if (registro.aprobacionTallerEstado === 'aprobado') {
     return 'La entrada ya fue aprobada por taller.'
+  }
+  if (registro.cantidadPicar > 0) {
+    return 'Las entradas de picado consumen masas de mono hilo y no se editan.'
   }
   if (isProduccionProceso(registro)) {
     return 'Entradas de proceso no se editan desde este modulo.'
@@ -159,8 +181,17 @@ export const getProduccionEditLockReason = (registro: ProduccionDiaria): string 
 }
 
 export const getProduccionDeleteLockReason = (registro: ProduccionDiaria): string | null => {
+  if (isProduccionAnulada(registro)) {
+    return 'La entrada fue anulada.'
+  }
+  if (isMonoHiloProduccion(registro)) {
+    return 'Los registros de mono hilo no se eliminan para conservar la trazabilidad de las masas.'
+  }
   if (isProduccionEnAlmacen(registro)) {
     return 'La entrada ya esta en almacen.'
+  }
+  if (registro.cantidadPicar > 0) {
+    return 'Las entradas de picado consumen masas de mono hilo y no se eliminan.'
   }
   if (isProduccionProceso(registro)) {
     return 'Entradas de proceso no se eliminan desde este modulo.'

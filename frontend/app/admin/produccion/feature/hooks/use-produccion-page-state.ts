@@ -3,16 +3,16 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   approveProduccionAlmacen,
+  cancelMonoHiloProduccion,
   approveProduccionTaller,
-  createMonoHiloMasas,
   createProduccion,
   deleteProduccion,
   getBloques,
   getEquipos,
   getMonoHiloMasas,
   getProductos,
+  registerMonoHiloProduccion,
   getTrabajadores,
-  updateMonoHiloMasaUbicacion,
   updateProduccion,
 } from '@/lib/resources-api'
 import { useProduccionStore } from '@/hooks/use-produccion'
@@ -51,6 +51,7 @@ import {
   getAccionLosas,
   getDetalleMermaLosas,
   getDetalleReutilizableLosas,
+  isProduccionAnulada,
   resolveDateEditPolicy,
 } from '../lib/produccion-helpers'
 
@@ -115,6 +116,11 @@ const resolveDimensionByTipo = (
   }
   return dimension
 }
+
+const isMonoHiloRegistro = (registro: Pick<ProduccionDiaria, 'workflowTipo'>): boolean =>
+  registro.workflowTipo === 'mono_hilo'
+
+const isMonoHiloMasaActiva = (masa: MonoHiloMasa): boolean => masa.estado !== 'anulada'
 
 export const useProduccionPageState = () => {
   const { produccion, replaceProduccion } = useProduccionStore()
@@ -218,11 +224,19 @@ export const useProduccionPageState = () => {
       ),
     [bloquesYLotes],
   )
+  const monoHiloMasasActivas = useMemo(
+    () => monoHiloMasas.filter((masa) => isMonoHiloMasaActiva(masa)),
+    [monoHiloMasas],
+  )
+  const produccionActiva = useMemo(
+    () => produccion.filter((registro) => !isProduccionAnulada(registro)),
+    [produccion],
+  )
 
   const stockMonoHiloPorClave = useMemo(() => {
     const map = new Map<string, number>()
 
-    for (const masa of monoHiloMasas) {
+    for (const masa of monoHiloMasasActivas) {
       if (masa.ubicacion !== 'proceso') continue
 
       for (const dimension of MONO_HILO_DIMENSIONS) {
@@ -235,12 +249,12 @@ export const useProduccionPageState = () => {
     }
 
     return map
-  }, [monoHiloMasas])
+  }, [monoHiloMasasActivas])
 
   const stockMonoHiloPorMasaDimension = useMemo(() => {
     const map = new Map<string, number>()
 
-    for (const masa of monoHiloMasas) {
+    for (const masa of monoHiloMasasActivas) {
       if (masa.ubicacion !== 'proceso') continue
 
       for (const dimension of MONO_HILO_DIMENSIONS) {
@@ -251,7 +265,7 @@ export const useProduccionPageState = () => {
     }
 
     return map
-  }, [monoHiloMasas])
+  }, [monoHiloMasasActivas])
 
   const origenesActivosParaPicar = useMemo(() => {
     const idsConStock = new Set<string>()
@@ -329,7 +343,7 @@ export const useProduccionPageState = () => {
     const tiposPorDimension = (dimension: Dimension): TipoProducto[] =>
       isPlanchaDimensionAllowed(dimension) ? ['Piso', 'Plancha'] : ['Piso']
 
-    for (const masa of monoHiloMasas) {
+    for (const masa of monoHiloMasasActivas) {
       if (masa.ubicacion !== 'proceso') continue
       if (!origenesPermitidos.has(masa.bloqueId)) continue
 
@@ -371,7 +385,7 @@ export const useProduccionPageState = () => {
 
       return a.dimension.localeCompare(b.dimension)
     })
-  }, [bloquesYLotes, monoHiloMasas, origenesActivosParaPicar])
+  }, [bloquesYLotes, monoHiloMasasActivas, origenesActivosParaPicar])
 
   const stockProcesoPorClave = useMemo(() => {
     const map = new Map<string, number>()
@@ -598,25 +612,41 @@ export const useProduccionPageState = () => {
     [stockMonoHiloPorClave, stockMonoHiloPorMasaDimension, stockProcesoPorClave],
   )
 
-  const filteredProduccion = produccion.filter((registro) => {
+  const filteredProduccion = produccionActiva.filter((registro) => {
     const query = searchTerm.toLowerCase().trim()
+    const monoHiloSearch = isMonoHiloRegistro(registro)
+      ? [
+          'mono hilo',
+          registro.monoHiloDetalle?.equipoNombre ?? '',
+          ...(registro.monoHiloDetalle?.trabajadores.map((trabajador) => trabajador.nombre) ?? []),
+          ...(registro.monoHiloDetalle?.masas.map((masa) => masa.masaCodigo) ?? []),
+        ]
+          .join(' ')
+          .toLowerCase()
+      : ''
     const matchesSearch =
+      query.length === 0 ||
       registro.fecha.toLowerCase().includes(query) ||
       registro.origenNombre.toLowerCase().includes(query) ||
       registro.tipo.toLowerCase().includes(query) ||
-      registro.dimension.toLowerCase().includes(query)
+      registro.dimension.toLowerCase().includes(query) ||
+      monoHiloSearch.includes(query)
     const matchesDate = !dateFilter || registro.fecha === dateFilter
     return matchesSearch && matchesDate
   })
 
   const today = new Date().toISOString().split('T')[0]
-  const fechaMasReciente = [...new Set(produccion.map((registro) => registro.fecha))]
+  const fechaMasReciente = [...new Set(produccionActiva.map((registro) => registro.fecha))]
     .sort((a, b) => b.localeCompare(a))[0] ?? today
   const fechaResumen = dateFilter || fechaMasReciente
-  const produccionResumen = produccion.filter((registro) => registro.fecha === fechaResumen)
+  const produccionResumen = produccionActiva.filter((registro) => registro.fecha === fechaResumen)
 
   const totalM2Resumen = produccionResumen.reduce((sum, item) => sum + item.totalM2, 0)
   const totalLosasResumen = produccionResumen.reduce((sum, item) => sum + item.totalLosas, 0)
+  const totalMonoHiloResumen = produccionResumen.reduce(
+    (sum, item) => sum + (isMonoHiloRegistro(item) ? (item.monoHiloDetalle?.masas.length ?? 0) : 0),
+    0,
+  )
   const origenesActivosResumen = new Set(produccionResumen.map((item) => item.origenId)).size
 
   const resumenAcciones = produccionResumen.reduce<Record<AccionLosa, number>>(
@@ -675,8 +705,8 @@ export const useProduccionPageState = () => {
   }, [produccionResumen])
 
   const dateEditPolicy = useMemo(
-    () => resolveDateEditPolicy(produccion, formData.fecha),
-    [produccion, formData.fecha],
+    () => resolveDateEditPolicy(produccionActiva, formData.fecha),
+    [produccionActiva, formData.fecha],
   )
 
   const groupedByDate = filteredProduccion.reduce<Record<string, ProduccionDiaria[]>>((acc, item) => {
@@ -1035,6 +1065,14 @@ export const useProduccionPageState = () => {
 
   const registrarMonoHiloDesdeProduccion = useCallback(
     async (input: RegistrarMonoHiloDesdeProduccionInput): Promise<MonoHiloMasa[]> => {
+      if (!input.fecha) {
+        throw new Error('Selecciona la fecha de produccion.')
+      }
+
+      if (input.fecha > today) {
+        throw new Error('La fecha de produccion no puede ser futura.')
+      }
+
       const bloqueId = input.bloqueId.trim()
       if (!bloqueId) {
         throw new Error('Selecciona el bloque de origen.')
@@ -1066,42 +1104,26 @@ export const useProduccionPageState = () => {
         throw new Error('Uno de los trabajadores seleccionados no esta activo.')
       }
 
-      const observacionesBase = input.observaciones?.trim() ?? ''
-      const observacionesMeta = [
-        observacionesBase,
-        `Equipo: ${equipo.codigoInterno}`,
-        `Trabajadores: ${trabajadoresSeleccionados.map((item) => item.nombre).join(', ')}`,
-      ]
-        .filter((item) => item.length > 0)
-        .join(' | ')
-
-      const created = await createMonoHiloMasas({
+      const registro = await registerMonoHiloProduccion({
+        fecha: input.fecha,
         bloqueId: bloque.id,
-        masas: [
-          {
-            largoCm: input.largoCm,
-            anchoCm: input.anchoCm,
-            profundidadCm: input.profundidadCm,
-            observaciones: observacionesMeta || undefined,
-          },
-        ],
+        largoCm: input.largoCm,
+        anchoCm: input.anchoCm,
+        profundidadCm: input.profundidadCm,
+        observaciones: input.observaciones?.trim() || undefined,
+        equipoId: equipo.id,
+        trabajadorIds: trabajadoresSeleccionados.map((trabajador) => trabajador.id),
       })
-
-      const moved = await Promise.all(
-        created.map(async (masa) => {
-          if (masa.ubicacion === 'proceso') return masa
-          return updateMonoHiloMasaUbicacion(masa.id, { ubicacionDestino: 'proceso' })
-        }),
-      )
 
       setMonoHiloMasas((prev) => {
-        const ids = new Set(moved.map((item) => item.id))
-        return [...moved, ...prev.filter((item) => !ids.has(item.id))]
+        const ids = new Set(registro.masas.map((item) => item.id))
+        return [...registro.masas, ...prev.filter((item) => !ids.has(item.id))]
       })
+      replaceProduccion((prev) => [registro.produccion, ...prev])
 
-      return moved
+      return registro.masas
     },
-    [bloquesActivosMonoHilo, equiposActivos, trabajadoresActivos],
+    [bloquesActivosMonoHilo, equiposActivos, replaceProduccion, today, trabajadoresActivos],
   )
 
   const handleSubmit = async (event: FormEvent) => {
@@ -1546,12 +1568,43 @@ export const useProduccionPageState = () => {
     }
   }
 
-  const getDatePolicy = (fecha: string) => resolveDateEditPolicy(produccion, fecha)
+  const cancelMonoHiloProduccionRegistro = async (
+    produccionId: string,
+    motivo: string,
+  ): Promise<boolean> => {
+    setEntryActionError(null)
+    setEntryDeleteLoadingById((prev) => ({ ...prev, [produccionId]: true }))
+
+    try {
+      const result = await cancelMonoHiloProduccion(produccionId, { motivo })
+      replaceProduccion((prev) =>
+        prev.map((registro) => (registro.id === result.produccion.id ? result.produccion : registro)),
+      )
+      setMonoHiloMasas((prev) => {
+        const masasById = new Map(prev.map((masa) => [masa.id, masa]))
+        result.masas.forEach((masa) => {
+          masasById.set(masa.id, masa)
+        })
+        return Array.from(masasById.values())
+      })
+      return true
+    } catch (error) {
+      setEntryActionError(
+        error instanceof Error ? error.message : 'No se pudo anular el registro de mono hilo.',
+      )
+      return false
+    } finally {
+      setEntryDeleteLoadingById((prev) => ({ ...prev, [produccionId]: false }))
+    }
+  }
+
+  const getDatePolicy = (fecha: string) => resolveDateEditPolicy(produccionActiva, fecha)
 
   return {
     addUsage,
     almacenApprovalLoadingById,
     approvalError,
+    cancelMonoHiloProduccionRegistro,
     deleteProduccionRegistro,
     approveProduccionAlmacenRegistro,
     approveProduccionTallerRegistro,
@@ -1595,6 +1648,7 @@ export const useProduccionPageState = () => {
     topOrigenesResumen,
     today,
     totalLosasResumen,
+    totalMonoHiloResumen,
     tallerApprovalLoadingById,
     totalM2Resumen,
     toggleUsageDimension,

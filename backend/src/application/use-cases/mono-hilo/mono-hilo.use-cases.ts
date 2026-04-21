@@ -3,18 +3,25 @@ import type {
   ConsumeMonoHiloParaPicadoDto,
   CreateMonoHiloMasasDto,
   MonoHiloMasaResponseDto,
+  RegisterMonoHiloProduccionDto,
+  RegisterMonoHiloProduccionResponseDto,
   UpdateMonoHiloMasaUbicacionDto,
 } from '../../dtos/index.js'
 import type {
   Dimension,
   MonoHiloEstimados,
   MonoHiloMasa,
+  ProduccionDiaria,
+  Trabajador,
   UbicacionMasaMonoHilo,
 } from '../../../domain/entities/index.js'
 import type {
   BloqueRepositoryPort,
   ConfiguracionPort,
+  EquipoRepositoryPort,
   MonoHiloMasaRepositoryPort,
+  ProduccionRepositoryPort,
+  TrabajadorRepositoryPort,
 } from '../../../domain/ports/index.js'
 
 const DEFAULT_GROSOR_DISCO_MM = 8
@@ -145,6 +152,7 @@ export class CreateMonoHiloMasasUseCase {
         bloqueId: bloque.id,
         bloqueCodigo: bloque.nombre,
         bloqueNombre: bloque.nombre,
+        produccionId: undefined,
         codigo,
         largoCm,
         anchoCm,
@@ -153,6 +161,7 @@ export class CreateMonoHiloMasasUseCase {
         grosorDiscoMm,
         espesorLosaCm,
         ubicacion: 'almacen',
+        estado: 'activa',
         observaciones: masaInput.observaciones?.trim() ?? '',
         fechaRegistro: new Date().toISOString(),
         estimados,
@@ -162,6 +171,177 @@ export class CreateMonoHiloMasasUseCase {
     }
 
     return created
+  }
+}
+
+export class RegisterMonoHiloProduccionUseCase {
+  private readonly createMonoHiloMasasUseCase: CreateMonoHiloMasasUseCase
+
+  constructor(
+    private readonly repository: MonoHiloMasaRepositoryPort,
+    private readonly bloqueRepository: BloqueRepositoryPort,
+    private readonly configuracionPort: ConfiguracionPort,
+    private readonly produccionRepository: ProduccionRepositoryPort,
+    private readonly equipoRepository: EquipoRepositoryPort,
+    private readonly trabajadorRepository: TrabajadorRepositoryPort,
+  ) {
+    this.createMonoHiloMasasUseCase = new CreateMonoHiloMasasUseCase(
+      repository,
+      bloqueRepository,
+      configuracionPort,
+    )
+  }
+
+  async execute(
+    dto: RegisterMonoHiloProduccionDto,
+  ): Promise<RegisterMonoHiloProduccionResponseDto> {
+    const fecha = normalizeFechaProduccion(dto.fecha)
+    const bloqueId = dto.bloqueId.trim()
+    if (!bloqueId) {
+      throw new DomainError(
+        'Debe seleccionar un bloque para registrar mono hilo.',
+        400,
+        'MONO_HILO_REGISTRO_BLOQUE_REQUERIDO',
+      )
+    }
+
+    const bloque = await this.bloqueRepository.findById(bloqueId)
+    if (!bloque) {
+      throw new DomainError(`Bloque ${bloqueId} no existe`, 404, 'MONO_HILO_BLOQUE_NOT_FOUND')
+    }
+
+    const equipoId = dto.equipoId.trim()
+    if (!equipoId) {
+      throw new DomainError(
+        'Debe seleccionar un equipo para registrar mono hilo.',
+        400,
+        'MONO_HILO_REGISTRO_EQUIPO_REQUERIDO',
+      )
+    }
+
+    const equipo = await this.equipoRepository.findById(equipoId)
+    if (!equipo || equipo.estado !== 'activo') {
+      throw new DomainError(
+        'Debe seleccionar un equipo activo para registrar mono hilo.',
+        409,
+        'MONO_HILO_REGISTRO_EQUIPO_INVALIDO',
+      )
+    }
+
+    const trabajadoresSeleccionados = await resolveTrabajadoresActivos(
+      dto.trabajadorIds,
+      this.trabajadorRepository,
+    )
+
+    const observacionesBase = dto.observaciones?.trim() ?? ''
+    const observacionesMeta = [
+      observacionesBase,
+      `Equipo: ${equipo.codigoInterno}`,
+      `Trabajadores: ${trabajadoresSeleccionados.map((item) => item.nombre).join(', ')}`,
+    ]
+      .filter((item) => item.length > 0)
+      .join(' | ')
+
+    const createdMasas = await this.createMonoHiloMasasUseCase.execute({
+      bloqueId,
+      masas: [
+        {
+          largoCm: dto.largoCm,
+          anchoCm: dto.anchoCm,
+          profundidadCm: dto.profundidadCm,
+          observaciones: observacionesMeta || undefined,
+        },
+      ],
+    })
+
+    const masaIds = createdMasas.map((masa) => masa.id)
+    let produccion: ProduccionDiaria | null = null
+
+    try {
+      const movedMasas = await Promise.all(
+        createdMasas.map(async (masa) => {
+          if (masa.ubicacion === 'proceso') return masa
+          const moved = await this.repository.update(masa.id, { ubicacion: 'proceso' })
+          if (!moved) {
+            throw new DomainError(
+              `No se pudo mover la masa ${masa.id} a proceso.`,
+              500,
+              'MONO_HILO_REGISTRO_MOVE_FAILED',
+            )
+          }
+          return moved
+        }),
+      )
+
+      const tipoPlaceholder: ProduccionDiaria['tipo'] =
+        bloque.dimensionBase === '160x60' || bloque.dimensionBase === '160x65' ? 'Plancha' : 'Piso'
+
+      produccion = await this.produccionRepository.create({
+        fecha,
+        origenId: bloque.id,
+        origenNombre: bloque.nombre,
+        workflowTipo: 'mono_hilo',
+        estadoRegistro: 'activo',
+        tipo: tipoPlaceholder,
+        dimension: bloque.dimensionBase,
+        cantidadPicar: 0,
+        cantidadEscuadrar: 0,
+        cantidadDevastar: 0,
+        cantidadResinar: 0,
+        cantidadPulir: 0,
+        totalLosas: 0,
+        totalM2: 0,
+        detallesAcciones: [],
+        monoHiloDetalle: {
+          equipoId: equipo.id,
+          equipoNombre: equipo.codigoInterno,
+          trabajadores: trabajadoresSeleccionados.map((trabajador) => ({
+            id: trabajador.id,
+            nombre: trabajador.nombre,
+          })),
+          masas: movedMasas.map((masa) => ({
+            masaId: masa.id,
+            masaCodigo: masa.codigo,
+            largoCm: masa.largoCm,
+            anchoCm: masa.anchoCm,
+            profundidadCm: masa.profundidadCm,
+          })),
+          observaciones: observacionesBase || undefined,
+        },
+        aprobacionTallerEstado: 'pendiente',
+        aprobacionAlmacenEstado: 'pendiente',
+        inventarioAplicado: false,
+        movimientoInventarioIds: [],
+      })
+      const produccionCreada = produccion
+
+      const masasEnlazadas = await Promise.all(
+        movedMasas.map(async (masa) => {
+          const updated = await this.repository.update(masa.id, {
+            produccionId: produccionCreada.id,
+          })
+          if (!updated) {
+            throw new DomainError(
+              `No se pudo enlazar la masa ${masa.id} con el registro de produccion.`,
+              500,
+              'MONO_HILO_REGISTRO_LINK_FAILED',
+            )
+          }
+          return updated
+        }),
+      )
+
+      return {
+        produccion: produccionCreada,
+        masas: masasEnlazadas,
+      }
+    } catch (error) {
+      if (produccion) {
+        await safeDeleteProduccion(produccion.id, this.produccionRepository)
+      }
+      await safeDeleteMasas(masaIds, this.repository)
+      throw error
+    }
   }
 }
 
@@ -175,6 +355,14 @@ export class UpdateMonoHiloMasaUbicacionUseCase {
     const masa = await this.repository.findById(id)
     if (!masa) {
       throw new DomainError(`Masa ${id} no existe`, 404, 'MONO_HILO_MASA_NOT_FOUND')
+    }
+
+    if (masa.estado === 'anulada') {
+      throw new DomainError(
+        'La masa fue anulada y no puede moverse de ubicacion.',
+        409,
+        'MONO_HILO_MASA_ANULADA',
+      )
     }
 
     if (masa.ubicacion === 'consumida') {
@@ -228,6 +416,7 @@ export async function consumeMonoHiloMasasParaPicado(
 
   const candidatas = inventario
     .filter((masa) => masa.bloqueId === bloqueId)
+    .filter((masa) => masa.estado !== 'anulada')
     .filter((masa) => masa.ubicacion === 'proceso')
     .map((masa) => ({
       masa,
@@ -283,6 +472,95 @@ export async function consumeMonoHiloMasasParaPicado(
 
     restante -= retirar
   }
+}
+
+function normalizeFechaProduccion(value: string): string {
+  const fecha = value?.trim()
+  if (!fecha) {
+    throw new DomainError(
+      'Debe indicar la fecha de produccion para registrar mono hilo.',
+      400,
+      'MONO_HILO_REGISTRO_FECHA_REQUERIDA',
+    )
+  }
+
+  const parsed = new Date(`${fecha}T00:00:00.000Z`)
+  if (Number.isNaN(parsed.getTime())) {
+    throw new DomainError(
+      'La fecha de produccion de mono hilo no es valida.',
+      400,
+      'MONO_HILO_REGISTRO_FECHA_INVALIDA',
+    )
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  if (parsed.getTime() > today.getTime()) {
+    throw new DomainError(
+      'La fecha de produccion no puede ser futura.',
+      400,
+      'MONO_HILO_REGISTRO_FECHA_FUTURA',
+    )
+  }
+
+  return fecha
+}
+
+async function resolveTrabajadoresActivos(
+  trabajadorIds: string[],
+  trabajadorRepository: TrabajadorRepositoryPort,
+): Promise<Trabajador[]> {
+  const normalizedIds = [...new Set(trabajadorIds.map((trabajadorId) => trabajadorId.trim()).filter(Boolean))]
+  if (normalizedIds.length === 0) {
+    throw new DomainError(
+      'Debe seleccionar al menos un trabajador para registrar mono hilo.',
+      400,
+      'MONO_HILO_REGISTRO_TRABAJADOR_REQUERIDO',
+    )
+  }
+
+  const trabajadores = await trabajadorRepository.findAll()
+  const trabajadoresById = new Map(trabajadores.map((trabajador) => [trabajador.id, trabajador]))
+  const seleccionados = normalizedIds
+    .map((trabajadorId) => trabajadoresById.get(trabajadorId))
+    .filter((trabajador): trabajador is Trabajador => Boolean(trabajador))
+    .filter((trabajador) => trabajador.estado === 'activo' && trabajador.rol === 'Obrero')
+
+  if (seleccionados.length !== normalizedIds.length) {
+    throw new DomainError(
+      'Uno de los trabajadores seleccionados no esta activo o no es obrero.',
+      409,
+      'MONO_HILO_REGISTRO_TRABAJADOR_INVALIDO',
+    )
+  }
+
+  return seleccionados
+}
+
+async function safeDeleteProduccion(
+  produccionId: string,
+  produccionRepository: ProduccionRepositoryPort,
+): Promise<void> {
+  try {
+    await produccionRepository.delete(produccionId)
+  } catch {
+    // Best effort rollback.
+  }
+}
+
+async function safeDeleteMasas(
+  masaIds: string[],
+  repository: MonoHiloMasaRepositoryPort,
+): Promise<void> {
+  await Promise.all(
+    masaIds.map(async (masaId) => {
+      try {
+        await repository.delete(masaId)
+      } catch {
+        // Best effort rollback.
+      }
+    }),
+  )
 }
 
 function validateUbicacionTransition(

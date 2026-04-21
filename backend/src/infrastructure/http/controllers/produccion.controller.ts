@@ -42,6 +42,15 @@ export async function approveProduccionAlmacen(req: Request, res: Response) {
   res.json(data)
 }
 
+export async function cancelMonoHiloProduccion(req: Request, res: Response) {
+  const data = await container.cancelMonoHiloProduccionUseCase.execute(
+    req.params.id,
+    req.body,
+    resolveActor(req),
+  )
+  res.json(data)
+}
+
 export async function updateProduccion(req: Request, res: Response) {
   const data = await container.updateProduccionUseCase.execute(req.params.id, req.body)
   if (!data) return res.status(404).json({ error: 'Produccion not found' })
