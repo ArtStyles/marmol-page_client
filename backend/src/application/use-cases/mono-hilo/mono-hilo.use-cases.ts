@@ -37,6 +37,11 @@ const dimensionObjetivoSpecs: Record<Dimension, { largoCm: number; anchoCm: numb
   '40x40': { largoCm: 40, anchoCm: 40 },
 }
 
+interface MonoHiloActor {
+  userId: string
+  userName: string
+}
+
 export class GetMonoHiloMasasUseCase {
   constructor(private readonly repository: MonoHiloMasaRepositoryPort) {}
 
@@ -52,7 +57,10 @@ export class CreateMonoHiloMasasUseCase {
     private readonly configuracionPort: ConfiguracionPort,
   ) {}
 
-  async execute(dto: CreateMonoHiloMasasDto): Promise<MonoHiloMasaResponseDto[]> {
+  async execute(
+    dto: CreateMonoHiloMasasDto,
+    actor: MonoHiloActor,
+  ): Promise<MonoHiloMasaResponseDto[]> {
     const bloqueId = dto.bloqueId.trim()
     if (!bloqueId) {
       throw new DomainError(
@@ -153,6 +161,8 @@ export class CreateMonoHiloMasasUseCase {
         bloqueCodigo: bloque.nombre,
         bloqueNombre: bloque.nombre,
         produccionId: undefined,
+        creadoPorId: actor.userId,
+        creadoPorNombre: actor.userName,
         codigo,
         largoCm,
         anchoCm,
@@ -194,6 +204,7 @@ export class RegisterMonoHiloProduccionUseCase {
 
   async execute(
     dto: RegisterMonoHiloProduccionDto,
+    actor: MonoHiloActor,
   ): Promise<RegisterMonoHiloProduccionResponseDto> {
     const fecha = normalizeFechaProduccion(dto.fecha)
     const bloqueId = dto.bloqueId.trim()
@@ -242,17 +253,20 @@ export class RegisterMonoHiloProduccionUseCase {
       .filter((item) => item.length > 0)
       .join(' | ')
 
-    const createdMasas = await this.createMonoHiloMasasUseCase.execute({
-      bloqueId,
-      masas: [
-        {
-          largoCm: dto.largoCm,
-          anchoCm: dto.anchoCm,
-          profundidadCm: dto.profundidadCm,
-          observaciones: observacionesMeta || undefined,
-        },
-      ],
-    })
+    const createdMasas = await this.createMonoHiloMasasUseCase.execute(
+      {
+        bloqueId,
+        masas: [
+          {
+            largoCm: dto.largoCm,
+            anchoCm: dto.anchoCm,
+            profundidadCm: dto.profundidadCm,
+            observaciones: observacionesMeta || undefined,
+          },
+        ],
+      },
+      actor,
+    )
 
     const masaIds = createdMasas.map((masa) => masa.id)
     let produccion: ProduccionDiaria | null = null
@@ -278,6 +292,8 @@ export class RegisterMonoHiloProduccionUseCase {
 
       produccion = await this.produccionRepository.create({
         fecha,
+        creadoPorId: actor.userId,
+        creadoPorNombre: actor.userName,
         origenId: bloque.id,
         origenNombre: bloque.nombre,
         workflowTipo: 'mono_hilo',

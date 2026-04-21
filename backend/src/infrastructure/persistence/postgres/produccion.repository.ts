@@ -11,6 +11,9 @@ function rowToProduccion(r: Record<string, unknown>): ProduccionDiaria {
   return {
     id: r.id as string,
     fecha: toDateOnly(r.fecha),
+    createdAt: toTimestampIso(r.created_at),
+    creadoPorId: (r.creado_por_id as string | null) ?? undefined,
+    creadoPorNombre: (r.creado_por_nombre as string | null) ?? undefined,
     origenId: r.origen_id as string,
     origenNombre: r.origen_nombre as string,
     workflowTipo: (r.workflow_tipo as ProduccionDiaria['workflowTipo']) ?? 'regular',
@@ -78,17 +81,19 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
     const id = await nextId(pool, 'PG', 'produccion')
     await pool.query(
       `INSERT INTO produccion (
-        id, workshop_id, fecha, origen_id, origen_nombre, workflow_tipo, estado_registro, tipo, dimension, cantidad_picar, cantidad_pulir, cantidad_escuadrar, cantidad_devastar, cantidad_resinar,
+        id, workshop_id, fecha, creado_por_id, creado_por_nombre, origen_id, origen_nombre, workflow_tipo, estado_registro, tipo, dimension, cantidad_picar, cantidad_pulir, cantidad_escuadrar, cantidad_devastar, cantidad_resinar,
         total_losas, total_m2, detalles_acciones, mono_hilo_detalle, can_edit, editable_until,
         aprobacion_taller_estado, aprobacion_taller_por_id, aprobacion_taller_por_nombre, aprobacion_taller_fecha, aprobacion_taller_motivo_rechazo,
         aprobacion_almacen_estado, aprobacion_almacen_por_id, aprobacion_almacen_por_nombre, aprobacion_almacen_fecha, aprobacion_almacen_motivo,
         inventario_aplicado, movimiento_inventario_ids, anulacion_motivo, anulado_por_id, anulado_por_nombre, anulado_fecha
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36)`,
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38)`,
       [
         id,
         workshopId,
         data.fecha,
+        data.creadoPorId ?? null,
+        data.creadoPorNombre ?? null,
         data.origenId,
         data.origenNombre,
         data.workflowTipo ?? 'regular',
@@ -135,15 +140,17 @@ export class PostgresProduccionRepository implements ProduccionRepositoryPort {
     const workshopId = getCurrentWorkshopId()
     await pool.query(
       `UPDATE produccion SET
-        fecha=$2, origen_id=$3, origen_nombre=$4, workflow_tipo=$5, estado_registro=$6, tipo=$7, dimension=$8, cantidad_picar=$9, cantidad_pulir=$10, cantidad_escuadrar=$11, cantidad_devastar=$12, cantidad_resinar=$13,
-        total_losas=$14, total_m2=$15, detalles_acciones=$16, mono_hilo_detalle=$17, can_edit=$18, editable_until=$19,
-        aprobacion_taller_estado=$20, aprobacion_taller_por_id=$21, aprobacion_taller_por_nombre=$22, aprobacion_taller_fecha=$23, aprobacion_taller_motivo_rechazo=$24,
-        aprobacion_almacen_estado=$25, aprobacion_almacen_por_id=$26, aprobacion_almacen_por_nombre=$27, aprobacion_almacen_fecha=$28, aprobacion_almacen_motivo=$29,
-        inventario_aplicado=$30, movimiento_inventario_ids=$31, anulacion_motivo=$32, anulado_por_id=$33, anulado_por_nombre=$34, anulado_fecha=$35
-      WHERE id=$1 AND workshop_id=$36`,
+        fecha=$2, creado_por_id=$3, creado_por_nombre=$4, origen_id=$5, origen_nombre=$6, workflow_tipo=$7, estado_registro=$8, tipo=$9, dimension=$10, cantidad_picar=$11, cantidad_pulir=$12, cantidad_escuadrar=$13, cantidad_devastar=$14, cantidad_resinar=$15,
+        total_losas=$16, total_m2=$17, detalles_acciones=$18, mono_hilo_detalle=$19, can_edit=$20, editable_until=$21,
+        aprobacion_taller_estado=$22, aprobacion_taller_por_id=$23, aprobacion_taller_por_nombre=$24, aprobacion_taller_fecha=$25, aprobacion_taller_motivo_rechazo=$26,
+        aprobacion_almacen_estado=$27, aprobacion_almacen_por_id=$28, aprobacion_almacen_por_nombre=$29, aprobacion_almacen_fecha=$30, aprobacion_almacen_motivo=$31,
+        inventario_aplicado=$32, movimiento_inventario_ids=$33, anulacion_motivo=$34, anulado_por_id=$35, anulado_por_nombre=$36, anulado_fecha=$37
+        WHERE id=$1 AND workshop_id=$38`,
       [
         id,
         merged.fecha,
+        merged.creadoPorId ?? null,
+        merged.creadoPorNombre ?? null,
         merged.origenId,
         merged.origenNombre,
         merged.workflowTipo ?? 'regular',

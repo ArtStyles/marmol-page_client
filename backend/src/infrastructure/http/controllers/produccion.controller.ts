@@ -20,7 +20,7 @@ export async function getProduccionById(req: Request, res: Response) {
 }
 
 export async function createProduccion(req: Request, res: Response) {
-  const data = await container.createProduccionUseCase.execute(req.body)
+  const data = await container.createProduccionUseCase.execute(req.body, resolveActor(req))
   res.status(201).json(data)
 }
 

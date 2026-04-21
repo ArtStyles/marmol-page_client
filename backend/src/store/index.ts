@@ -171,7 +171,7 @@ export function getMonoHiloMasaById(id: string): MonoHiloMasa | undefined {
 }
 export function createMonoHiloMasa(data: Omit<MonoHiloMasa, 'id'>): MonoHiloMasa {
   const id = `MH${String(state.monoHiloMasas.length + 1).padStart(3, '0')}`
-  const item: MonoHiloMasa = { ...data, id }
+  const item: MonoHiloMasa = { ...data, id, fechaRegistro: data.fechaRegistro ?? new Date().toISOString() }
   state.monoHiloMasas.push(item)
   return item
 }
@@ -275,7 +275,7 @@ export function getProduccionById(id: string): ProduccionDiaria | undefined {
 }
 export function createProduccion(data: Omit<ProduccionDiaria, 'id'>): ProduccionDiaria {
   const id = `PG${String(state.produccion.length + 1).padStart(3, '0')}`
-  const item: ProduccionDiaria = { ...data, id }
+  const item: ProduccionDiaria = { ...data, id, createdAt: data.createdAt ?? new Date().toISOString() }
   state.produccion.push(item)
   return item
 }
@@ -353,7 +353,7 @@ export function getVentaById(id: string): Venta | undefined {
 }
 export function createVenta(data: Omit<Venta, 'id'>): Venta {
   const id = `V${String(state.ventas.length + 1).padStart(3, '0')}`
-  const item: Venta = { ...data, id }
+  const item: Venta = { ...data, id, createdAt: data.createdAt ?? new Date().toISOString() }
   state.ventas.push(item)
   return item
 }
@@ -405,7 +405,7 @@ export function getHistorialPagoById(id: string): HistorialPago | undefined {
 }
 export function createHistorialPago(data: Omit<HistorialPago, 'id'>): HistorialPago {
   const id = `HP${String(state.historialPagos.length + 1).padStart(3, '0')}`
-  const item: HistorialPago = { ...data, id }
+  const item: HistorialPago = { ...data, id, createdAt: data.createdAt ?? new Date().toISOString() }
   state.historialPagos.push(item)
   return item
 }

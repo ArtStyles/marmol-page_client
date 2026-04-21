@@ -1,12 +1,15 @@
 import type { HistorialPagoRepositoryPort } from '../../../domain/ports/index.js'
 import type { HistorialPago } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
-import { nextId, toDateOnly } from './helpers.js'
+import { nextId, toDateOnly, toTimestampIso } from './helpers.js'
 import { getCurrentWorkshopId } from './tenant.js'
 
 function rowToHistorialPago(r: Record<string, unknown>): HistorialPago {
   return {
     id: r.id as string,
+    createdAt: toTimestampIso(r.created_at),
+    creadoPorId: (r.creado_por_id as string | null) ?? undefined,
+    creadoPorNombre: (r.creado_por_nombre as string | null) ?? undefined,
     trabajadorId: r.trabajador_id as string,
     trabajadorNombre: r.trabajador_nombre as string,
     fecha: toDateOnly(r.fecha),
@@ -47,8 +50,8 @@ export class PostgresHistorialPagoRepository implements HistorialPagoRepositoryP
     const workshopId = getCurrentWorkshopId()
     const id = await nextId(pool, 'HP', 'historial_pagos')
     await pool.query(
-      `INSERT INTO historial_pagos (id, workshop_id, trabajador_id, trabajador_nombre, fecha, produccion_ids, monto_acciones, monto_bonos, bono_extra, motivo_bono_extra, total_pagado, observaciones)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      `INSERT INTO historial_pagos (id, workshop_id, trabajador_id, trabajador_nombre, fecha, produccion_ids, monto_acciones, monto_bonos, bono_extra, motivo_bono_extra, total_pagado, observaciones, creado_por_id, creado_por_nombre)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       [
         id,
         workshopId,
@@ -62,6 +65,8 @@ export class PostgresHistorialPagoRepository implements HistorialPagoRepositoryP
         data.motivoBonoExtra ?? '',
         data.totalPagado,
         data.observaciones ?? '',
+        data.creadoPorId ?? null,
+        data.creadoPorNombre ?? null,
       ]
     )
     return this.findById(id) as Promise<HistorialPago>
@@ -74,7 +79,7 @@ export class PostgresHistorialPagoRepository implements HistorialPagoRepositoryP
     const pool = getPool()
     const workshopId = getCurrentWorkshopId()
     await pool.query(
-      `UPDATE historial_pagos SET trabajador_id=$2, trabajador_nombre=$3, fecha=$4, produccion_ids=$5, monto_acciones=$6, monto_bonos=$7, bono_extra=$8, motivo_bono_extra=$9, total_pagado=$10, observaciones=$11 WHERE id=$1 AND workshop_id=$12`,
+      `UPDATE historial_pagos SET trabajador_id=$2, trabajador_nombre=$3, fecha=$4, produccion_ids=$5, monto_acciones=$6, monto_bonos=$7, bono_extra=$8, motivo_bono_extra=$9, total_pagado=$10, observaciones=$11, creado_por_id=$12, creado_por_nombre=$13 WHERE id=$1 AND workshop_id=$14`,
       [
         id,
         merged.trabajadorId,
@@ -87,6 +92,8 @@ export class PostgresHistorialPagoRepository implements HistorialPagoRepositoryP
         merged.motivoBonoExtra ?? '',
         merged.totalPagado,
         merged.observaciones ?? '',
+        merged.creadoPorId ?? null,
+        merged.creadoPorNombre ?? null,
         workshopId,
       ]
     )

@@ -66,6 +66,8 @@ CREATE TABLE IF NOT EXISTS mono_hilo_masas (
   bloque_codigo TEXT NOT NULL,
   bloque_nombre TEXT NOT NULL,
   produccion_id TEXT,
+  creado_por_id TEXT,
+  creado_por_nombre TEXT,
   codigo TEXT NOT NULL,
   largo_cm NUMERIC(10,2) NOT NULL,
   ancho_cm NUMERIC(10,2) NOT NULL,
@@ -139,6 +141,8 @@ CREATE TABLE IF NOT EXISTS produccion (
   id TEXT PRIMARY KEY,
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   fecha DATE NOT NULL,
+  creado_por_id TEXT,
+  creado_por_nombre TEXT,
   origen_id TEXT NOT NULL,
   origen_nombre TEXT NOT NULL,
   workflow_tipo TEXT NOT NULL DEFAULT 'regular' CHECK (workflow_tipo IN ('regular', 'mono_hilo')),
@@ -220,6 +224,8 @@ CREATE TABLE IF NOT EXISTS mermas (
 CREATE TABLE IF NOT EXISTS ventas (
   id TEXT PRIMARY KEY,
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
+  creado_por_id TEXT,
+  creado_por_nombre TEXT,
   producto_id TEXT NOT NULL,
   producto_nombre TEXT NOT NULL,
   detalles_productos JSONB,
@@ -278,6 +284,8 @@ CREATE TABLE IF NOT EXISTS gastos (
 CREATE TABLE IF NOT EXISTS historial_pagos (
   id TEXT PRIMARY KEY,
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
+  creado_por_id TEXT,
+  creado_por_nombre TEXT,
   trabajador_id TEXT NOT NULL,
   trabajador_nombre TEXT NOT NULL,
   fecha DATE NOT NULL,
@@ -409,6 +417,8 @@ ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS bloque_id TEXT NOT NULL DEF
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS bloque_codigo TEXT NOT NULL DEFAULT '';
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS bloque_nombre TEXT NOT NULL DEFAULT '';
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS produccion_id TEXT;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS creado_por_id TEXT;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS creado_por_nombre TEXT;
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS codigo TEXT NOT NULL DEFAULT '';
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS largo_cm NUMERIC(10,2) NOT NULL DEFAULT 0;
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS ancho_cm NUMERIC(10,2) NOT NULL DEFAULT 0;
@@ -439,6 +449,8 @@ ALTER TABLE equipos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT '
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS workflow_tipo TEXT NOT NULL DEFAULT 'regular';
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS estado_registro TEXT NOT NULL DEFAULT 'activo';
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS creado_por_id TEXT;
+ALTER TABLE produccion ADD COLUMN IF NOT EXISTS creado_por_nombre TEXT;
 ALTER TABLE produccion DROP CONSTRAINT IF EXISTS produccion_dimension_check;
 ALTER TABLE produccion
   ADD CONSTRAINT produccion_dimension_check
@@ -469,8 +481,12 @@ ALTER TABLE mermas
   ADD CONSTRAINT mermas_dimension_check
   CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65'));
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS creado_por_id TEXT;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS creado_por_nombre TEXT;
 ALTER TABLE gastos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE historial_pagos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
+ALTER TABLE historial_pagos ADD COLUMN IF NOT EXISTS creado_por_id TEXT;
+ALTER TABLE historial_pagos ADD COLUMN IF NOT EXISTS creado_por_nombre TEXT;
 ALTER TABLE system_logs ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE produccion ADD COLUMN IF NOT EXISTS aprobacion_taller_estado TEXT NOT NULL DEFAULT 'pendiente';

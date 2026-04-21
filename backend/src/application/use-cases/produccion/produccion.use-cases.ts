@@ -66,7 +66,7 @@ export class CreateProduccionUseCase {
     private readonly configuracionPort: ConfiguracionPort,
   ) {}
 
-  async execute(dto: CreateProduccionDto): Promise<ProduccionResponseDto> {
+  async execute(dto: CreateProduccionDto, actor: ProduccionActor): Promise<ProduccionResponseDto> {
     const normalizedDto = normalizeProduccionDto(dto)
     if (isMonoHiloWorkflow(normalizedDto)) {
       validateMonoHiloProduccionDto(normalizedDto)
@@ -85,6 +85,8 @@ export class CreateProduccionUseCase {
 
     const created = await this.repository.create({
       ...normalizedDto,
+      creadoPorId: actor.userId,
+      creadoPorNombre: actor.userName,
       workflowTipo: normalizedDto.workflowTipo ?? 'regular',
       estadoRegistro: normalizedDto.estadoRegistro ?? 'activo',
       aprobacionTallerEstado: 'pendiente',

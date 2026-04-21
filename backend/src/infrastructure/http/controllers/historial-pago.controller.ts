@@ -1,6 +1,13 @@
 import type { Request, Response } from 'express'
 import * as container from '../../container.js'
 
+function resolveActor(req: Request): { userId: string; userName: string } {
+  return {
+    userId: req.auth?.userId ?? 'system',
+    userName: req.auth?.email ?? 'system',
+  }
+}
+
 export async function getHistorialPagos(_req: Request, res: Response) {
   const data = await container.getHistorialPagosUseCase.execute()
   res.json(data)
@@ -13,7 +20,7 @@ export async function getHistorialPagoById(req: Request, res: Response) {
 }
 
 export async function createHistorialPago(req: Request, res: Response) {
-  const data = await container.createHistorialPagoUseCase.execute(req.body)
+  const data = await container.createHistorialPagoUseCase.execute(req.body, resolveActor(req))
   res.status(201).json(data)
 }
 

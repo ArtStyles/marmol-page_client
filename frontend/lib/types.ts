@@ -136,6 +136,8 @@ export interface MonoHiloMasa {
   bloqueCodigo: string
   bloqueNombre: string
   produccionId?: string
+  creadoPorId?: string
+  creadoPorNombre?: string
   codigo: string
   largoCm: number
   anchoCm: number
@@ -236,6 +238,9 @@ export interface ProduccionMonoHiloDetalle {
 export interface ProduccionDiaria {
   id: string
   fecha: string
+  createdAt?: string
+  creadoPorId?: string
+  creadoPorNombre?: string
   origenId: string
   origenNombre: string
   tipo: TipoProducto
@@ -321,6 +326,9 @@ export interface VentaDetalleProducto {
 
 export interface Venta {
   id: string
+  createdAt?: string
+  creadoPorId?: string
+  creadoPorNombre?: string
   productoId: string
   productoNombre: string
   detallesProductos?: VentaDetalleProducto[]
@@ -402,6 +410,9 @@ export interface Trabajador {
 
 export interface HistorialPago {
   id: string
+  createdAt?: string
+  creadoPorId?: string
+  creadoPorNombre?: string
   trabajadorId: string
   trabajadorNombre: string
   fecha: string

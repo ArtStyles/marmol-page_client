@@ -108,11 +108,13 @@ export class CreateVentaUseCase {
         ? `${primerDetalle.productoNombre} +${detalles.length - 1}`
         : primerDetalle.productoNombre
 
-    const ventaCreada = await this.repository.create({
-      ...dto,
-      estado: 'pendiente_aprobacion_almacen',
-      motivoMovimientoAlmacen,
-      productoId: primerDetalle.productoId,
+      const ventaCreada = await this.repository.create({
+        ...dto,
+        creadoPorId: actor.userId,
+        creadoPorNombre: actor.userName,
+        estado: 'pendiente_aprobacion_almacen',
+        motivoMovimientoAlmacen,
+        productoId: primerDetalle.productoId,
       productoNombre,
       detallesProductos: detalles,
       cantidadM2,

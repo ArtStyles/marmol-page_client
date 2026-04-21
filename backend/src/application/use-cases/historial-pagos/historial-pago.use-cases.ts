@@ -11,6 +11,11 @@ import type {
   HistorialPagoResponseDto,
 } from '../../dtos/index.js'
 
+interface HistorialPagoActor {
+  userId: string
+  userName: string
+}
+
 export class GetHistorialPagosUseCase {
   constructor(private readonly repository: HistorialPagoRepositoryPort) {}
 
@@ -35,7 +40,7 @@ export class CreateHistorialPagoUseCase {
     private readonly configuracionPort: ConfiguracionPort,
   ) {}
 
-  async execute(dto: CreateHistorialPagoDto): Promise<HistorialPagoResponseDto> {
+  async execute(dto: CreateHistorialPagoDto, actor: HistorialPagoActor): Promise<HistorialPagoResponseDto> {
     const trabajador = await this.trabajadorRepository.findById(dto.trabajadorId)
     if (!trabajador) {
       throw new DomainError(
@@ -161,7 +166,11 @@ export class CreateHistorialPagoUseCase {
       }
     }
 
-    const created = await this.repository.create(dto)
+    const created = await this.repository.create({
+      ...dto,
+      creadoPorId: actor.userId,
+      creadoPorNombre: actor.userName,
+    })
 
     const pendientesProduccion = (await this.produccionTrabajadorRepository.findAll())
       .filter((item) => item.trabajadorId === dto.trabajadorId && !item.pagado)
