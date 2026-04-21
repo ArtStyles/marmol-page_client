@@ -109,6 +109,13 @@ const distributionColor: Record<DistributionRow['key'], string> = {
   reutilizable: 'hsl(205, 85%, 55%)',
 }
 
+function resolvePersistedMotivo(
+  kind: RegistroKind,
+  motivo: Merma['motivo'],
+): Merma['motivo'] {
+  return kind === 'Reutilizable' ? 'Recorte aprovechable' : motivo
+}
+
 const motiveChartConfig = {
   valor: {
     label: 'Valor',
@@ -341,6 +348,7 @@ export default function MermasPage() {
 
     setIsSaving(true)
     try {
+      const motivoPersistido = resolvePersistedMotivo(formData.kind, formData.motivo)
       const created = await createMerma({
         fecha: formData.fecha || getTodayDateIso(),
         origenId: formData.origenId,
@@ -349,13 +357,13 @@ export default function MermasPage() {
         dimension: dimensionSeleccionada,
         cantidadLosas: cantidadEntera,
         metrosCuadrados: Number(losasAMetros(cantidadEntera, dimensionSeleccionada).toFixed(2)),
-        motivo: formData.motivo,
+        motivo: motivoPersistido,
         observaciones: formData.observaciones.trim(),
       })
 
       const nextRecord: MermaFueraProduccionRecord = {
         ...created,
-        kind: formData.kind,
+        kind: motivoPersistido === 'Recorte aprovechable' ? 'Reutilizable' : 'MermaTotal',
       }
 
       setManualMermas((prev) => [nextRecord, ...prev])
@@ -762,20 +770,28 @@ export default function MermasPage() {
                     <div className="space-y-2">
                       <Label>Motivo</Label>
                       <Select
-                        value={formData.motivo}
+                        value={resolvePersistedMotivo(formData.kind, formData.motivo)}
                         onValueChange={(value) => setFormData({ ...formData, motivo: value as Merma['motivo'] })}
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {motivoOptions.map((motivo) => (
+                          {(formData.kind === 'Reutilizable'
+                            ? (['Recorte aprovechable'] as Merma['motivo'][])
+                            : motivoOptions
+                          ).map((motivo) => (
                             <SelectItem key={motivo} value={motivo}>
                               {motivo}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {formData.kind === 'Reutilizable' ? (
+                        <p className="text-xs text-slate-500">
+                          Reutilizable siempre se guarda como recorte aprovechable.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 

@@ -61,7 +61,11 @@ export class CreateMermaUseCase {
       metrosCuadrados: normalizedDto.metrosCuadrados,
     }
 
-    await validateInventarioSalida([detalleMovimiento], this.productoRepository)
+    await validateInventarioSalida(
+      [detalleMovimiento],
+      this.productoRepository,
+      this.movimientoRepository,
+    )
 
     const mermaCreada = await this.repository.create({
       ...normalizedDto,

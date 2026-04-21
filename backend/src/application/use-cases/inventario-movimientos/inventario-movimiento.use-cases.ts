@@ -226,7 +226,7 @@ export class CreateSalidaProcesoInventarioUseCase {
       metrosCuadrados,
     }
 
-    await validateInventarioSalida([detalle], this.productoRepository)
+    await validateInventarioSalida([detalle], this.productoRepository, this.repository)
 
     const now = new Date().toISOString()
     return this.repository.create({
@@ -302,7 +302,7 @@ export class CreateRetornoProcesoInventarioUseCase {
       metrosCuadrados,
     }
 
-    await validateInventarioSalida([detalle], this.productoRepository)
+    await validateInventarioSalida([detalle], this.productoRepository, this.repository)
 
     const now = new Date().toISOString()
     return this.repository.create({

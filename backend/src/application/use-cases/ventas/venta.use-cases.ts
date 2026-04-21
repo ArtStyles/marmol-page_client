@@ -96,7 +96,11 @@ export class CreateVentaUseCase {
       }
     })
 
-    await validateInventarioSalida(detallesMovimiento, this.productoRepository)
+    await validateInventarioSalida(
+      detallesMovimiento,
+      this.productoRepository,
+      this.movimientoRepository,
+    )
 
     const primerDetalle = detalles[0]
     const productoNombre =

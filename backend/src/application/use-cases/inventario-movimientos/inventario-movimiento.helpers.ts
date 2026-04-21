@@ -1,6 +1,9 @@
 import { DomainError } from '../../errors/domain.error.js'
 import type { InventarioMovimientoDetalle, Producto } from '../../../domain/entities/index.js'
-import type { ProductoRepositoryPort } from '../../../domain/ports/index.js'
+import type {
+  InventarioMovimientoRepositoryPort,
+  ProductoRepositoryPort,
+} from '../../../domain/ports/index.js'
 
 interface ResolvedSalidaDetalle {
   detalle: InventarioMovimientoDetalle
@@ -191,36 +194,32 @@ async function resolveSalidaDetalles(
 export async function validateInventarioSalida(
   detalles: InventarioMovimientoDetalle[],
   productoRepository: ProductoRepositoryPort,
+  movimientoRepository?: InventarioMovimientoRepositoryPort,
 ): Promise<void> {
   const resolved = await resolveSalidaDetalles(detalles, productoRepository)
-  const consumoPorProducto = new Map<string, { losas: number; metros: number; producto: Producto }>()
-
-  for (const item of resolved) {
-    const current = consumoPorProducto.get(item.producto.id)
-    if (!current) {
-      consumoPorProducto.set(item.producto.id, {
-        losas: item.cantidadLosas,
-        metros: item.metrosCuadrados,
-        producto: item.producto,
-      })
-      continue
-    }
-    current.losas += item.cantidadLosas
-    current.metros += item.metrosCuadrados
-  }
+  const consumoPorProducto = aggregateSalidaConsumption(resolved)
+  const consumoPendientePorProducto = movimientoRepository
+    ? await resolvePendingSalidaConsumption(productoRepository, movimientoRepository)
+    : new Map<string, { losas: number; metros: number }>()
 
   for (const { losas, metros, producto } of consumoPorProducto.values()) {
-    if (producto.cantidadLosas < losas || producto.metrosCuadrados + 1e-6 < metros) {
+    const pendiente = consumoPendientePorProducto.get(producto.id)
+    const disponibleLosas = Math.max(0, producto.cantidadLosas - (pendiente?.losas ?? 0))
+    const disponibleM2 = round2(Math.max(0, producto.metrosCuadrados - (pendiente?.metros ?? 0)))
+
+    if (disponibleLosas < losas || disponibleM2 + 1e-6 < metros) {
       throw new DomainError(
         `Stock insuficiente para ${producto.nombre}`,
         409,
         'STOCK_INSUFICIENTE',
         {
           productoId: producto.id,
-          disponibleLosas: producto.cantidadLosas,
+          disponibleLosas,
           solicitadoLosas: losas,
-          disponibleM2: round2(producto.metrosCuadrados),
+          disponibleM2,
           solicitadoM2: round2(metros),
+          reservadoPendienteLosas: pendiente?.losas ?? 0,
+          reservadoPendienteM2: round2(pendiente?.metros ?? 0),
         },
       )
     }
@@ -232,21 +231,7 @@ export async function applyInventarioSalida(
   productoRepository: ProductoRepositoryPort,
 ): Promise<void> {
   const resolved = await resolveSalidaDetalles(detalles, productoRepository)
-  const consumoPorProducto = new Map<string, { losas: number; metros: number; producto: Producto }>()
-
-  for (const item of resolved) {
-    const current = consumoPorProducto.get(item.producto.id)
-    if (!current) {
-      consumoPorProducto.set(item.producto.id, {
-        losas: item.cantidadLosas,
-        metros: item.metrosCuadrados,
-        producto: item.producto,
-      })
-      continue
-    }
-    current.losas += item.cantidadLosas
-    current.metros += item.metrosCuadrados
-  }
+  const consumoPorProducto = aggregateSalidaConsumption(resolved)
 
   for (const { losas, metros, producto } of consumoPorProducto.values()) {
     if (producto.cantidadLosas < losas || producto.metrosCuadrados + 1e-6 < metros) {
@@ -277,4 +262,62 @@ export async function applyInventarioSalida(
       )
     }
   }
+}
+
+function aggregateSalidaConsumption(
+  resolved: ResolvedSalidaDetalle[],
+): Map<string, { losas: number; metros: number; producto: Producto }> {
+  const consumoPorProducto = new Map<string, { losas: number; metros: number; producto: Producto }>()
+
+  for (const item of resolved) {
+    const current = consumoPorProducto.get(item.producto.id)
+    if (!current) {
+      consumoPorProducto.set(item.producto.id, {
+        losas: item.cantidadLosas,
+        metros: item.metrosCuadrados,
+        producto: item.producto,
+      })
+      continue
+    }
+
+    current.losas += item.cantidadLosas
+    current.metros += item.metrosCuadrados
+  }
+
+  return consumoPorProducto
+}
+
+async function resolvePendingSalidaConsumption(
+  productoRepository: ProductoRepositoryPort,
+  movimientoRepository: InventarioMovimientoRepositoryPort,
+): Promise<Map<string, { losas: number; metros: number }>> {
+  const movimientosPendientes = (await movimientoRepository.findAll()).filter(
+    (movimiento) =>
+      movimiento.estado === 'pendiente' &&
+      (movimiento.tipo === 'salida' || movimiento.origen === 'proceso'),
+  )
+
+  if (movimientosPendientes.length === 0) {
+    return new Map()
+  }
+
+  const detallesPendientes = movimientosPendientes.flatMap((movimiento) => movimiento.detalles)
+  const resolved = await resolveSalidaDetalles(detallesPendientes, productoRepository)
+  const consumoPendiente = new Map<string, { losas: number; metros: number }>()
+
+  for (const item of resolved) {
+    const current = consumoPendiente.get(item.producto.id)
+    if (!current) {
+      consumoPendiente.set(item.producto.id, {
+        losas: item.cantidadLosas,
+        metros: item.metrosCuadrados,
+      })
+      continue
+    }
+
+    current.losas += item.cantidadLosas
+    current.metros += item.metrosCuadrados
+  }
+
+  return consumoPendiente
 }
