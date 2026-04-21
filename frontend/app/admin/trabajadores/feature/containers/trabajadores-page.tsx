@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/select'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useConfiguracion } from '@/hooks/use-configuracion'
+import { getFixedSalaryPendingForMonth, getPayrollMonthKey } from '@/lib/payroll'
 
 const roles: Trabajador['rol'][] = [
   'Administrador',
@@ -188,10 +189,11 @@ export default function TrabajadoresPage() {
   const getSalarioFijoPorRol = (rol: Trabajador['rol']) =>
     rol === 'Obrero' ? 0 : (config.salariosFijosPorRol[rol as RolConSalarioFijo] ?? 0)
 
+  const payrollMonthKey = getPayrollMonthKey()
   const getPendienteTrabajador = (worker: Trabajador) =>
     worker.rol === 'Obrero'
       ? worker.acumuladoPendiente
-      : (worker.estado === 'activo' ? getSalarioFijoPorRol(worker.rol) : 0)
+      : getFixedSalaryPendingForMonth(worker, config.salariosFijosPorRol, historialPagos, payrollMonthKey)
 
   const getEsquemaCompensacion = (worker: Trabajador) =>
     worker.rol === 'Obrero'

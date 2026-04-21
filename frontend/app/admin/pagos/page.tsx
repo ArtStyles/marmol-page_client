@@ -8,13 +8,12 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import type { HistorialPago, ProduccionTrabajador, RolConSalarioFijo, Trabajador } from '@/lib/types'
+import { getFixedSalaryPendingForMonth, getPayrollMonthKey } from '@/lib/payroll'
 import {
   createHistorialPago,
   getHistorialPagos,
   getProduccionTrabajadores,
   getTrabajadores,
-  updateProduccionTrabajador,
-  updateTrabajador,
 } from '@/lib/resources-api'
 import { Search, Wallet, DollarSign, CheckCircle, Eye, Users } from 'lucide-react'
 import {
@@ -99,6 +98,7 @@ export default function PagosPage() {
     () => historial.filter((h) => h.trabajadorNombre.toLowerCase().includes(searchTerm.toLowerCase())),
     [historial, searchTerm],
   )
+  const payrollMonthKey = getPayrollMonthKey()
 
   const acumuladosPorTrabajador: AcumuladoPagoTrabajador[] = useMemo(
     () =>
@@ -120,7 +120,13 @@ export default function PagosPage() {
             }
           }
 
-          const salarioFijo = config.salariosFijosPorRol[t.rol as RolConSalarioFijo] ?? 0
+          const salarioFijo = getFixedSalaryPendingForMonth(
+            t,
+            config.salariosFijosPorRol,
+            historial,
+            payrollMonthKey,
+          )
+
           return {
             ...t,
             produccionesPendientes: [],
@@ -130,7 +136,7 @@ export default function PagosPage() {
             modoPago: 'salario_fijo',
           }
         }),
-    [trabajadores, produccion, config.salariosFijosPorRol],
+    [trabajadores, produccion, config.salariosFijosPorRol, historial, payrollMonthKey],
   )
 
   const totalPendiente = acumuladosPorTrabajador.reduce((sum, t) => sum + t.totalPendiente, 0)
@@ -177,7 +183,7 @@ export default function PagosPage() {
                   <p className="text-[11px] text-slate-500">
                     {trabajador.modoPago === 'produccion'
                       ? `${trabajador.produccionesPendientes.length} registros de produccion`
-                      : 'Salario fijo por rol'}
+                      : 'Salario fijo del mes'}
                   </p>
                 </div>
                 <span className="text-xs font-semibold text-emerald-700">
@@ -204,9 +210,6 @@ export default function PagosPage() {
     const trabajadorData = acumuladosPorTrabajador.find((t) => t.id === selectedTrabajador.id)
     if (!trabajadorData || trabajadorData.totalPendiente === 0) return
 
-    const workerBase = trabajadores.find((t) => t.id === trabajadorData.id)
-    if (!workerBase) return
-
     const esObrero = trabajadorData.rol === 'Obrero'
     const totalPagado = trabajadorData.totalPendiente + pagoForm.bonoExtra
 
@@ -226,29 +229,7 @@ export default function PagosPage() {
         observaciones: pagoForm.observaciones,
       })
 
-      if (esObrero) {
-        await Promise.all(
-          trabajadorData.produccionesPendientes.map((item) =>
-            updateProduccionTrabajador(item.id, { pagado: true }),
-          ),
-        )
-      }
-
-      const updatedTrabajador = await updateTrabajador(trabajadorData.id, {
-        pagosTotales: workerBase.pagosTotales + totalPagado,
-        bonosTotales: workerBase.bonosTotales + (esObrero ? trabajadorData.montoBonos : 0) + pagoForm.bonoExtra,
-        acumuladoPendiente: 0,
-      })
-
       setHistorial((prev) => [nuevoPago, ...prev])
-      setTrabajadores((prev) => prev.map((item) => (item.id === updatedTrabajador.id ? updatedTrabajador : item)))
-      if (esObrero) {
-        const idsPendientes = new Set(trabajadorData.produccionesPendientes.map((item) => item.id))
-        setProduccion((prev) =>
-          prev.map((item) => (idsPendientes.has(item.id) ? { ...item, pagado: true } : item)),
-        )
-      }
-
       setIsPagoDialogOpen(false)
       setSelectedTrabajador(null)
       await loadData(false)

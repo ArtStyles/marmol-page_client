@@ -1,5 +1,6 @@
 import { DomainError } from '../../errors/domain.error.js'
 import type {
+  ConfiguracionPort,
   HistorialPagoRepositoryPort,
   ProduccionTrabajadorRepositoryPort,
   TrabajadorRepositoryPort,
@@ -31,6 +32,7 @@ export class CreateHistorialPagoUseCase {
     private readonly repository: HistorialPagoRepositoryPort,
     private readonly produccionTrabajadorRepository: ProduccionTrabajadorRepositoryPort,
     private readonly trabajadorRepository: TrabajadorRepositoryPort,
+    private readonly configuracionPort: ConfiguracionPort,
   ) {}
 
   async execute(dto: CreateHistorialPagoDto): Promise<HistorialPagoResponseDto> {
@@ -41,6 +43,70 @@ export class CreateHistorialPagoUseCase {
         404,
         'TRABAJADOR_NOT_FOUND',
       )
+    }
+
+    const periodoNomina = resolvePayrollMonthKey(dto.fecha)
+    const configuracion = trabajador.rol === 'Obrero' ? null : await this.configuracionPort.get()
+    let pendienteSalarioFijo = 0
+
+    if (trabajador.rol !== 'Obrero') {
+      if (dto.produccionIds.length > 0) {
+        throw new DomainError(
+          'Los pagos de salario fijo no deben incluir producciones asociadas.',
+          409,
+          'PAGO_SALARIO_FIJO_CON_PRODUCCION',
+        )
+      }
+
+      if (round2(dto.montoBonos) !== 0) {
+        throw new DomainError(
+          'Los pagos de salario fijo no deben registrar bonos por produccion.',
+          409,
+          'PAGO_SALARIO_FIJO_BONOS_INVALIDOS',
+        )
+      }
+
+      const salarioFijo = configuracion?.salariosFijosPorRol[trabajador.rol] ?? 0
+      const historial = await this.repository.findAll()
+      const salarioLiquidadoMes = round2(
+        historial
+          .filter((item) => item.trabajadorId === dto.trabajadorId)
+          .filter((item) => item.produccionIds.length === 0)
+          .filter((item) => resolvePayrollMonthKey(item.fecha) === periodoNomina)
+          .reduce((sum, item) => sum + item.montoAcciones, 0),
+      )
+
+      pendienteSalarioFijo = round2(Math.max(0, salarioFijo - salarioLiquidadoMes))
+
+      if (pendienteSalarioFijo <= 0) {
+        throw new DomainError(
+          `El salario fijo de ${trabajador.nombre} ya fue liquidado para ${periodoNomina}.`,
+          409,
+          'PAGO_SALARIO_FIJO_DUPLICADO',
+          {
+            trabajadorId: trabajador.id,
+            periodoNomina,
+            salarioFijo,
+            salarioLiquidadoMes,
+          },
+        )
+      }
+
+      if (round2(dto.montoAcciones) - pendienteSalarioFijo > 1e-6) {
+        throw new DomainError(
+          'El monto del salario fijo excede el pendiente del mes.',
+          409,
+          'PAGO_SALARIO_FIJO_EXCEDIDO',
+          {
+            trabajadorId: trabajador.id,
+            periodoNomina,
+            salarioFijo,
+            salarioLiquidadoMes,
+            pendienteSalarioFijo,
+            solicitado: round2(dto.montoAcciones),
+          },
+        )
+      }
     }
 
     if (dto.produccionIds.length > 0) {
@@ -97,14 +163,18 @@ export class CreateHistorialPagoUseCase {
 
     const created = await this.repository.create(dto)
 
-    const pendientes = (await this.produccionTrabajadorRepository.findAll())
+    const pendientesProduccion = (await this.produccionTrabajadorRepository.findAll())
       .filter((item) => item.trabajadorId === dto.trabajadorId && !item.pagado)
       .reduce((sum, item) => sum + item.pagoFinal, 0)
+    const acumuladoPendiente =
+      trabajador.rol === 'Obrero'
+        ? round2(pendientesProduccion)
+        : round2(Math.max(0, pendienteSalarioFijo - round2(dto.montoAcciones)))
 
     await this.trabajadorRepository.update(dto.trabajadorId, {
       pagosTotales: round2(trabajador.pagosTotales + dto.totalPagado),
       bonosTotales: round2(trabajador.bonosTotales + dto.montoBonos + dto.bonoExtra),
-      acumuladoPendiente: round2(pendientes),
+      acumuladoPendiente,
     })
 
     return created
@@ -129,4 +199,18 @@ export class DeleteHistorialPagoUseCase {
 
 function round2(value: number): number {
   return Number(value.toFixed(2))
+}
+
+function resolvePayrollMonthKey(rawDate: string): string {
+  const normalized = rawDate.trim()
+  if (/^\d{4}-\d{2}/.test(normalized)) {
+    return normalized.slice(0, 7)
+  }
+
+  const parsed = new Date(normalized)
+  if (Number.isNaN(parsed.getTime())) {
+    throw new DomainError('La fecha del pago no es valida.', 400, 'PAGO_FECHA_INVALIDA')
+  }
+
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`
 }
