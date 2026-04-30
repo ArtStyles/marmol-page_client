@@ -5,7 +5,15 @@ import { Search } from 'lucide-react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { DataTable, type Column } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   getHistorialPagos,
   getInventarioMovimientos,
@@ -26,6 +34,7 @@ import type {
 type AuditLevel = SystemLog['nivel']
 type AuditSource = 'produccion' | 'mono_hilo' | 'inventario' | 'ventas' | 'pagos' | 'logs'
 type SourceStatus = 'loaded' | 'failed'
+type AuditSourceFilter = 'all' | AuditSource
 
 interface AuditEvent {
   id: string
@@ -92,6 +101,10 @@ export default function HistorialPage() {
   const [error, setError] = useState<string | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [sourceFilter, setSourceFilter] = useState<AuditSourceFilter>('all')
+  const [actorFilter, setActorFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [sourceStatus, setSourceStatus] = useState<Record<AuditSource, SourceStatus>>({
     produccion: 'failed',
     mono_hilo: 'failed',
@@ -174,36 +187,64 @@ export default function HistorialPage() {
     }
   }, [])
 
+  const actorOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          events
+            .map((event) => event.actor)
+            .filter((actor) => actor !== NO_ACTOR_LABEL),
+        ),
+      ).sort((left, right) => left.localeCompare(right, 'es')),
+    [events],
+  )
+
   const filteredEvents = useMemo(() => {
     const normalizedTerm = searchTerm.trim().toLowerCase()
-    if (normalizedTerm.length === 0) return events
+    const normalizedActor = actorFilter.trim().toLowerCase()
 
-    return events.filter((event) =>
-      [
-        event.actor,
-        event.accion,
-        event.modulo,
-        event.descripcion,
-        event.referencia,
-        SOURCE_LABELS[event.fuente],
-        event.fecha,
-      ].some((field) => field.toLowerCase().includes(normalizedTerm)),
-    )
-  }, [events, searchTerm])
+    return events.filter((event) => {
+      const matchesSearch =
+        normalizedTerm.length === 0 ||
+        [
+          event.actor,
+          event.accion,
+          event.modulo,
+          event.descripcion,
+          event.referencia,
+          SOURCE_LABELS[event.fuente],
+          event.fecha,
+        ].some((field) => field.toLowerCase().includes(normalizedTerm))
+
+      const matchesSource = sourceFilter === 'all' || event.fuente === sourceFilter
+      const matchesActor =
+        normalizedActor.length === 0 || event.actor.toLowerCase().includes(normalizedActor)
+      const matchesDate = matchesDateRange(event.sortAt, dateFrom, dateTo)
+
+      return matchesSearch && matchesSource && matchesActor && matchesDate
+    })
+  }, [actorFilter, dateFrom, dateTo, events, searchTerm, sourceFilter])
 
   const totalEvents = events.length
-  const totalAnulaciones = events.filter((event) => event.isAnulacion).length
-  const totalProduccion = events.filter((event) => event.fuente === 'produccion').length
-  const totalInventario = events.filter((event) => event.fuente === 'inventario').length
-  const totalVentas = events.filter((event) => event.fuente === 'ventas').length
-  const totalPagos = events.filter((event) => event.fuente === 'pagos').length
-  const totalMasas = events.filter((event) => event.fuente === 'mono_hilo').length
-  const totalLogs = events.filter((event) => event.fuente === 'logs').length
+  const visibleEvents = filteredEvents.length
+  const totalAnulaciones = filteredEvents.filter((event) => event.isAnulacion).length
+  const totalProduccion = filteredEvents.filter((event) => event.fuente === 'produccion').length
+  const totalInventario = filteredEvents.filter((event) => event.fuente === 'inventario').length
+  const totalVentas = filteredEvents.filter((event) => event.fuente === 'ventas').length
+  const totalPagos = filteredEvents.filter((event) => event.fuente === 'pagos').length
+  const totalMasas = filteredEvents.filter((event) => event.fuente === 'mono_hilo').length
+  const totalLogs = filteredEvents.filter((event) => event.fuente === 'logs').length
   const recentEvents = filteredEvents.slice(0, 4)
+  const hasActiveFilters =
+    searchTerm.trim().length > 0 ||
+    actorFilter.trim().length > 0 ||
+    sourceFilter !== 'all' ||
+    dateFrom.length > 0 ||
+    dateTo.length > 0
 
   const rightPanel = (
     <div className="space-y-4">
-      <AdminPanelCard title="Resumen auditoria" meta={`${totalEvents} eventos`}>
+      <AdminPanelCard title="Resumen auditoria" meta={`${visibleEvents} visibles de ${totalEvents}`}>
         <div className="space-y-3 text-sm text-slate-700">
           <div className="flex items-center justify-between">
             <span>Produccion</span>
@@ -266,8 +307,8 @@ export default function HistorialPage() {
 
       <AdminPanelCard title="Ultimos eventos" meta="Reciente">
         <div className="space-y-2 text-sm text-slate-700">
-          {recentEvents.length === 0 ? (
-            <p className="text-xs text-slate-500">Sin eventos recientes.</p>
+            {recentEvents.length === 0 ? (
+            <p className="text-xs text-slate-500">Sin eventos recientes para los filtros activos.</p>
           ) : (
             recentEvents.map((event) => (
               <div
@@ -364,16 +405,113 @@ export default function HistorialPage() {
         </div>
 
         <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
-          <div className="space-y-1">
-            <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</p>
-            <div className="relative w-full sm:max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por actor, referencia, modulo o accion..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="pl-9"
-              />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Filtros</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Ajusta fuente, actor y rango de fecha sobre el timeline cargado.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSearchTerm('')
+                  setActorFilter('')
+                  setSourceFilter('all')
+                  setDateFrom('')
+                  setDateTo('')
+                }}
+                disabled={!hasActiveFilters}
+              >
+                Limpiar
+              </Button>
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-4">
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Busqueda</p>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Actor, referencia, modulo..."
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Fuente</p>
+                <Select
+                  value={sourceFilter}
+                  onValueChange={(value) => setSourceFilter(value as AuditSourceFilter)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Todas las fuentes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las fuentes</SelectItem>
+                    {(
+                      Object.keys(SOURCE_LABELS) as AuditSource[]
+                    ).map((source) => (
+                      <SelectItem key={source} value={source}>
+                        {SOURCE_LABELS[source]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Actor</p>
+                <Input
+                  list="historial-actors"
+                  placeholder="Filtrar por actor"
+                  value={actorFilter}
+                  onChange={(event) => setActorFilter(event.target.value)}
+                />
+                <datalist id="historial-actors">
+                  {actorOptions.map((actor) => (
+                    <option key={actor} value={actor} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Rango</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+                  <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span>{visibleEvents} resultados</span>
+              {sourceFilter !== 'all' ? (
+                <Badge variant="outline" className={SOURCE_BADGE_STYLES[sourceFilter]}>
+                  {SOURCE_LABELS[sourceFilter]}
+                </Badge>
+              ) : null}
+              {actorFilter.trim().length > 0 ? (
+                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                  Actor: {actorFilter.trim()}
+                </Badge>
+              ) : null}
+              {dateFrom ? (
+                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                  Desde: {formatAuditDate(dateFrom)}
+                </Badge>
+              ) : null}
+              {dateTo ? (
+                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                  Hasta: {formatAuditDate(dateTo)}
+                </Badge>
+              ) : null}
             </div>
           </div>
         </div>
@@ -871,6 +1009,21 @@ function parseAuditDate(value: string): number {
 
   const parsed = Date.parse(value)
   return Number.isNaN(parsed) ? 0 : parsed
+}
+
+function matchesDateRange(eventTimestamp: number, dateFrom: string, dateTo: string): boolean {
+  if (dateFrom) {
+    const fromTime = parseLocalDate(dateFrom).getTime()
+    if (eventTimestamp < fromTime) return false
+  }
+
+  if (dateTo) {
+    const toDate = parseLocalDate(dateTo)
+    toDate.setHours(23, 59, 59, 999)
+    if (eventTimestamp > toDate.getTime()) return false
+  }
+
+  return true
 }
 
 function parseLocalDate(value: string): Date {
