@@ -277,6 +277,16 @@ CREATE TABLE IF NOT EXISTS gastos (
   flujo TEXT NOT NULL CHECK (flujo IN ('Produccion', 'Inventario', 'Ventas', 'Administracion', 'General')),
   descripcion TEXT NOT NULL,
   encargado TEXT NOT NULL,
+  origen TEXT NOT NULL DEFAULT 'manual' CHECK (origen IN ('manual', 'sistema')),
+  origen_modulo TEXT NOT NULL DEFAULT 'gastos' CHECK (origen_modulo IN ('gastos', 'bloques', 'pagos')),
+  referencia_id TEXT,
+  creado_por_id TEXT,
+  creado_por_nombre TEXT,
+  estado TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'anulado')),
+  anulado_por_id TEXT,
+  anulado_por_nombre TEXT,
+  anulado_fecha TIMESTAMPTZ,
+  motivo_anulacion TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

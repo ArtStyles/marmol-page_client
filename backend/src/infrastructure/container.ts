@@ -84,8 +84,10 @@ import {
   GetGastoByIdUseCase,
   CreateGastoUseCase,
   UpdateGastoUseCase,
+  CancelGastoUseCase,
   DeleteGastoUseCase,
 } from '../application/use-cases/gastos/gasto.use-cases.js'
+import { GetFinancialSummaryUseCase } from '../application/use-cases/finanzas/finanzas.use-cases.js'
 import {
   GetHistorialPagosUseCase,
   GetHistorialPagoByIdUseCase,
@@ -283,11 +285,33 @@ export const createVentaUseCase = new CreateVentaUseCase(
 export const updateVentaUseCase = new UpdateVentaUseCase(ventaRepo)
 export const deleteVentaUseCase = new DeleteVentaUseCase(ventaRepo)
 
-export const getGastosUseCase = new GetGastosUseCase(gastoRepo)
-export const getGastoByIdUseCase = new GetGastoByIdUseCase(gastoRepo)
+export const getGastosUseCase = new GetGastosUseCase(
+  gastoRepo,
+  bloqueRepo,
+  historialPagoRepo,
+  trabajadorRepo,
+)
+export const getGastoByIdUseCase = new GetGastoByIdUseCase(
+  gastoRepo,
+  bloqueRepo,
+  historialPagoRepo,
+  trabajadorRepo,
+)
 export const createGastoUseCase = new CreateGastoUseCase(gastoRepo)
 export const updateGastoUseCase = new UpdateGastoUseCase(gastoRepo)
+export const cancelGastoUseCase = new CancelGastoUseCase(gastoRepo)
 export const deleteGastoUseCase = new DeleteGastoUseCase(gastoRepo)
+export const getFinancialSummaryUseCase = new GetFinancialSummaryUseCase(
+  configuracionPort,
+  gastoRepo,
+  bloqueRepo,
+  historialPagoRepo,
+  trabajadorRepo,
+  mermaRepo,
+  produccionRepo,
+  produccionTrabajadorRepo,
+  ventaRepo,
+)
 
 export const getHistorialPagosUseCase = new GetHistorialPagosUseCase(historialPagoRepo)
 export const getHistorialPagoByIdUseCase = new GetHistorialPagoByIdUseCase(historialPagoRepo)
@@ -296,6 +320,7 @@ export const createHistorialPagoUseCase = new CreateHistorialPagoUseCase(
   produccionTrabajadorRepo,
   trabajadorRepo,
   configuracionPort,
+  gastoRepo,
 )
 export const updateHistorialPagoUseCase = new UpdateHistorialPagoUseCase(historialPagoRepo)
 export const deleteHistorialPagoUseCase = new DeleteHistorialPagoUseCase(historialPagoRepo)

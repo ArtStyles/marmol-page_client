@@ -1,6 +1,7 @@
 import { DomainError } from '../../errors/domain.error.js'
 import type {
   ConfiguracionPort,
+  GastoRepositoryPort,
   HistorialPagoRepositoryPort,
   ProduccionTrabajadorRepositoryPort,
   TrabajadorRepositoryPort,
@@ -10,6 +11,7 @@ import type {
   UpdateHistorialPagoDto,
   HistorialPagoResponseDto,
 } from '../../dtos/index.js'
+import { buildGastoNomina } from '../gastos/gasto.helpers.js'
 
 interface HistorialPagoActor {
   userId: string
@@ -38,6 +40,7 @@ export class CreateHistorialPagoUseCase {
     private readonly produccionTrabajadorRepository: ProduccionTrabajadorRepositoryPort,
     private readonly trabajadorRepository: TrabajadorRepositoryPort,
     private readonly configuracionPort: ConfiguracionPort,
+    private readonly gastoRepository: GastoRepositoryPort,
   ) {}
 
   async execute(dto: CreateHistorialPagoDto, actor: HistorialPagoActor): Promise<HistorialPagoResponseDto> {
@@ -172,8 +175,12 @@ export class CreateHistorialPagoUseCase {
     })
 
     const produccionesMarcadas: string[] = []
+    let gastoNominaCreadoId: string | null = null
 
     try {
+      const gastoNomina = await this.gastoRepository.create(buildGastoNomina(created, trabajador, actor))
+      gastoNominaCreadoId = gastoNomina.id
+
       for (const produccion of produccionesPorPagar) {
         const updated = await this.produccionTrabajadorRepository.update(produccion.id, { pagado: true })
         if (!updated) {
@@ -219,6 +226,9 @@ export class CreateHistorialPagoUseCase {
           }
         }),
       )
+      if (gastoNominaCreadoId) {
+        await this.gastoRepository.delete(gastoNominaCreadoId).catch(() => undefined)
+      }
       await this.repository.delete(created.id).catch(() => undefined)
       throw error
     }

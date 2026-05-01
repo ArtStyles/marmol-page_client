@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { parseTrabajadorRole } from '../../../application/security/role-normalization.js'
+import { GASTO_FLUJOS, GASTO_TIPOS_MANUALES } from '../../../domain/entities/index.js'
 
 const dimensionSchema = z.enum(['40x40', '60x40', '80x40', '160x60', '160x65'])
 const tipoProductoSchema = z.enum(['Piso', 'Plancha'])
@@ -28,16 +29,8 @@ const motivoMermaSchema = z.enum([
   'Recorte aprovechable',
   'Otro',
 ])
-const gastoTipoSchema = z.enum([
-  'Materia prima',
-  'Transporte',
-  'Servicios',
-  'Mantenimiento',
-  'Nomina',
-  'Operacion',
-  'Imprevisto',
-])
-const gastoFlujoSchema = z.enum(['Produccion', 'Inventario', 'Ventas', 'Administracion', 'General'])
+const gastoTipoSchema = z.enum(GASTO_TIPOS_MANUALES)
+const gastoFlujoSchema = z.enum(GASTO_FLUJOS)
 
 const tarifasTrabajadorSchema = z.object({
   picar: z.number(),
@@ -248,6 +241,9 @@ export const createGastoSchema = z.object({
 })
 
 export const updateGastoSchema = createGastoSchema.partial()
+export const cancelGastoSchema = z.object({
+  motivoAnulacion: z.string().min(6),
+})
 
 export const createLogSchema = z.object({
   fecha: z.string(),

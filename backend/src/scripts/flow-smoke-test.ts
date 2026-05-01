@@ -114,6 +114,7 @@ async function main(): Promise<void> {
       produccionTrabajadorRepo,
       trabajadorRepo,
       configuracionPort,
+      gastoRepo,
     )
 
     console.log('1. Crear lote de planchas y validar stock inicial')

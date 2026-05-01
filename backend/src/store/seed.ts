@@ -446,6 +446,9 @@ export const gastos: Gasto[] = [
     flujo: 'Inventario',
     descripcion: 'Traslado de bloque BL002 desde proveedor principal.',
     encargado: 'Fernando Ruiz',
+    origen: 'manual',
+    origenModulo: 'gastos',
+    estado: 'activo',
   },
   {
     id: 'G002',
@@ -455,6 +458,9 @@ export const gastos: Gasto[] = [
     flujo: 'Produccion',
     descripcion: 'Pago de energia electrica en turno extendido de pulido.',
     encargado: 'Miguel Angel Torres',
+    origen: 'manual',
+    origenModulo: 'gastos',
+    estado: 'activo',
   },
   {
     id: 'G003',
@@ -464,6 +470,9 @@ export const gastos: Gasto[] = [
     flujo: 'Produccion',
     descripcion: 'Cambio de disco y ajuste preventivo de cortadora.',
     encargado: 'Carlos Mendoza',
+    origen: 'manual',
+    origenModulo: 'gastos',
+    estado: 'activo',
   },
 ]
 

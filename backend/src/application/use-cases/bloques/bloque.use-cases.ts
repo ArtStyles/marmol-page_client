@@ -5,8 +5,9 @@ import type {
   InventarioMovimientoRepositoryPort,
   ProductoRepositoryPort,
 } from '../../../domain/ports/index.js'
-import type { BloqueOLote, Gasto } from '../../../domain/entities/index.js'
+import type { BloqueOLote } from '../../../domain/entities/index.js'
 import type { CreateBloqueDto, UpdateBloqueDto, BloqueResponseDto } from '../../dtos/index.js'
+import { buildGastosCompraMateriaPrima } from '../gastos/gasto.helpers.js'
 
 interface BloqueActor {
   userId: string
@@ -222,42 +223,4 @@ function resolveTipoProducto(dimension: BloqueOLote['dimensionBase']): 'Piso' | 
 
 function round2(value: number): number {
   return Number(value.toFixed(2))
-}
-
-function buildGastosCompraMateriaPrima(
-  bloque: BloqueOLote,
-  actor?: BloqueActor,
-): Array<Omit<Gasto, 'id'>> {
-  const fecha = bloque.fechaIngreso
-  const encargado = actor?.userName?.trim() || 'system'
-  const proveedor = bloque.proveedor.trim()
-  const etiqueta = `${bloque.tipo.toLowerCase()} ${bloque.nombre}`
-  const referenciaProveedor =
-    proveedor.length > 0 ? `proveedor ${proveedor}` : 'proveedor no especificado'
-
-  const gastos: Array<Omit<Gasto, 'id'>> = []
-
-  if (bloque.costo > 0) {
-    gastos.push({
-      fecha,
-      costo: bloque.costo,
-      tipo: 'Materia prima',
-      flujo: 'Inventario',
-      descripcion: `Compra de ${etiqueta} (${referenciaProveedor}).`,
-      encargado,
-    })
-  }
-
-  if (bloque.costoTransporte > 0) {
-    gastos.push({
-      fecha,
-      costo: bloque.costoTransporte,
-      tipo: 'Transporte',
-      flujo: 'Inventario',
-      descripcion: `Transporte de ${etiqueta} (${referenciaProveedor}).`,
-      encargado,
-    })
-  }
-
-  return gastos
 }

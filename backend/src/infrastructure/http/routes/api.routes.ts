@@ -17,6 +17,7 @@ import {
   updateMermaSchema,
   createVentaSchema,
   updateVentaSchema,
+  cancelGastoSchema,
   createGastoSchema,
   updateGastoSchema,
   createProduccionSchema,
@@ -56,6 +57,7 @@ import * as ventaCtrl from '../controllers/venta.controller.js'
 import * as inventarioMovimientoCtrl from '../controllers/inventario-movimiento.controller.js'
 import * as monoHiloCtrl from '../controllers/mono-hilo.controller.js'
 import * as gastoCtrl from '../controllers/gasto.controller.js'
+import * as finanzasCtrl from '../controllers/finanzas.controller.js'
 import * as historialPagoCtrl from '../controllers/historial-pago.controller.js'
 import * as logCtrl from '../controllers/log.controller.js'
 import * as workshopCtrl from '../controllers/workshop.controller.js'
@@ -342,6 +344,7 @@ api.delete('/ventas/:id', requirePermission('ventas:write'), asyncHandler(ventaC
 
 // ----- Gastos -----
 api.get('/gastos', requirePermission('gastos:read'), asyncHandler(gastoCtrl.getGastos))
+api.get('/gastos/resumen', requirePermission('gastos:read'), asyncHandler(gastoCtrl.getGastosResumen))
 api.get('/gastos/:id', requirePermission('gastos:read'), asyncHandler(gastoCtrl.getGastoById))
 api.post(
   '/gastos',
@@ -355,7 +358,16 @@ api.patch(
   validateBody(updateGastoSchema),
   asyncHandler(gastoCtrl.updateGasto),
 )
+api.patch(
+  '/gastos/:id/anular',
+  requirePermission('gastos:write'),
+  validateBody(cancelGastoSchema),
+  asyncHandler(gastoCtrl.cancelGasto),
+)
 api.delete('/gastos/:id', requirePermission('gastos:write'), asyncHandler(gastoCtrl.deleteGasto))
+
+// ----- Finanzas -----
+api.get('/finanzas/resumen', requirePermission('finanzas:read'), asyncHandler(finanzasCtrl.getFinancialSummary))
 
 // ----- Historial Pagos -----
 api.get('/historial-pagos', requirePermission('pagos:read'), asyncHandler(historialPagoCtrl.getHistorialPagos))

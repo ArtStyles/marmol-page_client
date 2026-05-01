@@ -339,25 +339,46 @@ export interface SystemLog {
   nivel: 'info' | 'alerta' | 'error'
 }
 
-export type GastoTipo =
-  | 'Materia prima'
-  | 'Transporte'
-  | 'Servicios'
-  | 'Mantenimiento'
-  | 'Nomina'
-  | 'Operacion'
-  | 'Imprevisto'
+export const GASTO_TIPOS = [
+  'Materia prima',
+  'Transporte',
+  'Servicios',
+  'Mantenimiento',
+  'Nomina',
+  'Operacion',
+  'Imprevisto',
+] as const
 
-export type GastoFlujo = 'Produccion' | 'Inventario' | 'Ventas' | 'Administracion' | 'General'
+export const GASTO_TIPOS_MANUALES = ['Servicios', 'Mantenimiento', 'Operacion', 'Imprevisto'] as const
+
+export const GASTO_FLUJOS = ['Produccion', 'Inventario', 'Ventas', 'Administracion', 'General'] as const
+
+export type GastoTipo = (typeof GASTO_TIPOS)[number]
+export type GastoManualTipo = (typeof GASTO_TIPOS_MANUALES)[number]
+export type GastoFlujo = (typeof GASTO_FLUJOS)[number]
+export type GastoOrigen = 'manual' | 'sistema'
+export type GastoOrigenModulo = 'gastos' | 'bloques' | 'pagos'
+export type GastoEstado = 'activo' | 'anulado'
 
 export interface Gasto {
   id: string
+  createdAt?: string
   fecha: string
   costo: number
   tipo: GastoTipo
   flujo: GastoFlujo
   descripcion: string
   encargado: string
+  origen: GastoOrigen
+  origenModulo: GastoOrigenModulo
+  referenciaId?: string
+  creadoPorId?: string
+  creadoPorNombre?: string
+  estado: GastoEstado
+  anuladoPorId?: string
+  anuladoPorNombre?: string
+  anuladoFecha?: string
+  motivoAnulacion?: string
 }
 
 export type WorkshopStatus = 'activo' | 'en-implementacion' | 'pausado'
