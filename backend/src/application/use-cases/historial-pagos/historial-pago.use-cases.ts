@@ -114,6 +114,8 @@ export class CreateHistorialPagoUseCase {
       }
     }
 
+    const produccionesPorPagar: Array<{ id: string }> = []
+
     if (dto.produccionIds.length > 0) {
       const produccion = await this.produccionTrabajadorRepository.findAll()
       const produccionMap = new Map(produccion.map((item) => [item.id, item]))
@@ -145,6 +147,7 @@ export class CreateHistorialPagoUseCase {
         }
         montoAcciones += item.pagoTotal
         montoBonos += item.bono
+        produccionesPorPagar.push({ id: item.id })
       }
 
       if (round2(montoAcciones) !== round2(dto.montoAcciones) || round2(montoBonos) !== round2(dto.montoBonos)) {
@@ -160,10 +163,6 @@ export class CreateHistorialPagoUseCase {
           },
         )
       }
-
-      for (const produccionId of dto.produccionIds) {
-        await this.produccionTrabajadorRepository.update(produccionId, { pagado: true })
-      }
     }
 
     const created = await this.repository.create({
@@ -172,21 +171,57 @@ export class CreateHistorialPagoUseCase {
       creadoPorNombre: actor.userName,
     })
 
-    const pendientesProduccion = (await this.produccionTrabajadorRepository.findAll())
-      .filter((item) => item.trabajadorId === dto.trabajadorId && !item.pagado)
-      .reduce((sum, item) => sum + item.pagoFinal, 0)
-    const acumuladoPendiente =
-      trabajador.rol === 'Obrero'
-        ? round2(pendientesProduccion)
-        : round2(Math.max(0, pendienteSalarioFijo - round2(dto.montoAcciones)))
+    const produccionesMarcadas: string[] = []
 
-    await this.trabajadorRepository.update(dto.trabajadorId, {
-      pagosTotales: round2(trabajador.pagosTotales + dto.totalPagado),
-      bonosTotales: round2(trabajador.bonosTotales + dto.montoBonos + dto.bonoExtra),
-      acumuladoPendiente,
-    })
+    try {
+      for (const produccion of produccionesPorPagar) {
+        const updated = await this.produccionTrabajadorRepository.update(produccion.id, { pagado: true })
+        if (!updated) {
+          throw new DomainError(
+            `No se pudo actualizar la produccion ${produccion.id} como pagada.`,
+            500,
+            'PAGO_PRODUCCION_UPDATE_FAILED',
+          )
+        }
+        produccionesMarcadas.push(produccion.id)
+      }
 
-    return created
+      const pendientesProduccion = (await this.produccionTrabajadorRepository.findAll())
+        .filter((item) => item.trabajadorId === dto.trabajadorId && !item.pagado)
+        .reduce((sum, item) => sum + item.pagoFinal, 0)
+      const acumuladoPendiente =
+        trabajador.rol === 'Obrero'
+          ? round2(pendientesProduccion)
+          : round2(Math.max(0, pendienteSalarioFijo - round2(dto.montoAcciones)))
+
+      const trabajadorActualizado = await this.trabajadorRepository.update(dto.trabajadorId, {
+        pagosTotales: round2(trabajador.pagosTotales + dto.totalPagado),
+        bonosTotales: round2(trabajador.bonosTotales + dto.montoBonos + dto.bonoExtra),
+        acumuladoPendiente,
+      })
+
+      if (!trabajadorActualizado) {
+        throw new DomainError(
+          `No se pudo actualizar el trabajador ${dto.trabajadorId} despues del pago.`,
+          500,
+          'PAGO_TRABAJADOR_UPDATE_FAILED',
+        )
+      }
+
+      return created
+    } catch (error) {
+      await Promise.all(
+        produccionesMarcadas.map(async (produccionId) => {
+          try {
+            await this.produccionTrabajadorRepository.update(produccionId, { pagado: false })
+          } catch {
+            // Best effort rollback.
+          }
+        }),
+      )
+      await this.repository.delete(created.id).catch(() => undefined)
+      throw error
+    }
   }
 }
 

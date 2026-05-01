@@ -126,7 +126,7 @@ api.get(
 )
 api.post(
   '/inventario-movimientos/proceso-salida',
-  requirePermission('inventario:write'),
+  requirePermission('inventario:approve'),
   validateBody(createSalidaProcesoInventarioSchema),
   asyncHandler(inventarioMovimientoCtrl.createSalidaProcesoInventario),
 )

@@ -95,6 +95,25 @@ function resolveExistingProductoForEntrada(
   return candidatos.sort((a, b) => estadoPrioridad(b.estado) - estadoPrioridad(a.estado))[0]
 }
 
+function resolvePrecioM2Entrada(
+  productos: Producto[],
+  detalle: InventarioMovimientoDetalle,
+): number {
+  if (detalle.productoId) {
+    const productoOrigen = productos.find((producto) => producto.id === detalle.productoId)
+    if (productoOrigen && productoOrigen.precioM2 > 0) {
+      return productoOrigen.precioM2
+    }
+  }
+
+  const candidato = productos
+    .filter((producto) => matchesDetalleBase(producto, detalle))
+    .filter((producto) => producto.precioM2 > 0)
+    .sort((a, b) => estadoPrioridad(b.estado) - estadoPrioridad(a.estado))[0]
+
+  return candidato?.precioM2 ?? 0
+}
+
 export async function applyInventarioEntrada(
   detalles: InventarioMovimientoDetalle[],
   productoRepository: ProductoRepositoryPort,
@@ -106,6 +125,7 @@ export async function applyInventarioEntrada(
     const cantidadLosas = normalizeDetalleCantidadLosas(detalle, area)
     const metrosCuadrados = normalizeDetalleMetros(detalle, area)
     const ubicacionDestino = resolveDetalleUbicacionDestino(detalle)
+    const precioM2 = resolvePrecioM2Entrada(productos, detalle)
 
     if (cantidadLosas <= 0 && metrosCuadrados <= 0) {
       continue
@@ -113,9 +133,11 @@ export async function applyInventarioEntrada(
 
     const existente = resolveExistingProductoForEntrada(productos, detalle, ubicacionDestino)
     if (existente) {
+      const precioActualizado = existente.precioM2 > 0 ? existente.precioM2 : precioM2
       const updated = await productoRepository.update(existente.id, {
         cantidadLosas: existente.cantidadLosas + cantidadLosas,
         metrosCuadrados: round2(existente.metrosCuadrados + metrosCuadrados),
+        precioM2: precioActualizado,
       })
       if (!updated) {
         throw new DomainError(
@@ -148,7 +170,7 @@ export async function applyInventarioEntrada(
       origenNombre: detalle.origenNombre,
       cantidadLosas,
       metrosCuadrados,
-      precioM2: 0,
+      precioM2,
       imagen: '/placeholder.jpg',
     })
     productos.push(created)

@@ -184,6 +184,7 @@ export const getBloquesUseCase = new GetBloquesUseCase(bloqueRepo)
 export const getBloqueByIdUseCase = new GetBloqueByIdUseCase(bloqueRepo)
 export const createBloqueUseCase = new CreateBloqueUseCase(
   bloqueRepo,
+  productoRepo,
   inventarioMovimientoRepo,
   gastoRepo,
 )

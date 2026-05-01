@@ -184,7 +184,7 @@ export class CreateSalidaProcesoInventarioUseCase {
 
     if (producto.ubicacion !== 'almacen') {
       throw new DomainError(
-        'Solo se puede solicitar salida a proceso desde stock en almacen.',
+        'Solo se puede dar salida a proceso desde stock en almacen.',
         409,
         'PROCESO_STOCK_ORIGEN_INVALIDO',
       )
@@ -229,15 +229,21 @@ export class CreateSalidaProcesoInventarioUseCase {
     await validateInventarioSalida([detalle], this.productoRepository, this.repository)
 
     const now = new Date().toISOString()
+    await applyInventarioSalida([detalle], this.productoRepository)
+    await applyInventarioEntrada([detalle], this.productoRepository)
+
     return this.repository.create({
       fechaSolicitud: now,
+      fechaResolucion: now,
       tipo: 'salida',
       origen: 'proceso',
-      estado: 'pendiente',
+      estado: 'aprobado',
       motivo,
-      observaciones: `Salida solicitada para ${dto.accionObjetivo}`,
+      observaciones: `Salida directa a proceso para ${dto.accionObjetivo}.`,
       solicitadoPorId: actor.userId,
       solicitadoPorNombre: actor.userName,
+      aprobadoPorId: actor.userId,
+      aprobadoPorNombre: actor.userName,
       detalles: [detalle],
     })
   }

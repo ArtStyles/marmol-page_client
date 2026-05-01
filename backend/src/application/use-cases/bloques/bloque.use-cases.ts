@@ -3,6 +3,7 @@ import type {
   BloqueRepositoryPort,
   GastoRepositoryPort,
   InventarioMovimientoRepositoryPort,
+  ProductoRepositoryPort,
 } from '../../../domain/ports/index.js'
 import type { BloqueOLote, Gasto } from '../../../domain/entities/index.js'
 import type { CreateBloqueDto, UpdateBloqueDto, BloqueResponseDto } from '../../dtos/index.js'
@@ -31,6 +32,7 @@ export class GetBloqueByIdUseCase {
 export class CreateBloqueUseCase {
   constructor(
     private readonly repository: BloqueRepositoryPort,
+    private readonly productoRepository: ProductoRepositoryPort,
     private readonly inventarioMovimientoRepository: InventarioMovimientoRepositoryPort,
     private readonly gastoRepository: GastoRepositoryPort,
   ) {}
@@ -45,6 +47,7 @@ export class CreateBloqueUseCase {
     })
 
     let movimientoIdCreado: string | null = null
+    let productoIdCreado: string | null = null
     const gastosCreados: string[] = []
 
     try {
@@ -52,9 +55,28 @@ export class CreateBloqueUseCase {
         const cantidadLosas = Math.max(0, Math.trunc(created.metrosComprados))
         if (cantidadLosas > 0) {
           const metrosCuadrados = round2(cantidadLosas * dimensionToArea(created.dimensionBase))
+          const tipoProducto = resolveTipoProducto(created.dimensionBase)
+          const nombreProducto = `${tipoProducto} ${created.nombre} ${created.dimensionBase} Picado`
+          const costoTotal = round2(created.costo + created.costoTransporte)
+          const precioM2 = metrosCuadrados > 0 ? round2(costoTotal / metrosCuadrados) : 0
           const now = new Date().toISOString()
           const actorId = actor?.userId ?? 'system'
           const actorName = actor?.userName ?? 'system'
+
+          const producto = await this.productoRepository.create({
+            nombre: nombreProducto,
+            tipo: tipoProducto,
+            estado: 'Picado',
+            ubicacion: 'almacen',
+            dimension: created.dimensionBase,
+            origenId: created.id,
+            origenNombre: created.nombre,
+            cantidadLosas,
+            metrosCuadrados,
+            precioM2,
+            imagen: '/placeholder.jpg',
+          })
+          productoIdCreado = producto.id
 
           const movimiento = await this.inventarioMovimientoRepository.create({
             fechaSolicitud: now,
@@ -72,8 +94,9 @@ export class CreateBloqueUseCase {
             detalles: [
               {
                 id: `imd-lote-${created.id}`,
-                productoNombre: `Piso ${created.nombre} ${created.dimensionBase} Picado`,
-                tipo: 'Piso',
+                productoId: producto.id,
+                productoNombre: nombreProducto,
+                tipo: tipoProducto,
                 estado: 'Picado',
                 dimension: created.dimensionBase,
                 origenId: created.id,
@@ -93,6 +116,9 @@ export class CreateBloqueUseCase {
         gastosCreados.push(gastoCreado.id)
       }
     } catch (error) {
+      if (productoIdCreado) {
+        await this.productoRepository.delete(productoIdCreado).catch(() => undefined)
+      }
       if (movimientoIdCreado) {
         await this.inventarioMovimientoRepository.delete(movimientoIdCreado).catch(() => undefined)
       }
@@ -188,6 +214,10 @@ function dimensionToArea(dimension: BloqueOLote['dimensionBase']): number {
   if (dimension === '160x60') return 0.96
   if (dimension === '160x65') return 1.04
   return 1 / 3
+}
+
+function resolveTipoProducto(dimension: BloqueOLote['dimensionBase']): 'Piso' | 'Plancha' {
+  return dimension === '160x60' || dimension === '160x65' ? 'Plancha' : 'Piso'
 }
 
 function round2(value: number): number {

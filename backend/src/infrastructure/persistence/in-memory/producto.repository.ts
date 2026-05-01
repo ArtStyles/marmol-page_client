@@ -10,12 +10,12 @@ import {
 
 export class InMemoryProductoRepository implements ProductoRepositoryPort {
   async findAll(): Promise<Producto[]> {
-    return getProductos()
+    return [...getProductos()]
   }
 
   async findById(id: string): Promise<Producto | null> {
     const item = getProductoById(id)
-    return item ?? null
+    return item ? { ...item } : null
   }
 
   async create(data: Omit<Producto, 'id'>): Promise<Producto> {

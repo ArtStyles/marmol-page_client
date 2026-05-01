@@ -11,13 +11,11 @@ import { dimensiones } from '@/lib/data'
 import {
   DIMENSIONES_PLANCHA,
   DIMENSIONES_PISO,
-  losasAMetros,
   type BloqueOLote,
   type Dimension,
 } from '@/lib/types'
 import {
   createBloque,
-  createProducto,
   deleteBloque,
   getBloques,
   updateBloque,
@@ -73,33 +71,27 @@ const LOTE_SELECCION_CONFIG: Record<
   {
     label: string
     dimensionBase: Dimension
-    tipoProducto: 'Piso' | 'Plancha'
   }
 > = {
   '40x40': {
     label: '40x40',
     dimensionBase: '40x40',
-    tipoProducto: 'Piso',
   },
   '60x40': {
     label: '60x40',
     dimensionBase: '60x40',
-    tipoProducto: 'Piso',
   },
   '80x40': {
     label: '80x40',
     dimensionBase: '80x40',
-    tipoProducto: 'Piso',
   },
   '160x60': {
     label: 'Plancha (160x60)',
     dimensionBase: '160x60',
-    tipoProducto: 'Plancha',
   },
   '160x65': {
     label: 'Plancha (160x65)',
     dimensionBase: '160x65',
-    tipoProducto: 'Plancha',
   },
 }
 
@@ -283,11 +275,11 @@ export default function BloquesPage() {
 
       <AdminPanelCard title="Volumen comprado" meta="bloques y lotes">
         <div className="space-y-2 text-sm text-slate-700">
-          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+          <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
             <span>Total bloques (m3)</span>
             <span className="font-semibold">{totalMetrosComprados.toLocaleString()}</span>
           </div>
-          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+          <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
             <span>Total lotes (losas)</span>
             <span className="font-semibold">{Math.trunc(totalLosasLotes).toLocaleString()}</span>
           </div>
@@ -300,7 +292,7 @@ export default function BloquesPage() {
             <p className="text-xs text-slate-500">Sin registros recientes.</p>
           ) : (
             recentBloques.map((bloque) => (
-              <div key={bloque.id} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+              <div key={bloque.id} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
                 <div>
                   <p className="text-xs font-semibold text-slate-900">{getBloqueCodigo(bloque)}</p>
                   <p className="text-[11px] text-slate-500">{bloque.fechaIngreso}</p>
@@ -347,34 +339,6 @@ export default function BloquesPage() {
         [field]: value,
       },
     }))
-  }
-
-  const crearProductoDesdeLote = async (
-    lote: BloqueOLote,
-    cantidadLosas: number,
-    dimension: Dimension,
-    tipoProducto: 'Piso' | 'Plancha',
-  ) => {
-    if (cantidadLosas <= 0) return
-
-    const metrosCuadrados = Number(losasAMetros(cantidadLosas, dimension).toFixed(2))
-    const costoTotal = lote.costo + lote.costoTransporte
-    const precioM2 = metrosCuadrados > 0 ? Number((costoTotal / metrosCuadrados).toFixed(2)) : 0
-    const codigoOrigen = getBloqueCodigo(lote)
-
-    await createProducto({
-      nombre: `${tipoProducto} ${codigoOrigen} ${dimension} Picado`,
-      tipo: tipoProducto,
-      estado: 'Picado',
-      ubicacion: 'almacen',
-      dimension,
-      origenId: lote.id,
-      origenNombre: codigoOrigen,
-      cantidadLosas,
-      metrosCuadrados,
-      precioM2,
-      imagen: '',
-    })
   }
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -432,7 +396,6 @@ export default function BloquesPage() {
         }
 
         const nuevosLotes: BloqueOLote[] = []
-        const erroresInventario: string[] = []
 
         for (const option of loteSeleccionado) {
           const optionConfig = LOTE_SELECCION_CONFIG[option]
@@ -454,29 +417,7 @@ export default function BloquesPage() {
             estado: 'activo',
           })
 
-          try {
-            await crearProductoDesdeLote(
-              newBloque,
-              cantidadLosas,
-              optionConfig.dimensionBase,
-              optionConfig.tipoProducto,
-            )
-          } catch (error) {
-            const codigoOrigen = getBloqueCodigo(newBloque)
-            erroresInventario.push(
-              `${codigoOrigen} (${optionConfig.label}): ${
-                error instanceof Error ? error.message : 'error desconocido'
-              }`,
-            )
-          }
-
           nuevosLotes.push(newBloque)
-        }
-
-        if (erroresInventario.length > 0) {
-          setActionError(
-            `Se registraron los lotes, pero hubo errores al crear inventario: ${erroresInventario.join(' | ')}`,
-          )
         }
 
         setBloques((prev) => [...nuevosLotes, ...prev])
@@ -498,20 +439,6 @@ export default function BloquesPage() {
         gananciaReal: 0,
         estado: 'activo',
       })
-
-      if (formData.tipo === 'Lote') {
-        const cantidadLosas = Math.max(0, Math.trunc(formData.metrosComprados))
-        try {
-          await crearProductoDesdeLote(newBloque, cantidadLosas, formData.dimensionBase, 'Piso')
-        } catch (error) {
-          const codigoOrigen = getBloqueCodigo(newBloque)
-          setActionError(
-            `Lote ${codigoOrigen} registrado, pero no se pudo crear su entrada en inventario: ${
-              error instanceof Error ? error.message : 'error desconocido'
-            }`,
-          )
-        }
-      }
 
       setBloques((prev) => [newBloque, ...prev])
       resetForm()
@@ -945,7 +872,7 @@ export default function BloquesPage() {
           </Dialog>
         </div>
 
-        <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="space-y-1">
             <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</p>
             <div className="relative w-full sm:max-w-sm">
@@ -974,7 +901,7 @@ export default function BloquesPage() {
               <div className="space-y-3">
                 <div className="overflow-x-auto">
                   <div className="space-y-3 lg:min-w-[940px]">
-                    <div className="hidden rounded-[16px] border border-slate-200/70 bg-slate-50/70 px-4 py-2 lg:grid lg:grid-cols-[220px_100px_140px_120px_110px_140px] lg:gap-x-3">
+                    <div className="hidden rounded-[var(--agent-radius-control)] border border-slate-200/70 bg-slate-50/70 px-4 py-2 lg:grid lg:grid-cols-[220px_100px_140px_120px_110px_140px] lg:gap-x-3">
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Codigo</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Cantidad</span>
                       <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Costo bloque/lote</span>
@@ -983,7 +910,7 @@ export default function BloquesPage() {
                       <span className="text-[10px] uppercase tracking-[0.28em] text-right text-slate-500">Acciones</span>
                     </div>
 
-                    <div className="divide-y divide-slate-200/60 overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+                    <div className="divide-y divide-slate-200/60 overflow-hidden rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
                       {filteredBloques.map((bloque) => (
                         <div key={bloque.id} className="px-4 py-3">
                           <div className="grid gap-2 lg:grid-cols-[220px_100px_140px_120px_110px_140px] lg:items-center lg:gap-x-3">
@@ -1193,4 +1120,5 @@ export default function BloquesPage() {
     </AdminShell>
   )
 }
+
 

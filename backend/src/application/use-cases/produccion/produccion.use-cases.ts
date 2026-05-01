@@ -71,6 +71,7 @@ export class CreateProduccionUseCase {
     if (isMonoHiloWorkflow(normalizedDto)) {
       validateMonoHiloProduccionDto(normalizedDto)
     } else {
+      validateDetalleAcciones(normalizedDto)
       validateResinaConsumo(normalizedDto)
       await consumeMonoHiloMasasParaPicado(
         {
@@ -119,14 +120,6 @@ export class ApproveProduccionTallerUseCase {
     const produccion = await this.repository.findById(id)
     if (!produccion) {
       throw new DomainError(`Produccion ${id} no existe`, 404, 'PRODUCCION_NOT_FOUND')
-    }
-
-    if (isMonoHiloWorkflow(produccion)) {
-      throw new DomainError(
-        'Los registros de mono hilo no participan en la aprobacion de taller.',
-        409,
-        'PRODUCCION_MONO_HILO_TALLER_INVALIDA',
-      )
     }
 
     if (produccion.inventarioAplicado) {
@@ -692,27 +685,73 @@ function buildPerdidasPorAccion(
 }
 
 function normalizeProduccionDto(dto: CreateProduccionDto): CreateProduccionDto {
-  if (dto.tipo !== 'Plancha') return dto
-  const planchaDimension = normalizePlanchaDimension(dto.dimension)
-
+  const dimension = dto.tipo === 'Plancha' ? normalizePlanchaDimension(dto.dimension) : dto.dimension
+  const area = dimensionToArea(dimension)
   const detallesAcciones = dto.detallesAcciones?.map((detalle) => {
-    const losasMermaTotal = detalle.losasMermaTotal ?? 0
-    const losasReutilizables = detalle.losasReutilizables ?? 0
+    const cantidadLosas = normalizeNonNegativeInteger(detalle.cantidadLosas)
+    const losasMermaTotal = normalizeNonNegativeInteger(detalle.losasMermaTotal ?? 0)
+    const losasReutilizables = normalizeNonNegativeInteger(detalle.losasReutilizables ?? 0)
+    const cantidadResina =
+      detalle.cantidadResina == null ? undefined : round2(Math.max(0, detalle.cantidadResina))
 
     return {
       ...detalle,
-      metrosCuadrados: round2(detalle.cantidadLosas * dimensionToArea(planchaDimension)),
-      metrosMermaTotal: round2(losasMermaTotal * dimensionToArea(planchaDimension)),
-      metrosReutilizables: round2(losasReutilizables * dimensionToArea(planchaDimension)),
+      cantidadLosas,
+      metrosCuadrados: round2(cantidadLosas * area),
+      losasMermaTotal,
+      metrosMermaTotal: round2(losasMermaTotal * area),
+      losasReutilizables,
+      metrosReutilizables: round2(losasReutilizables * area),
+      cantidadResina,
     }
   })
+  const hasDetalles = (detallesAcciones?.length ?? 0) > 0
+  const actionTotals = hasDetalles
+    ? buildActionTotalsFromDetalles(detallesAcciones ?? [])
+    : {
+        picar: normalizeNonNegativeInteger(dto.cantidadPicar),
+        escuadrar: normalizeNonNegativeInteger(dto.cantidadEscuadrar),
+        devastar: normalizeNonNegativeInteger(dto.cantidadDevastar),
+        resinar: normalizeNonNegativeInteger(dto.cantidadResinar),
+        pulir: normalizeNonNegativeInteger(dto.cantidadPulir),
+      }
+  const totalLosas =
+    actionTotals.picar +
+    actionTotals.escuadrar +
+    actionTotals.devastar +
+    actionTotals.resinar +
+    actionTotals.pulir
 
   return {
     ...dto,
-    dimension: planchaDimension,
-    totalM2: round2(dto.totalLosas * dimensionToArea(planchaDimension)),
+    dimension,
+    cantidadPicar: actionTotals.picar,
+    cantidadEscuadrar: actionTotals.escuadrar,
+    cantidadDevastar: actionTotals.devastar,
+    cantidadResinar: actionTotals.resinar,
+    cantidadPulir: actionTotals.pulir,
+    totalLosas,
+    totalM2: round2(totalLosas * area),
     detallesAcciones,
   }
+}
+
+function buildActionTotalsFromDetalles(
+  detalles: ProduccionDetalleAccion[],
+): Record<'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir', number> {
+  const totals = {
+    picar: 0,
+    escuadrar: 0,
+    devastar: 0,
+    resinar: 0,
+    pulir: 0,
+  } as Record<'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir', number>
+
+  for (const detalle of detalles) {
+    totals[detalle.accion] += detalle.cantidadLosas
+  }
+
+  return totals
 }
 
 function dimensionToArea(dimension: ProduccionDiaria['dimension']): number {
@@ -734,6 +773,38 @@ function normalizePlanchaDimension(
 
 function round2(value: number): number {
   return Number(value.toFixed(2))
+}
+
+function normalizeNonNegativeInteger(value: number | undefined): number {
+  return Math.max(0, Math.trunc(value ?? 0))
+}
+
+function validateDetalleAcciones(dto: CreateProduccionDto): void {
+  for (const detalle of dto.detallesAcciones ?? []) {
+    if (detalle.cantidadLosas <= 0) {
+      throw new DomainError(
+        `La accion ${detalle.accion} requiere cantidad de losas mayor que 0.`,
+        400,
+        'PRODUCCION_DETALLE_CANTIDAD_INVALIDA',
+      )
+    }
+
+    const partidasTotales =
+      normalizeNonNegativeInteger(detalle.losasMermaTotal ?? 0) +
+      normalizeNonNegativeInteger(detalle.losasReutilizables ?? 0)
+    if (partidasTotales > detalle.cantidadLosas) {
+      throw new DomainError(
+        `La merma y el reutilizable de ${detalle.accion} no pueden exceder las losas procesadas.`,
+        409,
+        'PRODUCCION_DETALLE_PARTIDAS_EXCEDIDAS',
+        {
+          accion: detalle.accion,
+          cantidadLosas: detalle.cantidadLosas,
+          partidasTotales,
+        },
+      )
+    }
+  }
 }
 
 function validateResinaConsumo(dto: CreateProduccionDto): void {
