@@ -177,7 +177,7 @@ export default function PagosPage() {
             <p className="text-xs text-slate-500">Sin pendientes.</p>
           ) : (
             topPendientes.map((trabajador) => (
-              <div key={trabajador.id} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+              <div key={trabajador.id} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
                 <div>
                   <p className="text-xs font-semibold text-slate-900">{trabajador.nombre}</p>
                   <p className="text-[11px] text-slate-500">
@@ -314,7 +314,7 @@ export default function PagosPage() {
             {acumuladosPorTrabajador.map((t) => (
               <Card
                 key={t.id}
-                className={`rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl ${
+                className={`rounded-[var(--agent-radius-panel)] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl ${
                   t.totalPendiente > 0 ? 'border-emerald-200/70' : 'opacity-70'
                 }`}
               >
@@ -366,7 +366,7 @@ export default function PagosPage() {
             Historial de Pagos Realizados
           </h2>
 
-          <div className="mb-4 rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+          <div className="mb-4 rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
             <div className="space-y-1">
               <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</p>
               <div className="relative w-full sm:max-w-sm">
@@ -565,3 +565,4 @@ export default function PagosPage() {
     </AdminShell>
   )
 }
+

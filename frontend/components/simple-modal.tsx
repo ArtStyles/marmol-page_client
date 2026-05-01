@@ -36,7 +36,7 @@ export function SimpleModal({ open, onClose, title, className, children }: Simpl
       />
       <div
         className={cn(
-          'relative z-10 w-full max-w-4xl overflow-hidden rounded-2xl border border-border bg-background shadow-xl',
+          'relative z-10 w-full max-w-4xl overflow-hidden rounded-[var(--agent-radius-panel)] border border-border bg-background shadow-xl',
           className,
         )}
       >
@@ -45,7 +45,7 @@ export function SimpleModal({ open, onClose, title, className, children }: Simpl
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            className="rounded-md p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
             aria-label="Cerrar"
           >
             <XIcon className="h-4 w-4" />
@@ -58,3 +58,4 @@ export function SimpleModal({ open, onClose, title, className, children }: Simpl
     </div>
   )
 }
+

@@ -250,7 +250,7 @@ export default function GastosPage() {
             resumen.topEncargados.map((item) => (
               <div
                 key={item.encargado}
-                className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2"
+                className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2"
               >
                 <span className="text-xs font-semibold text-slate-900">{item.encargado}</span>
                 <span className="text-xs font-semibold text-rose-700">{formatMoney(item.total)}</span>
@@ -420,10 +420,10 @@ export default function GastosPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Gasto total</p>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-rose-600">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-rose-600">
                 <TrendingDown className="h-4 w-4" />
               </span>
             </div>
@@ -431,10 +431,10 @@ export default function GastosPage() {
             <p className="text-xs text-slate-500">{gastos.length} registros acumulados</p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Mes actual</p>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-700">
                 <ReceiptText className="h-4 w-4" />
               </span>
             </div>
@@ -442,10 +442,10 @@ export default function GastosPage() {
             <p className="text-xs text-slate-500">{resumen.cantidadMes} gastos capturados</p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Promedio registro</p>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-700">
                 <UserRound className="h-4 w-4" />
               </span>
             </div>
@@ -453,10 +453,10 @@ export default function GastosPage() {
             <p className="text-xs text-slate-500">Costo medio por movimiento</p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Peso sobre ingresos</p>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-700">
                 <ReceiptText className="h-4 w-4" />
               </span>
             </div>
@@ -466,7 +466,7 @@ export default function GastosPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Impacto operativo</p>
             <div className="mt-3 space-y-3 text-sm text-slate-700">
               <div className="flex items-center justify-between">
@@ -486,7 +486,7 @@ export default function GastosPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Distribucion por tipo</p>
             <div className="mt-3 space-y-2 text-sm text-slate-700">
               {resumen.porTipo.length === 0 ? (
@@ -495,7 +495,7 @@ export default function GastosPage() {
                 resumen.porTipo.slice(0, 5).map((item) => (
                   <div
                     key={item.tipo}
-                    className="flex items-center justify-between rounded-2xl bg-white/80 px-3 py-2"
+                    className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2"
                   >
                     <span>{item.tipo}</span>
                     <span className="font-semibold">{formatMoney(item.total)}</span>
@@ -506,7 +506,7 @@ export default function GastosPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_200px]">
             <div className="space-y-1">
               <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</p>
@@ -559,7 +559,7 @@ export default function GastosPage() {
 
         <Card className="bg-transparent border-none outline-none shadow-none p-0">
           <CardContent className="p-0">
-            <div className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+            <div className="overflow-hidden rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
               <div className="overflow-x-auto">
                 <div className="min-w-[980px]">
                   <div className="grid grid-cols-[120px_180px_minmax(280px,1fr)_180px_140px] gap-3 border-b border-slate-200/70 bg-slate-50/70 px-4 py-2 text-[10px] uppercase tracking-[0.28em] text-slate-500">
@@ -610,3 +610,4 @@ export default function GastosPage() {
     </AdminShell>
   )
 }
+

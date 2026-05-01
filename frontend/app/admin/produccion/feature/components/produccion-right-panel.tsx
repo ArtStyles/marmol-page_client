@@ -62,7 +62,7 @@ export function ProduccionRightPanel({
             <div
               key={accion}
               className={cn(
-                'flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2',
+                'flex items-center justify-between rounded-xl bg-white/70 px-3 py-2',
                 accion === 'pulir' && 'border border-emerald-200/60 bg-emerald-50/70',
               )}
             >
@@ -103,7 +103,7 @@ export function ProduccionRightPanel({
             topOrigenesResumen.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2"
+                className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2"
               >
                 <div>
                   <p className="text-xs font-semibold text-slate-900">{item.origenNombre}</p>
@@ -118,3 +118,4 @@ export function ProduccionRightPanel({
     </div>
   )
 }
+

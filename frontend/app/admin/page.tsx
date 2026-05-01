@@ -305,7 +305,7 @@ export default function AdminDashboard() {
             <p className="text-xs text-slate-500">Sin actividad de produccion.</p>
           ) : (
             produccionReciente.map((item) => (
-              <div key={item.id} className="rounded-2xl bg-white/70 px-3 py-2 text-sm text-slate-700">
+              <div key={item.id} className="rounded-xl bg-white/70 px-3 py-2 text-sm text-slate-700">
                 <div className="flex items-center justify-between">
                   <p className="font-medium text-slate-900">{item.origenNombre}</p>
                   <Badge variant="secondary">{item.dimension}</Badge>
@@ -327,7 +327,7 @@ export default function AdminDashboard() {
                 ventasRecientes.map((venta) => (
                   <div
                     key={venta.id}
-                    className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2 text-sm text-slate-700"
+                    className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2 text-sm text-slate-700"
                   >
                     <div>
                       <p className="text-xs font-semibold text-slate-900">{venta.productoNombre}</p>
@@ -370,7 +370,7 @@ export default function AdminDashboard() {
   return (
     <AdminShell rightPanel={rightPanel}>
       <div className="space-y-6">
-        <div className="rounded-[28px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-6 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel-lg)] border border-[var(--dash-border)] bg-[var(--dash-card)] p-6 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Dashboard</p>
@@ -405,24 +405,24 @@ export default function AdminDashboard() {
 
           <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+              <div className="rounded-xl border border-white/60 bg-white/70 p-4">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Inventario</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-900">{totalLosasInventario} losas</p>
                 <p className="text-xs text-slate-500">{totalM2Inventario.toFixed(1)} m² disponibles</p>
               </div>
-              <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+              <div className="rounded-xl border border-white/60 bg-white/70 p-4">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Ventas</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-900">${totalVentas.toLocaleString()}</p>
                 <p className="text-xs text-slate-500">{ventasCompletadas.length} completadas</p>
               </div>
-              <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+              <div className="rounded-xl border border-white/60 bg-white/70 p-4">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Produccion</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-900">{totalM2Hoy.toFixed(1)} m²</p>
                 <p className="text-xs text-slate-500">{produccionHoy.length} registros</p>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+            <div className="rounded-xl border border-white/60 bg-white/70 p-4">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Produccion semanal</p>
                 <span className="text-xs text-slate-500">{serieProduccion.length} dias</span>
@@ -465,10 +465,10 @@ export default function AdminDashboard() {
                 key={card.href}
                 href={card.href}
                 style={{ backgroundImage: card.accent }}
-                className="group relative overflow-hidden rounded-[24px] border border-white/60 p-5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_25px_60px_-40px_rgba(15,23,42,0.45)]"
+                className="group relative overflow-hidden rounded-[var(--agent-radius-panel)] border border-white/60 p-5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_25px_60px_-40px_rgba(15,23,42,0.45)]"
               >
                 <div className="flex items-center justify-between">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/70 text-slate-700">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/70 text-slate-700">
                     <Icon className="h-5 w-5" />
                   </span>
                   <ArrowUpRight className="h-4 w-4 text-slate-400 group-hover:text-slate-600" />
@@ -487,3 +487,4 @@ export default function AdminDashboard() {
     </AdminShell>
   )
 }
+

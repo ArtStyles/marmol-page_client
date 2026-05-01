@@ -110,7 +110,7 @@ export function ProduccionActionSection({
   )
 
   return (
-    <div className={cn('overflow-hidden rounded-[16px] border', actionSectionBackgrounds[accion])}>
+    <div className={cn('overflow-hidden rounded-[var(--agent-radius-control)] border', actionSectionBackgrounds[accion])}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 px-3 py-2.5">
         <Badge className={cn('w-fit', actionColors[accion])}>{actionLabels[accion]}</Badge>
         <div className="text-right">
@@ -597,5 +597,6 @@ export function ProduccionActionSection({
     </div>
   )
 }
+
 
 

@@ -218,3 +218,4 @@ export function AdminSidebar({ isCollapsed, onToggle, user, onLogout }: AdminSid
     </>
   )
 }
+

@@ -365,7 +365,7 @@ export default function PermisosPage() {
   return (
     <AdminShell rightPanel={rightPanel}>
       <div className="space-y-6">
-        <div className="rounded-[24px] border border-white/60 bg-white/70 p-5 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-5 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <h1 className="text-2xl font-bold text-slate-900">Permisos y Accesos</h1>
           <p className="mt-1 text-sm text-slate-600">
             Crea grupos de permisos y asigna acceso granular por usuario.
@@ -379,7 +379,7 @@ export default function PermisosPage() {
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as PermisosTab)} className="space-y-4">
-            <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-2xl border border-white/60 bg-white/70 p-2">
+            <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-xl border border-white/60 bg-white/70 p-2">
               <TabsTrigger value="grupos" className="h-10 flex-none rounded-xl px-4">
                 Grupos de permisos
               </TabsTrigger>
@@ -652,3 +652,4 @@ export default function PermisosPage() {
     </AdminShell>
   )
 }
+

@@ -10,3 +10,4 @@ export type AdminWorkshopSelectorProps = {
   onDelete: (workshopId: string) => void
   onLogout: () => void
 }
+

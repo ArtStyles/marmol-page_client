@@ -6,3 +6,4 @@ export const selectRecentProduccion = (items: ProduccionDiaria[]): ProduccionDia
   items.slice(0, MAX_RECENT_ITEMS)
 
 export const selectRecentMermas = (items: Merma[]): Merma[] => items.slice(0, MAX_RECENT_ITEMS)
+

@@ -324,7 +324,7 @@ export default function FinanzasPage() {
         <div className="space-y-2 text-sm text-slate-700">
           {alertas.length ? (
             alertas.map((alerta) => (
-              <div key={alerta} className="rounded-2xl bg-white/70 px-3 py-2 text-xs">
+              <div key={alerta} className="rounded-xl bg-white/70 px-3 py-2 text-xs">
                 {alerta}
               </div>
             ))
@@ -339,7 +339,7 @@ export default function FinanzasPage() {
   return (
     <AdminShell rightPanel={rightPanel}>
       <div className="space-y-6">
-        <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel-lg)] border border-white/60 bg-white/70 p-6 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">
@@ -384,10 +384,10 @@ export default function FinanzasPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Ingresos totales</p>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-700">
                 <DollarSign className="h-4 w-4" />
               </span>
             </div>
@@ -395,10 +395,10 @@ export default function FinanzasPage() {
             <p className="text-xs text-slate-500">{ventasCompletadas.length} ventas completadas</p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Reserva 11%</p>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-700">
                 <TrendingUp className="h-4 w-4" />
               </span>
             </div>
@@ -408,10 +408,10 @@ export default function FinanzasPage() {
             <p className="text-xs text-slate-500">Fijos + mantenimiento</p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Base despues de reserva</p>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-700">
                 <ArrowUpRight className="h-4 w-4" />
               </span>
             </div>
@@ -421,10 +421,10 @@ export default function FinanzasPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Ganancia neta</p>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-700">
                 <Wallet className="h-4 w-4" />
               </span>
             </div>
@@ -440,7 +440,7 @@ export default function FinanzasPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Mano de obra obreros</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(manoObraObreros)}</p>
             <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
@@ -456,7 +456,7 @@ export default function FinanzasPage() {
             <p className="mt-2 text-xs text-slate-500">Bonos obreros {formatMoney(bonosObreros)}</p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Costo del bloque</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(costoBloque)}</p>
             <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
@@ -468,7 +468,7 @@ export default function FinanzasPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Transporte</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(gastoTransporte)}</p>
             <p className="text-xs text-slate-500">
@@ -476,7 +476,7 @@ export default function FinanzasPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Corriente</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(gastoCorriente)}</p>
             <p className="text-xs text-slate-500">
@@ -484,7 +484,7 @@ export default function FinanzasPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Agua</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(gastoAgua)}</p>
             <p className="text-xs text-slate-500">
@@ -492,7 +492,7 @@ export default function FinanzasPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Otros</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(gastoOtros)}</p>
             <p className="text-xs text-slate-500">
@@ -500,7 +500,7 @@ export default function FinanzasPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Gastos registrados</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(gastoRegistrosOperativos)}</p>
             <p className="text-xs text-slate-500">
@@ -510,13 +510,13 @@ export default function FinanzasPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-cyan-200/70 bg-cyan-50/50 p-4">
+          <div className="rounded-xl border border-cyan-200/70 bg-cyan-50/50 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-700">Reinversion</p>
             <p className="mt-3 text-2xl font-semibold text-cyan-900">{formatMoney(reinversion)}</p>
             <p className="text-xs text-cyan-700">40% de la ganancia neta para aumentar inversion</p>
           </div>
 
-          <div className="rounded-2xl border border-slate-300/70 bg-slate-100/60 p-4">
+          <div className="rounded-xl border border-slate-300/70 bg-slate-100/60 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-600">Pago directivos y duenos</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(pagoDirectivos)}</p>
             <p className="text-xs text-slate-600">60% de la ganancia neta para distribucion de socios</p>
@@ -524,7 +524,7 @@ export default function FinanzasPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
                 Distribucion financiera
@@ -554,7 +554,7 @@ export default function FinanzasPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Tendencia de ventas</p>
               <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.2em]">
@@ -579,15 +579,15 @@ export default function FinanzasPage() {
               <p className="mt-4 text-xs text-slate-500">Sin ventas completadas.</p>
             )}
             <div className="mt-4 space-y-3">
-              <div className="flex items-center justify-between rounded-2xl bg-white/80 px-3 py-2 text-sm text-slate-700">
+              <div className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2 text-sm text-slate-700">
                 <span>Ticket promedio</span>
                 <span className="font-semibold text-slate-900">{formatMoney(ticketPromedio)}</span>
               </div>
-              <div className="flex items-center justify-between rounded-2xl bg-white/80 px-3 py-2 text-sm text-slate-700">
+              <div className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2 text-sm text-slate-700">
                 <span>Ingreso por m²</span>
                 <span className="font-semibold text-slate-900">{formatMoney(ingresoPorM2)}</span>
               </div>
-              <div className="flex items-center justify-between rounded-2xl bg-white/80 px-3 py-2 text-sm text-slate-700">
+              <div className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2 text-sm text-slate-700">
                 <span>Conversion produccion</span>
                 <span className="font-semibold text-slate-900">{formatPercent(ratioVentaProduccion)}</span>
               </div>
@@ -596,7 +596,7 @@ export default function FinanzasPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Eficiencia de materiales</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatPercent(1 - mermaRatio)}</p>
             <p className="text-xs text-slate-500">
@@ -604,7 +604,7 @@ export default function FinanzasPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Costo promedio m²</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(costoMaterialM2)}</p>
             <p className="text-xs text-slate-500">
@@ -612,7 +612,7 @@ export default function FinanzasPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Mano de obra por m²</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">
               {formatMoney(produccionTotalM2 ? manoObraObreros / produccionTotalM2 : 0)}
@@ -624,3 +624,4 @@ export default function FinanzasPage() {
     </AdminShell>
   )
 }
+

@@ -11,3 +11,4 @@ type MermasTableProps = {
 export const MermasTable = ({ data }: MermasTableProps) => (
   <DataTable title="Mermas Recientes" data={data} columns={mermasColumns} />
 )
+

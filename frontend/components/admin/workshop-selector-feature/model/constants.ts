@@ -20,3 +20,4 @@ export const EMPTY_WORKSHOP_INPUT: WorkshopCreateInput = {
   telefono: '',
   correo: '',
 }
+

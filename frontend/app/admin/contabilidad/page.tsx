@@ -118,7 +118,7 @@ export default function ContabilidadPage() {
       <AdminPanelCard title="Alertas contables" meta="Supervision">
         <div className="space-y-2 text-sm text-slate-700">
           {notificaciones.map((item) => (
-            <div key={item} className="rounded-2xl bg-white/70 px-3 py-2 text-xs text-slate-600">
+            <div key={item} className="rounded-xl bg-white/70 px-3 py-2 text-xs text-slate-600">
               {item}
             </div>
           ))}
@@ -146,7 +146,7 @@ export default function ContabilidadPage() {
   return (
     <AdminShell rightPanel={rightPanel}>
       <div className="space-y-6">
-        <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel-lg)] border border-white/60 bg-white/70 p-6 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Contabilidad</p>
@@ -166,22 +166,22 @@ export default function ContabilidadPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Ingresos</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(totalIngresos)}</p>
             <p className="text-xs text-slate-500">{ventasCompletadas.length} ventas cerradas</p>
           </div>
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Descuentos</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(totalDescuentos)}</p>
             <p className="text-xs text-slate-500">Controlado por politicas de precio</p>
           </div>
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Pagos realizados</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(pagosRealizados)}</p>
             <p className="text-xs text-slate-500">Nomina procesada</p>
           </div>
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Pagos pendientes</p>
             <p className="mt-3 text-2xl font-semibold text-slate-900">{formatMoney(pagosPendientes)}</p>
             <p className="text-xs text-slate-500">Programados para el cierre</p>
@@ -189,7 +189,7 @@ export default function ContabilidadPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
                 Reportes consolidados
@@ -200,7 +200,7 @@ export default function ContabilidadPage() {
               {reportes.map((reporte) => (
                 <div
                   key={reporte.title}
-                  className="flex items-center justify-between rounded-2xl bg-white/80 px-3 py-2 text-sm text-slate-700"
+                  className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2 text-sm text-slate-700"
                 >
                   <div>
                     <p className="font-medium text-slate-900">{reporte.title}</p>
@@ -223,7 +223,7 @@ export default function ContabilidadPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/60 bg-white/70 p-4">
+          <div className="rounded-xl border border-white/60 bg-white/70 p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
                 Notificaciones internas
@@ -232,7 +232,7 @@ export default function ContabilidadPage() {
             </div>
             <div className="mt-4 space-y-3 text-sm text-slate-700">
               {notificaciones.map((item) => (
-                <div key={item} className="rounded-2xl bg-white/80 px-3 py-2 text-xs text-slate-600">
+                <div key={item} className="rounded-xl bg-white/80 px-3 py-2 text-xs text-slate-600">
                   {item}
                 </div>
               ))}
@@ -243,3 +243,4 @@ export default function ContabilidadPage() {
     </AdminShell>
   )
 }
+

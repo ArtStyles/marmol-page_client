@@ -7,8 +7,8 @@ type AdminButtonProps = React.ComponentProps<typeof Button> & {
 }
 
 const baseClasses =
-  'rounded-2xl border !border-slate-900/10 !bg-white/90 !text-slate-900 !shadow-[0_8px_24px_-16px_rgba(15,23,42,0.35)] backdrop-blur-sm transition'
-const hoverClasses = 'hover:!border-slate-900/20 hover:!bg-white/95'
+  'rounded-[var(--agent-radius-control)] border !border-[var(--agent-border)] !bg-[var(--agent-surface-strong)] !text-slate-900 !shadow-[0_12px_28px_-22px_rgba(15,23,42,0.22)] backdrop-blur-sm transition'
+const hoverClasses = 'hover:!border-[var(--agent-border-strong)] hover:!bg-white/95'
 const dangerClasses =
   '!border-red-200/80 !bg-red-50/90 !text-red-700 hover:!border-red-300 hover:!bg-red-100'
 
@@ -35,3 +35,5 @@ export function AdminButton({
 }
 
 export { AdminButton as Button }
+
+

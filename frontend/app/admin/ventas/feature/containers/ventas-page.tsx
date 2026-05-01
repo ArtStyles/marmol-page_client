@@ -147,7 +147,7 @@ export default function VentasPage() {
       <AdminPanelCard title="m² por dimension" meta="Ventas completadas">
         <div className="space-y-2 text-sm text-slate-700">
           {dimensionOptions.map((dimension) => (
-            <div key={dimension} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+            <div key={dimension} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
               <span>{dimension}</span>
               <span className="text-right">
                 <span className="block font-semibold text-slate-900">{totalM2PorDimension[dimension].toFixed(2)} m²</span>
@@ -164,7 +164,7 @@ export default function VentasPage() {
             <p className="text-xs text-slate-500">Sin ventas recientes.</p>
           ) : (
             recentVentas.map((venta) => (
-              <div key={venta.id} className="rounded-2xl bg-white/70 px-3 py-2">
+              <div key={venta.id} className="rounded-xl bg-white/70 px-3 py-2">
                 <p className="text-xs font-semibold text-slate-900">{getVentaProductoResumen(venta)}</p>
                 <p className="text-[11px] text-slate-500">{getVentaBloquesResumen(venta)}</p>
                 <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
@@ -554,7 +554,7 @@ export default function VentasPage() {
           </Dialog>
         </div>
 
-        <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</Label>
             <div className="relative w-full sm:max-w-sm">
@@ -584,7 +584,7 @@ export default function VentasPage() {
                   return (
                     <div
                       key={fecha}
-                      className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
+                      className="overflow-hidden rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
                     >
                       <div className="flex items-center justify-between border-b border-slate-200/70 px-4 py-3">
                         <div className="space-y-0.5">
@@ -794,3 +794,4 @@ export default function VentasPage() {
     </AdminShell>
   )
 }
+

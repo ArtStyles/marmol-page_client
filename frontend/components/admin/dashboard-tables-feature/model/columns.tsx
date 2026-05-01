@@ -34,3 +34,4 @@ export const mermasColumns: Column<Merma>[] = [
   },
   { key: 'motivo', header: 'Motivo' },
 ]
+

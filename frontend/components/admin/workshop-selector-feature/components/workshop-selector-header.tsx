@@ -10,7 +10,7 @@ type WorkshopSelectorHeaderProps = {
 }
 
 export const WorkshopSelectorHeader = ({ user, onLogout }: WorkshopSelectorHeaderProps) => (
-  <div className="flex flex-col gap-4 rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.35)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+  <div className="flex flex-col gap-4 rounded-[var(--agent-radius-panel-lg)] border border-white/60 bg-white/70 p-6 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.35)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
     <div>
       <p className="text-[11px] uppercase tracking-[0.35em] text-slate-500">Seleccion de taller</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Bienvenido, {user.name}</h1>
@@ -26,3 +26,4 @@ export const WorkshopSelectorHeader = ({ user, onLogout }: WorkshopSelectorHeade
     </div>
   </div>
 )
+

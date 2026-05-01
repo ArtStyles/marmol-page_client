@@ -10,3 +10,4 @@ export type FormDetalleProducto = {
   metrosCuadrados: number
   cantidadUnidades: number
 }
+

@@ -21,7 +21,7 @@ export const MobileNavigation = ({
   onLogout,
 }: MobileNavigationProps) => (
   <nav className="fixed inset-x-4 bottom-4 z-40 lg:hidden">
-    <div className="rounded-[22px] border border-[var(--dash-border)] bg-[var(--dash-card)] p-2 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+    <div className="rounded-[var(--dash-panel-radius)] border border-[var(--dash-border)] bg-[var(--dash-card)] p-2 shadow-[var(--dash-shadow-soft)] backdrop-blur-xl">
       <div className="scrollbar-hidden flex items-center gap-2 overflow-x-auto px-1">
         {filteredItems.map((item) => {
           const Icon = item.icon
@@ -31,7 +31,7 @@ export const MobileNavigation = ({
               key={item.href}
               href={item.href}
               className={cn(
-                'flex min-w-[92px] flex-shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition',
+                'flex min-w-[96px] flex-shrink-0 items-center gap-2 rounded-[var(--dash-panel-radius-tight)] border px-3 py-2 text-xs font-semibold transition',
                 isActive
                   ? 'border-slate-900/10 bg-white/90 text-slate-900 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.35)]'
                   : 'border-transparent bg-white/60 text-slate-600 hover:border-white/80 hover:bg-white/80 hover:text-slate-900',
@@ -39,7 +39,7 @@ export const MobileNavigation = ({
             >
               <span
                 className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-xl',
+                  'flex h-8 w-8 items-center justify-center rounded-[var(--dash-control-radius)]',
                   isActive ? 'bg-slate-900 text-white' : 'bg-white/70 text-slate-600',
                 )}
               >
@@ -63,3 +63,5 @@ export const MobileNavigation = ({
     </div>
   </nav>
 )
+
+

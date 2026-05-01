@@ -36,6 +36,7 @@ import {
   rejectInventarioMovimiento,
 } from '@/lib/resources-api'
 import type { EstadoAprobacion, InventarioMovimiento, ProduccionDiaria } from '@/lib/types'
+import { cn } from '@/lib/utils'
 import { WORKSHOP_STORAGE_KEY } from '@/lib/workshops'
 
 type ApprovalNotificationType =
@@ -53,9 +54,23 @@ type ApprovalNotification = {
   timestamp: number
 }
 
+const isMonoHiloProduccion = (registro: Pick<ProduccionDiaria, 'workflowTipo'>): boolean =>
+  registro.workflowTipo === 'mono_hilo'
+
+const buildProduccionNotificationDetail = (registro: ProduccionDiaria): string => {
+  if (!isMonoHiloProduccion(registro)) {
+    return `${registro.fecha} - ${registro.origenNombre} - ${registro.totalLosas} losas`
+  }
+
+  const masasCount = registro.monoHiloDetalle?.masas.length ?? 0
+  const masasLabel = masasCount === 1 ? 'masa' : 'masas'
+  return `${registro.fecha} - ${registro.origenNombre} - ${masasCount} ${masasLabel}`
+}
+
 type ApprovalNotificationsProps = {
   sessionUser: AdminUser | null
   onLogout: () => void
+  compact?: boolean
 }
 
 const resolveAprobacion = (value: EstadoAprobacion | undefined): EstadoAprobacion => {
@@ -100,7 +115,11 @@ async function loadPendingInventarioMovimientos(
   return items
 }
 
-export const ApprovalNotifications = ({ sessionUser, onLogout }: ApprovalNotificationsProps) => {
+export const ApprovalNotifications = ({
+  sessionUser,
+  onLogout,
+  compact = false,
+}: ApprovalNotificationsProps) => {
   const pathname = usePathname()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
@@ -199,7 +218,7 @@ export const ApprovalNotifications = ({ sessionUser, onLogout }: ApprovalNotific
             type: 'produccion_taller',
             referenceId: registro.id,
             title: 'Aprobacion de taller pendiente',
-            detail: `${registro.fecha} - ${registro.origenNombre} - ${registro.totalLosas} losas`,
+            detail: buildProduccionNotificationDetail(registro),
             href: scopedRoute('/admin/produccion'),
             timestamp: toTimestamp(registro.fecha),
           })
@@ -208,6 +227,7 @@ export const ApprovalNotifications = ({ sessionUser, onLogout }: ApprovalNotific
 
       if (canApproveAlmacen || canRejectProduccionAlmacen) {
         for (const registro of produccion) {
+          if (isMonoHiloProduccion(registro)) continue
           if (resolveAprobacion(registro.aprobacionTallerEstado) !== 'aprobado') continue
           if (resolveAprobacion(registro.aprobacionAlmacenEstado) !== 'pendiente') continue
           pending.push({
@@ -215,7 +235,7 @@ export const ApprovalNotifications = ({ sessionUser, onLogout }: ApprovalNotific
             type: 'produccion_almacen',
             referenceId: registro.id,
             title: 'Entrada a almacen pendiente',
-            detail: `${registro.fecha} - ${registro.origenNombre} - ${registro.totalLosas} losas`,
+            detail: buildProduccionNotificationDetail(registro),
             href: scopedRoute('/admin/produccion'),
             timestamp: toTimestamp(registro.fecha),
           })
@@ -406,57 +426,67 @@ export const ApprovalNotifications = ({ sessionUser, onLogout }: ApprovalNotific
     totalPendientes > 0
       ? 'pointer-events-none absolute -right-2.5 -top-2.5 h-5 min-w-5 rounded-full border-2 border-white bg-red-600 px-1 text-[10px] font-bold leading-none text-white'
       : 'pointer-events-none absolute -right-2.5 -top-2.5 h-5 min-w-5 rounded-full border-2 border-white bg-slate-200 px-1 text-[10px] font-bold leading-none text-slate-700'
+  const iconButtonClassName = 'relative flex shrink-0 bg-white/70'
 
   return (
-    <div>
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          type="button"
-          size="icon-lg"
-          variant="outline"
-          className="relative flex bg-white/70"
-          onClick={() => setAccountDialogOpen(true)}
-          disabled={!sessionUser}
-          aria-label="Detalles de cuenta"
-          title="Detalles de cuenta"
+    <div className={cn('space-y-2', compact ? 'space-y-0' : 'space-y-3')}>
+      <div className={cn('flex', compact ? 'justify-center' : 'justify-end')}>
+        <div
+          className={cn(
+            'inline-flex shrink-0 rounded-[var(--dash-panel-radius-tight)] border border-white/70 bg-white/45 p-1.5 shadow-[0_10px_24px_-20px_rgba(15,23,42,0.32)] backdrop-blur-sm',
+            compact ? 'flex-col items-center gap-1.5' : 'items-center gap-2',
+          )}
         >
-          <User className="h-5 w-5 text-slate-800" strokeWidth={2.2} />
-          <span className="sr-only">Detalles de cuenta</span>
-        </Button>
-        <Button
-          type="button"
-          size="icon-lg"
-          variant="outline"
-          className="relative flex bg-white/70"
-          onClick={() => {
-            setDialogOpen(true)
-            void loadNotifications()
-          }}
-          aria-label="Notificaciones"
-        >
-          <span className="relative inline-flex items-center justify-center leading-none">
-            <Bell className="h-6 w-6 text-slate-800" strokeWidth={2.4} />
-            <Badge className={badgeClassName}>
-              {totalPendientes}
-            </Badge>
-          </span>
-          <span className="sr-only">Notificaciones</span>
-        </Button>
-        <Button
-          type="button"
-          size="icon-lg"
-          tone="danger"
-          variant="outline"
-          className="relative flex"
-          onClick={() => setLogoutDialogOpen(true)}
-          disabled={!sessionUser}
-          aria-label="Cerrar sesion"
-          title="Cerrar sesion"
-        >
-          <LogOut className="h-5 w-5 text-red-700" strokeWidth={2.2} />
-          <span className="sr-only">Cerrar sesion</span>
-        </Button>
+          <Button
+            type="button"
+            size="icon-lg"
+            variant="outline"
+            className={iconButtonClassName}
+            onClick={() => setAccountDialogOpen(true)}
+            disabled={!sessionUser}
+            aria-label="Detalles de cuenta"
+            title="Detalles de cuenta"
+          >
+            <User className="h-5 w-5 text-slate-800" strokeWidth={2.2} />
+            <span className="sr-only">Detalles de cuenta</span>
+          </Button>
+          <Button
+            type="button"
+            size="icon-lg"
+            variant="outline"
+            className={iconButtonClassName}
+            onClick={() => {
+              setDialogOpen(true)
+              void loadNotifications()
+            }}
+            aria-label="Notificaciones"
+          >
+            <span className="relative inline-flex items-center justify-center leading-none">
+              <Bell className="h-6 w-6 text-slate-800" strokeWidth={2.4} />
+              <Badge className={badgeClassName}>
+                {totalPendientes}
+              </Badge>
+            </span>
+            <span className="sr-only">Notificaciones</span>
+          </Button>
+          <Button
+            type="button"
+            size="icon-lg"
+            tone="danger"
+            variant="outline"
+            className="relative flex shrink-0"
+            onClick={() => setLogoutDialogOpen(true)}
+            disabled={!sessionUser}
+            aria-label="Cerrar sesion"
+            title="Cerrar sesion"
+          >
+            <LogOut className="h-5 w-5 text-red-700" strokeWidth={2.2} />
+            <span className="sr-only">Cerrar sesion</span>
+          </Button>
+        </div>
       </div>
+
+      {!compact && syncError ? <p className="text-xs text-destructive">{syncError}</p> : null}
 
       <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
         <AlertDialogContent className="sm:max-w-md">
@@ -487,7 +517,7 @@ export const ApprovalNotifications = ({ sessionUser, onLogout }: ApprovalNotific
             </DialogDescription>
           </DialogHeader>
           {sessionUser ? (
-            <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-white/70 p-4 text-sm">
+            <div className="space-y-3 rounded-xl border border-slate-200/80 bg-white/70 p-4 text-sm">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Nombre</p>
                 <p className="mt-1 font-semibold text-slate-900">{sessionUser.name}</p>
@@ -727,3 +757,4 @@ export const ApprovalNotifications = ({ sessionUser, onLogout }: ApprovalNotific
     </div>
   )
 }
+

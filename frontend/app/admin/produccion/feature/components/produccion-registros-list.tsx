@@ -104,7 +104,7 @@ export function ProduccionRegistrosList({
               return (
                 <div
                   key={fecha}
-                  className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
+                  className="overflow-hidden rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
                 >
                   <div className="flex items-center justify-between border-b border-slate-200/70 px-4 py-3">
                     <div>
@@ -457,3 +457,4 @@ export function ProduccionRegistrosList({
     </Card>
   )
 }
+

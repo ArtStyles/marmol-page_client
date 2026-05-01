@@ -222,7 +222,7 @@ export default function ConfiguracionPage() {
       <AdminPanelCard title="Tarifas base" meta="Por losa">
         <div className="space-y-2 text-sm text-slate-700">
           {acciones.map((accion) => (
-            <div key={accion} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+            <div key={accion} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
               <span className="capitalize">{accion}</span>
               <span className="font-semibold">${config.tarifasGlobales[accion as AccionLosa]}</span>
             </div>
@@ -233,7 +233,7 @@ export default function ConfiguracionPage() {
       <AdminPanelCard title="Salarios fijos" meta="Por rol">
         <div className="space-y-2 text-sm text-slate-700">
           {salariosResumen.map((item) => (
-            <div key={item.etiqueta} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+            <div key={item.etiqueta} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
               <span>{item.etiqueta}</span>
               <span className="font-semibold">${item.salario.toLocaleString()}</span>
             </div>
@@ -243,11 +243,11 @@ export default function ConfiguracionPage() {
 
       <AdminPanelCard title="Mono hilo" meta="Tecnico">
         <div className="space-y-2 text-sm text-slate-700">
-          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+          <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
             <span>Disco</span>
             <span className="font-semibold">{config.monoHiloGrosorDiscoMm} mm</span>
           </div>
-          <div className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+          <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
             <span>Espesor losa</span>
             <span className="font-semibold">{config.monoHiloEspesorLosaCm} cm</span>
           </div>
@@ -267,7 +267,7 @@ export default function ConfiguracionPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ConfigTab)} className="space-y-4">
-          <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-2xl border border-[var(--dash-border)] bg-[var(--dash-card)] p-2">
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-card)] p-2">
             <TabsTrigger value="empresa" className="h-10 flex-none rounded-xl px-4">
               Empresa
             </TabsTrigger>
@@ -283,7 +283,7 @@ export default function ConfiguracionPage() {
           </TabsList>
 
           <TabsContent value="empresa">
-            <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
+            <Card className="rounded-[var(--agent-radius-panel)] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Building className="h-5 w-5 text-primary" />
@@ -336,7 +336,7 @@ export default function ConfiguracionPage() {
           </TabsContent>
 
           <TabsContent value="notificaciones">
-            <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
+            <Card className="rounded-[var(--agent-radius-panel)] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Bell className="h-5 w-5 text-primary" />
@@ -391,7 +391,7 @@ export default function ConfiguracionPage() {
           </TabsContent>
 
           <TabsContent value="tarifas">
-            <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
+            <Card className="rounded-[var(--agent-radius-panel)] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Tags className="h-5 w-5 text-primary" />
@@ -518,7 +518,7 @@ export default function ConfiguracionPage() {
           </TabsContent>
 
           <TabsContent value="seguridad">
-            <Card className="rounded-[24px] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
+            <Card className="rounded-[var(--agent-radius-panel)] border border-[var(--dash-border)] bg-[var(--dash-card)] shadow-[var(--dash-shadow)] backdrop-blur-xl">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Shield className="h-5 w-5 text-primary" />
@@ -563,3 +563,4 @@ export default function ConfiguracionPage() {
     </AdminShell>
   )
 }
+

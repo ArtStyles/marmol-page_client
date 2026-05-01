@@ -182,7 +182,7 @@ export default function ObreroPage() {
       <AdminPanelCard title="Pendiente por accion" meta="Produccion actual">
         <div className="space-y-2 text-sm text-slate-700">
           {actionOrder.map((accion) => (
-            <div key={accion} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+            <div key={accion} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
               <span className="capitalize">{accion}</span>
               <span className="font-semibold">
                 {resumenAccionesPendientes[accion].losas} losas
@@ -214,7 +214,7 @@ export default function ObreroPage() {
   if (!sessionReady) {
     return (
       <AdminShell rightPanel={rightPanel}>
-        <div className="rounded-[24px] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-[var(--agent-radius-panel)] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
           Cargando panel de obrero...
         </div>
       </AdminShell>
@@ -224,7 +224,7 @@ export default function ObreroPage() {
   if (loadingData) {
     return (
       <AdminShell rightPanel={rightPanel}>
-        <div className="rounded-[24px] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-[var(--agent-radius-panel)] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
           Cargando datos operativos...
         </div>
       </AdminShell>
@@ -234,7 +234,7 @@ export default function ObreroPage() {
   if (dataError) {
     return (
       <AdminShell rightPanel={rightPanel}>
-        <div className="rounded-[24px] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-destructive">
+        <div className="rounded-[var(--agent-radius-panel)] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-destructive">
           {dataError}
         </div>
       </AdminShell>
@@ -244,7 +244,7 @@ export default function ObreroPage() {
   if (!isObreroSession) {
     return (
       <AdminShell rightPanel={rightPanel}>
-        <div className="rounded-[24px] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-[var(--agent-radius-panel)] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
           Esta vista solo esta disponible para usuarios con rol obrero.
         </div>
       </AdminShell>
@@ -254,7 +254,7 @@ export default function ObreroPage() {
   if (!obreroActual) {
     return (
       <AdminShell rightPanel={rightPanel}>
-        <div className="rounded-[24px] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-[var(--agent-radius-panel)] border border-dashed border-border bg-muted/30 p-8 text-center text-sm text-muted-foreground">
           No se encontro un perfil de obrero vinculado a este usuario.
         </div>
       </AdminShell>
@@ -264,7 +264,7 @@ export default function ObreroPage() {
   return (
     <AdminShell rightPanel={rightPanel}>
       <div className="space-y-6">
-        <div className="rounded-[24px] border border-white/60 bg-white/70 p-5 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-5 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Mi panel</p>
@@ -280,28 +280,28 @@ export default function ObreroPage() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[20px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_30px_-30px_rgba(15,23,42,0.35)]">
+          <div className="rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_30px_-30px_rgba(15,23,42,0.35)]">
             <div className="flex items-center gap-2 text-slate-500">
               <Hourglass className="h-4 w-4" />
               <p className="text-[10px] uppercase tracking-[0.24em]">Pendiente</p>
             </div>
             <p className="mt-2 text-2xl font-semibold text-emerald-700">${totalPendiente.toLocaleString()}</p>
           </div>
-          <div className="rounded-[20px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_30px_-30px_rgba(15,23,42,0.35)]">
+          <div className="rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_30px_-30px_rgba(15,23,42,0.35)]">
             <div className="flex items-center gap-2 text-slate-500">
               <Hammer className="h-4 w-4" />
               <p className="text-[10px] uppercase tracking-[0.24em]">Sin pagar</p>
             </div>
             <p className="mt-2 text-2xl font-semibold text-slate-900">{produccionPendiente.length} registros</p>
           </div>
-          <div className="rounded-[20px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_30px_-30px_rgba(15,23,42,0.35)]">
+          <div className="rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_30px_-30px_rgba(15,23,42,0.35)]">
             <div className="flex items-center gap-2 text-slate-500">
               <CircleDollarSign className="h-4 w-4" />
               <p className="text-[10px] uppercase tracking-[0.24em]">Bonos pendientes</p>
             </div>
             <p className="mt-2 text-2xl font-semibold text-slate-900">${totalPendienteBonos.toLocaleString()}</p>
           </div>
-          <div className="rounded-[20px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_30px_-30px_rgba(15,23,42,0.35)]">
+          <div className="rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_30px_-30px_rgba(15,23,42,0.35)]">
             <div className="flex items-center gap-2 text-slate-500">
               <Wallet className="h-4 w-4" />
               <p className="text-[10px] uppercase tracking-[0.24em]">Total cobrado</p>
@@ -313,7 +313,7 @@ export default function ObreroPage() {
         <Card className="bg-transparent border-none outline-none shadow-none p-0">
           <CardContent className="p-0">
             <div className="space-y-2">
-              <div className="rounded-[20px] border border-slate-200/70 bg-white/80 px-4 py-3 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)]">
+              <div className="rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 px-4 py-3 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)]">
                 <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">
                   Produccion pendiente de pago
                 </p>
@@ -334,7 +334,7 @@ export default function ObreroPage() {
                   return (
                     <div
                       key={fecha}
-                      className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
+                      className="overflow-hidden rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
                     >
                       <div className="flex items-center justify-between border-b border-slate-200/70 px-4 py-3">
                         <div>
@@ -404,7 +404,7 @@ export default function ObreroPage() {
         <Card className="bg-transparent border-none outline-none shadow-none p-0">
           <CardContent className="p-0">
             <div className="space-y-2">
-              <div className="rounded-[20px] border border-slate-200/70 bg-white/80 px-4 py-3 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)]">
+              <div className="rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 px-4 py-3 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)]">
                 <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Historico de pagos</p>
                 <p className="mt-1 text-sm text-slate-600">
                   Constancia de los pagos registrados a tu nombre.
@@ -416,7 +416,7 @@ export default function ObreroPage() {
                   Aun no hay pagos registrados para este obrero.
                 </div>
               ) : (
-                <div className="divide-y divide-slate-200/60 overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+                <div className="divide-y divide-slate-200/60 overflow-hidden rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
                   {historialObrero.map((pago) => (
                     <div key={pago.id} className="px-4 py-3">
                       <div className="grid gap-2 lg:grid-cols-[120px_120px_120px_minmax(0,1fr)] lg:items-center">
@@ -450,5 +450,6 @@ export default function ObreroPage() {
     </AdminShell>
   )
 }
+
 
 

@@ -235,7 +235,7 @@ export default function EquiposPage() {
           {porTipo.map((item) => (
             <div
               key={item.tipo}
-              className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/70 px-3 py-2"
+              className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white/70 px-3 py-2"
             >
               <span>{item.tipo}</span>
               <span className="font-semibold">{item.total}</span>
@@ -432,7 +432,7 @@ export default function EquiposPage() {
           </Dialog>
         </div>
 
-        <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
             <div className="space-y-1">
               <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</p>
@@ -467,7 +467,7 @@ export default function EquiposPage() {
 
         <Card className=" bg-transparent border-none outline-none shadow-none p-0 ">
           <CardContent className="p-0">
-            <div className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+            <div className="overflow-hidden rounded-[var(--agent-radius-panel-tight)] border border-slate-200/70 bg-white/80 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
               <div className="overflow-x-auto">
                 <div className="w-full">
                   <div className="grid grid-cols-[minmax(128px,1.1fr)_92px_96px_minmax(110px,1fr)_72px] gap-x-1 border-b border-slate-200/70 bg-slate-50/70 px-2 py-2 text-[10px] uppercase tracking-[0.22em] text-slate-500">
@@ -540,3 +540,4 @@ export default function EquiposPage() {
     </AdminShell>
   )
 }
+

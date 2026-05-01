@@ -33,7 +33,7 @@ export function DataTable<T extends { id: string }>({
   }
 
   return (
-    <Card className="overflow-hidden rounded-[24px] border border-white/60 bg-white/70 py-0 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+    <Card className="overflow-hidden rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 py-0 shadow-[var(--dash-shadow)] backdrop-blur-xl">
       {title && (
         <CardHeader className="border-b border-white/60 pb-4">
           <CardTitle className="text-lg font-semibold text-slate-900">{title}</CardTitle>
@@ -41,7 +41,7 @@ export function DataTable<T extends { id: string }>({
       )}
       <CardContent className="pb-4 pt-4">
         {data.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
             {emptyMessage}
           </div>
         ) : (
@@ -49,7 +49,7 @@ export function DataTable<T extends { id: string }>({
             {data.map((item) => (
               <div
                 key={item.id}
-                className="relative rounded-[22px] border border-white/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.28)] backdrop-blur-xl"
+                className="relative rounded-[var(--agent-radius-panel-tight)] border border-white/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.28)] backdrop-blur-xl"
               >
                 <div className="space-y-2.5">
                   {columns.map((column) => {
@@ -97,3 +97,4 @@ export function DataTable<T extends { id: string }>({
     </Card>
   )
 }
+

@@ -47,3 +47,4 @@ export type TopTrabajadorResumen = {
   m2: number
   pago: number
 }
+

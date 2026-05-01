@@ -136,3 +136,4 @@ export const buildDefaultNav = (
 
 export const isNavItemActive = (href: string, pathname: string): boolean =>
   isAdminRouteActive(href, pathname)
+

@@ -21,3 +21,4 @@ export type AdminPanelCardProps = {
   className?: string
   children: React.ReactNode
 }
+

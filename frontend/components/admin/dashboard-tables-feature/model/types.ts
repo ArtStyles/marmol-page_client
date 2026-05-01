@@ -4,3 +4,4 @@ export type AdminDashboardTablesProps = {
   produccionDiaria: ProduccionDiaria[]
   mermas: Merma[]
 }
+

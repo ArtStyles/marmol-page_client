@@ -11,3 +11,4 @@ type ProduccionTableProps = {
 export const ProduccionTable = ({ data }: ProduccionTableProps) => (
   <DataTable title="Produccion Reciente" data={data} columns={produccionColumns} />
 )
+

@@ -554,7 +554,7 @@ export default function ProduccionPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="grid gap-3 sm:grid-cols-[minmax(260px,1fr)_220px_auto] sm:items-end">
             <div className="space-y-1">
               <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</p>
@@ -991,4 +991,5 @@ export default function ProduccionPage() {
     </AdminShell>
   )
 }
+
 

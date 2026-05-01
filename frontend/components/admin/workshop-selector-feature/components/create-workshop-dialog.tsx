@@ -26,9 +26,9 @@ export const CreateWorkshopDialog = ({
     <DialogTrigger asChild>
       <button
         type="button"
-        className="flex h-full min-h-[340px] flex-col items-center justify-center gap-3 rounded-[24px] border-2 border-dashed border-slate-200 bg-white/60 p-6 text-left text-slate-600 transition hover:border-slate-300 hover:bg-white/80"
+        className="flex h-full min-h-[340px] flex-col items-center justify-center gap-3 rounded-[var(--agent-radius-panel)] border-2 border-dashed border-slate-200 bg-white/60 p-6 text-left text-slate-600 transition hover:border-slate-300 hover:bg-white/80"
       >
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-slate-700 shadow-sm">
           <Plus className="h-5 w-5" />
         </span>
         <div>
@@ -98,3 +98,4 @@ export const CreateWorkshopDialog = ({
     </DialogContent>
   </Dialog>
 )
+

@@ -298,7 +298,7 @@ export default function HistorialPage() {
             )
           })}
           {warnings.length > 0 ? (
-            <div className="rounded-2xl border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-[11px] text-amber-800">
+            <div className="rounded-xl border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-[11px] text-amber-800">
               {warnings.join(' ')}
             </div>
           ) : null}
@@ -313,7 +313,7 @@ export default function HistorialPage() {
             recentEvents.map((event) => (
               <div
                 key={event.id}
-                className={`rounded-2xl border bg-white/85 px-3 py-2 shadow-[0_10px_24px_-22px_rgba(15,23,42,0.45)] ${
+                className={`rounded-xl border bg-white/85 px-3 py-2 shadow-[0_10px_24px_-22px_rgba(15,23,42,0.45)] ${
                   event.nivel === 'error'
                     ? 'border-red-200/80'
                     : event.nivel === 'alerta'
@@ -404,7 +404,7 @@ export default function HistorialPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -1030,3 +1030,4 @@ function parseLocalDate(value: string): Date {
   const [year, month, day] = value.split('-').map((segment) => Number(segment))
   return new Date(year, month - 1, day)
 }
+

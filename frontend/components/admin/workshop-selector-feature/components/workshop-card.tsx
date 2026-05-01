@@ -15,7 +15,7 @@ type WorkshopCardProps = {
 }
 
 export const WorkshopCard = ({ workshop, onSelect, onToggleStatus, onDelete }: WorkshopCardProps) => (
-  <div className="rounded-[24px] border border-white/60 bg-white/70 p-5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] backdrop-blur-xl">
+  <div className="rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] backdrop-blur-xl">
     <div className="flex items-start justify-between gap-2">
       <div>
         <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Taller</p>
@@ -31,21 +31,21 @@ export const WorkshopCard = ({ workshop, onSelect, onToggleStatus, onDelete }: W
     </div>
 
     <div className="mt-4 grid gap-2 text-xs text-slate-600">
-      <div className="flex items-center justify-between rounded-2xl bg-white/80 px-3 py-2">
+      <div className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2">
         <span className="flex items-center gap-2">
           <Users className="h-3.5 w-3.5" />
           Empleados
         </span>
         <span className="font-semibold text-slate-900">{workshop.empleados}</span>
       </div>
-      <div className="flex items-center justify-between rounded-2xl bg-white/80 px-3 py-2">
+      <div className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2">
         <span className="flex items-center gap-2">
           <Factory className="h-3.5 w-3.5" />
           Produccion mes
         </span>
         <span className="font-semibold text-slate-900">{workshop.produccionMesM2.toFixed(0)} m²</span>
       </div>
-      <div className="flex items-center justify-between rounded-2xl bg-white/80 px-3 py-2">
+      <div className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2">
         <span className="flex items-center gap-2">
           <TrendingUp className="h-3.5 w-3.5" />
           Ventas mes
@@ -55,11 +55,11 @@ export const WorkshopCard = ({ workshop, onSelect, onToggleStatus, onDelete }: W
     </div>
 
     <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-slate-600">
-      <div className="rounded-2xl bg-white/80 px-3 py-2">
+      <div className="rounded-xl bg-white/80 px-3 py-2">
         <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">Margen</p>
         <p className="mt-1 text-sm font-semibold text-slate-900">{(workshop.margenOperativo * 100).toFixed(1)}%</p>
       </div>
-      <div className="rounded-2xl bg-white/80 px-3 py-2">
+      <div className="rounded-xl bg-white/80 px-3 py-2">
         <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">Ordenes</p>
         <p className="mt-1 text-sm font-semibold text-slate-900">{workshop.ordenesActivas}</p>
       </div>
@@ -95,3 +95,4 @@ export const WorkshopCard = ({ workshop, onSelect, onToggleStatus, onDelete }: W
     </div>
   </div>
 )
+

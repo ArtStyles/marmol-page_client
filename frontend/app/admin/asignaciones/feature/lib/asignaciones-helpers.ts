@@ -224,3 +224,4 @@ export const formatMoney = (value: number): string =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`
+

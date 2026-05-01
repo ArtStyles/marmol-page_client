@@ -171,7 +171,7 @@ export default function CatalogoAdminPage() {
             <p className="text-xs text-slate-500">Sin items visibles.</p>
           ) : (
             visiblesRecientes.map((item) => (
-              <div key={item.id} className="rounded-2xl bg-white/70 px-3 py-2">
+              <div key={item.id} className="rounded-xl bg-white/70 px-3 py-2">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold text-slate-900">{item.nombre}</p>
                   {item.destacado && (
@@ -550,7 +550,7 @@ export default function CatalogoAdminPage() {
         </Dialog>
       </div>
 
-      <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+      <div className="rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
         <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
           <div className="flex-1">
             <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</Label>
@@ -652,3 +652,4 @@ export default function CatalogoAdminPage() {
     </AdminShell>
   )
 }
+

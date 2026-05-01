@@ -11,3 +11,4 @@ export const AdminDashboardTables = ({ produccionDiaria, mermas }: AdminDashboar
     <MermasTable data={selectRecentMermas(mermas)} />
   </div>
 )
+

@@ -13,3 +13,4 @@ export const sortWorkshops = (workshops: WorkshopTenant[]): WorkshopTenant[] =>
     if (b.estado === 'activo') return 1
     return a.estado.localeCompare(b.estado)
   })
+

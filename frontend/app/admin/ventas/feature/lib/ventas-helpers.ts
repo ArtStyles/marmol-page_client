@@ -121,3 +121,4 @@ export const getVentaBloquesResumen = (venta: Venta, productos: Producto[]): str
   if (bloques.length === 1) return bloques[0]
   return `${bloques[0]} +${bloques.length - 1}`
 }
+

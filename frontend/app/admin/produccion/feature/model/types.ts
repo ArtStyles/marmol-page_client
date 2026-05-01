@@ -106,3 +106,4 @@ export type RegistrarMonoHiloDesdeProduccionInput = {
   equipoId: string
   trabajadorIds: string[]
 }
+

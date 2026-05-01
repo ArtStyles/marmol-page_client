@@ -614,7 +614,7 @@ export default function MermasPage() {
             <p className="text-xs text-slate-500">Sin datos.</p>
           ) : (
             motivosMermaData.slice(0, 4).map((item) => (
-              <div key={item.motivo} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+              <div key={item.motivo} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
                 <span className="text-xs font-semibold text-slate-900">{item.motivo}</span>
                 <span className="text-xs font-semibold text-rose-700">
                   {formatMetricValue(item.valor)}
@@ -857,7 +857,7 @@ export default function MermasPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="grid gap-3 sm:grid-cols-[minmax(240px,1fr)_150px_170px_auto] sm:items-end">
             <div className="space-y-1">
               <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</Label>
@@ -926,7 +926,7 @@ export default function MermasPage() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+        <div className="overflow-hidden rounded-[var(--agent-radius-panel)] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Panorama</p>
@@ -963,7 +963,7 @@ export default function MermasPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+          <div className="overflow-hidden rounded-[var(--agent-radius-panel)] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
             <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Motivos de merma total</p>
             <h3 className="mt-1 text-base font-semibold text-slate-900">Top motivos</h3>
 
@@ -991,7 +991,7 @@ export default function MermasPage() {
             )}
           </div>
 
-          <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+          <div className="overflow-hidden rounded-[var(--agent-radius-panel)] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
             <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Reutilizable</p>
             <h3 className="mt-1 text-base font-semibold text-slate-900">Aprovechable por bloque</h3>
 
@@ -1021,7 +1021,7 @@ export default function MermasPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+          <div className="overflow-hidden rounded-[var(--agent-radius-panel)] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
             <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Tendencia</p>
             <h3 className="mt-1 text-base font-semibold text-slate-900">Merma y reutilizable por fecha</h3>
 
@@ -1052,7 +1052,7 @@ export default function MermasPage() {
             )}
           </div>
 
-          <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+          <div className="overflow-hidden rounded-[var(--agent-radius-panel)] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
             <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Bloques / lotes</p>
             <h3 className="mt-1 text-base font-semibold text-slate-900">Merma vs reutilizable por origen</h3>
 
@@ -1086,3 +1086,4 @@ export default function MermasPage() {
     </AdminShell>
   )
 }
+
