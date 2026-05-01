@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "check": "tsc --noEmit",
+    "smoke:flows": "tsx src/scripts/flow-smoke-test.ts",
     "db:setup": "tsx src/scripts/db-setup.ts && tsx src/scripts/db-migrate.ts",
     "db:migrate": "tsx src/scripts/db-migrate.ts"
   },
