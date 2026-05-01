@@ -3,6 +3,8 @@ import type {
   CatalogoItem,
   ConfiguracionSistema,
   Equipo,
+  FinancialSummary,
+  Gasto,
   HistorialPago,
   InventarioMovimiento,
   InventarioMovimientoPage,
@@ -16,27 +18,6 @@ import type {
   Venta,
 } from './types'
 import { apiRequest } from './api-client'
-
-export type GastoTipo =
-  | 'Materia prima'
-  | 'Transporte'
-  | 'Servicios'
-  | 'Mantenimiento'
-  | 'Nomina'
-  | 'Operacion'
-  | 'Imprevisto'
-
-export type GastoFlujo = 'Produccion' | 'Inventario' | 'Ventas' | 'Administracion' | 'General'
-
-export type Gasto = {
-  id: string
-  fecha: string
-  costo: number
-  tipo: GastoTipo
-  flujo: GastoFlujo
-  descripcion: string
-  encargado: string
-}
 
 export const getConfiguracion = (): Promise<ConfiguracionSistema> =>
   apiRequest<ConfiguracionSistema>('/configuracion')
@@ -380,11 +361,28 @@ export const rejectInventarioMovimiento = (
 
 export const getGastos = (): Promise<Gasto[]> => apiRequest<Gasto[]>('/gastos')
 
-export const createGasto = (input: Omit<Gasto, 'id'>): Promise<Gasto> =>
+export const getGastosSummary = (): Promise<FinancialSummary> =>
+  apiRequest<FinancialSummary>('/gastos/resumen')
+
+export const createGasto = (
+  input: Pick<Gasto, 'fecha' | 'costo' | 'tipo' | 'flujo' | 'descripcion' | 'encargado'>,
+): Promise<Gasto> =>
   apiRequest<Gasto>('/gastos', {
     method: 'POST',
     body: input,
   })
+
+export const cancelGasto = (
+  gastoId: string,
+  input: { motivoAnulacion: string },
+): Promise<Gasto> =>
+  apiRequest<Gasto>(`/gastos/${gastoId}/anular`, {
+    method: 'PATCH',
+    body: input,
+  })
+
+export const getFinancialSummary = (): Promise<FinancialSummary> =>
+  apiRequest<FinancialSummary>('/finanzas/resumen')
 
 export const getHistorialPagos = (): Promise<HistorialPago[]> =>
   apiRequest<HistorialPago[]>('/historial-pagos')

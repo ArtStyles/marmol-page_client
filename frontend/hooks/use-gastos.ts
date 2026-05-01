@@ -2,38 +2,22 @@
 
 import { useEffect, useState } from 'react'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
-import { createGasto, getGastos } from '@/lib/resources-api'
+import { cancelGasto as cancelGastoRequest, createGasto, getGastos } from '@/lib/resources-api'
+import {
+  GASTO_FLUJOS,
+  GASTO_TIPOS,
+  GASTO_TIPOS_MANUALES,
+  type Gasto,
+  type GastoFlujo,
+  type GastoManualTipo,
+  type GastoTipo,
+} from '@/lib/types'
 
-export const gastoTipos = [
-  'Materia prima',
-  'Transporte',
-  'Servicios',
-  'Mantenimiento',
-  'Nomina',
-  'Operacion',
-  'Imprevisto',
-] as const
+export const gastoTipos = [...GASTO_TIPOS]
+export const gastoTiposManuales = [...GASTO_TIPOS_MANUALES]
+export const gastoFlujos = [...GASTO_FLUJOS]
 
-export const gastoFlujos = [
-  'Produccion',
-  'Inventario',
-  'Ventas',
-  'Administracion',
-  'General',
-] as const
-
-export type GastoTipo = (typeof gastoTipos)[number]
-export type GastoFlujo = (typeof gastoFlujos)[number]
-
-export type GastoRegistro = {
-  id: string
-  fecha: string
-  costo: number
-  tipo: GastoTipo
-  flujo: GastoFlujo
-  descripcion: string
-  encargado: string
-}
+export type GastoRegistro = Gasto
 
 const isGastoTipo = (value: unknown): value is GastoTipo =>
   typeof value === 'string' && gastoTipos.includes(value as GastoTipo)
@@ -41,15 +25,49 @@ const isGastoTipo = (value: unknown): value is GastoTipo =>
 const isGastoFlujo = (value: unknown): value is GastoFlujo =>
   typeof value === 'string' && gastoFlujos.includes(value as GastoFlujo)
 
-const normalizeGasto = (item: Partial<GastoRegistro>, index: number): GastoRegistro => ({
-  id: typeof item.id === 'string' && item.id.length > 0 ? item.id : `G${String(index + 1).padStart(3, '0')}`,
-  fecha: typeof item.fecha === 'string' && item.fecha.length > 0 ? item.fecha : new Date().toISOString().split('T')[0],
-  costo: typeof item.costo === 'number' && Number.isFinite(item.costo) ? item.costo : 0,
-  tipo: isGastoTipo(item.tipo) ? item.tipo : 'Operacion',
-  flujo: isGastoFlujo(item.flujo) ? item.flujo : 'General',
-  descripcion: typeof item.descripcion === 'string' ? item.descripcion : '',
-  encargado: typeof item.encargado === 'string' ? item.encargado : 'Sin responsable',
-})
+const normalizeGasto = (item: Gasto): GastoRegistro => {
+  if (typeof item.id !== 'string' || item.id.trim().length === 0) {
+    throw new Error('Gasto sin identificador valido.')
+  }
+  if (typeof item.fecha !== 'string' || item.fecha.trim().length === 0) {
+    throw new Error(`Gasto ${item.id} sin fecha valida.`)
+  }
+  if (!Number.isFinite(item.costo)) {
+    throw new Error(`Gasto ${item.id} sin costo valido.`)
+  }
+  if (!isGastoTipo(item.tipo)) {
+    throw new Error(`Gasto ${item.id} con tipo invalido.`)
+  }
+  if (!isGastoFlujo(item.flujo)) {
+    throw new Error(`Gasto ${item.id} con flujo invalido.`)
+  }
+  if (typeof item.descripcion !== 'string' || item.descripcion.trim().length === 0) {
+    throw new Error(`Gasto ${item.id} sin descripcion valida.`)
+  }
+  if (typeof item.encargado !== 'string' || item.encargado.trim().length === 0) {
+    throw new Error(`Gasto ${item.id} sin encargado valido.`)
+  }
+
+  return {
+    ...item,
+    id: item.id.trim(),
+    fecha: item.fecha.trim(),
+    costo: Number(item.costo.toFixed(2)),
+    descripcion: item.descripcion.trim(),
+    encargado: item.encargado.trim(),
+    createdAt: item.createdAt?.trim() || undefined,
+    referenciaId: item.referenciaId?.trim() || undefined,
+    creadoPorId: item.creadoPorId?.trim() || undefined,
+    creadoPorNombre: item.creadoPorNombre?.trim() || undefined,
+    anuladoPorId: item.anuladoPorId?.trim() || undefined,
+    anuladoPorNombre: item.anuladoPorNombre?.trim() || undefined,
+    anuladoFecha: item.anuladoFecha?.trim() || undefined,
+    motivoAnulacion: item.motivoAnulacion?.trim() || undefined,
+    origen: item.origen ?? 'manual',
+    origenModulo: item.origenModulo ?? 'gastos',
+    estado: item.estado ?? 'activo',
+  }
+}
 
 const readSessionUser = (): AdminUser | null => {
   if (typeof window === 'undefined') return null
@@ -75,6 +93,7 @@ export function useGastosStore(options: UseGastosStoreOptions = {}) {
 
   useEffect(() => {
     let active = true
+
     const load = async () => {
       if (!enabled) {
         if (!active) return
@@ -85,8 +104,7 @@ export function useGastosStore(options: UseGastosStoreOptions = {}) {
       }
 
       const sessionUser = readSessionUser()
-      const canReadGastos = hasPermission(sessionUser, 'gastos:read')
-      if (!canReadGastos) {
+      if (!hasPermission(sessionUser, 'gastos:read')) {
         if (!active) return
         setGastos([])
         setError(null)
@@ -99,22 +117,30 @@ export function useGastosStore(options: UseGastosStoreOptions = {}) {
         setError(null)
         const items = await getGastos()
         if (!active) return
-        setGastos(items.map((item, index) => normalizeGasto(item, index)))
-      } catch {
+        setGastos(items.map((item) => normalizeGasto(item)))
+      } catch (loadError) {
         if (!active) return
         setGastos([])
-        setError('No se pudo cargar gastos desde el backend.')
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'No se pudo cargar gastos desde el backend.',
+        )
       } finally {
         if (active) setLoading(false)
       }
     }
+
     void load()
+
     return () => {
       active = false
     }
   }, [enabled])
 
-  const addGasto = async (input: Omit<GastoRegistro, 'id'>): Promise<boolean> => {
+  const addGasto = async (
+    input: Pick<GastoRegistro, 'fecha' | 'costo' | 'tipo' | 'flujo' | 'descripcion' | 'encargado'>,
+  ): Promise<boolean> => {
     const sessionUser = readSessionUser()
     if (!hasPermission(sessionUser, 'gastos:write')) {
       setError('No tienes permisos para registrar gastos.')
@@ -124,10 +150,38 @@ export function useGastosStore(options: UseGastosStoreOptions = {}) {
     try {
       setError(null)
       const created = await createGasto(input)
-      setGastos((prev) => [normalizeGasto(created, prev.length), ...prev])
+      setGastos((prev) => [normalizeGasto(created), ...prev])
       return true
-    } catch {
-      setError('No se pudo guardar el gasto en el backend.')
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'No se pudo guardar el gasto en el backend.',
+      )
+      return false
+    }
+  }
+
+  const cancelGasto = async (gastoId: string, motivoAnulacion: string): Promise<boolean> => {
+    const sessionUser = readSessionUser()
+    if (!hasPermission(sessionUser, 'gastos:write')) {
+      setError('No tienes permisos para anular gastos.')
+      return false
+    }
+
+    try {
+      setError(null)
+      const updated = await cancelGastoRequest(gastoId, { motivoAnulacion })
+      setGastos((prev) =>
+        prev.map((item) => (item.id === gastoId ? normalizeGasto(updated) : item)),
+      )
+      return true
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'No se pudo anular el gasto en el backend.',
+      )
       return false
     }
   }
@@ -136,7 +190,10 @@ export function useGastosStore(options: UseGastosStoreOptions = {}) {
     gastos,
     setGastos,
     addGasto,
+    cancelGasto,
     loading,
     error,
   }
 }
+
+export type { GastoFlujo, GastoManualTipo, GastoTipo }

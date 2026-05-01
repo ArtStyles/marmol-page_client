@@ -348,6 +348,143 @@ export interface Venta {
   movimientoInventarioId?: string
 }
 
+export const GASTO_TIPOS = [
+  'Materia prima',
+  'Transporte',
+  'Servicios',
+  'Mantenimiento',
+  'Nomina',
+  'Operacion',
+  'Imprevisto',
+] as const
+
+export const GASTO_TIPOS_MANUALES = ['Servicios', 'Mantenimiento', 'Operacion', 'Imprevisto'] as const
+
+export const GASTO_FLUJOS = ['Produccion', 'Inventario', 'Ventas', 'Administracion', 'General'] as const
+
+export type GastoTipo = (typeof GASTO_TIPOS)[number]
+export type GastoManualTipo = (typeof GASTO_TIPOS_MANUALES)[number]
+export type GastoFlujo = (typeof GASTO_FLUJOS)[number]
+export type GastoOrigen = 'manual' | 'sistema'
+export type GastoOrigenModulo = 'gastos' | 'bloques' | 'pagos'
+export type GastoEstado = 'activo' | 'anulado'
+
+export interface Gasto {
+  id: string
+  createdAt?: string
+  fecha: string
+  costo: number
+  tipo: GastoTipo
+  flujo: GastoFlujo
+  descripcion: string
+  encargado: string
+  origen: GastoOrigen
+  origenModulo: GastoOrigenModulo
+  referenciaId?: string
+  creadoPorId?: string
+  creadoPorNombre?: string
+  estado: GastoEstado
+  anuladoPorId?: string
+  anuladoPorNombre?: string
+  anuladoFecha?: string
+  motivoAnulacion?: string
+}
+
+export interface FinancialSeriesPoint {
+  fecha: string
+  total: number
+}
+
+export interface FinancialBreakdownItem {
+  key: string
+  label: string
+  total: number
+  count: number
+}
+
+export interface FinancialExpenseSummary {
+  totalActivo: number
+  totalMesActual: number
+  promedioActivo: number
+  cantidadActivos: number
+  cantidadMesActual: number
+  totalManualActivo: number
+  totalSistemaActivo: number
+  balanceContraIngresos: number
+  ratioContraIngresos: number
+  porTipo: FinancialBreakdownItem[]
+  porFlujo: FinancialBreakdownItem[]
+  porOrigen: FinancialBreakdownItem[]
+  topEncargados: Array<{
+    encargado: string
+    total: number
+  }>
+}
+
+export interface FinancialPayrollSummary {
+  pagado: number
+  pendiente: number
+  bonos: number
+  salariosFijosReferencia: number
+}
+
+export interface FinancialMaterialSummary {
+  inventarioComprado: number
+  transporteMateriaPrima: number
+  costoBloqueAsignado: number
+  costoMaterialM2: number
+  costoMerma: number
+  metrosReferenciaCosteo: number
+}
+
+export interface FinancialOperationsSummary {
+  ingresosOperativos: number
+  ingresosTotales: number
+  descuentos: number
+  fondosOperativos: number
+  totalMetrosVendidos: number
+  produccionTotalM2: number
+  totalMermasM2: number
+  mermaRatio: number
+  ratioVentaProduccion: number
+}
+
+export interface FinancialProfitabilitySummary {
+  reservaFijosMantenimiento: number
+  baseDespuesReserva: number
+  manoObraObreros: number
+  manoObraPagada: number
+  manoObraPendiente: number
+  gastoManualRegistrado: number
+  gastoCorriente: number
+  gastoAgua: number
+  gastoOtros: number
+  gastosServicios: number
+  utilidadAntesServicios: number
+  gananciaNeta: number
+  reinversion: number
+  pagoDirectivos: number
+  margenOperativo: number
+  margenNeto: number
+  ticketPromedio: number
+  ingresoPorM2: number
+}
+
+export interface FinancialSummary {
+  periodoActual: string
+  gastos: FinancialExpenseSummary
+  nomina: FinancialPayrollSummary
+  materiales: FinancialMaterialSummary
+  operacion: FinancialOperationsSummary
+  rentabilidad: FinancialProfitabilitySummary
+  ventasRecientes: FinancialSeriesPoint[]
+  alertas: string[]
+  fechas: {
+    ultimaVenta?: string
+    ultimaProduccion?: string
+  }
+}
+
 export type InventarioMovimientoTipo = 'entrada' | 'salida'
 export type InventarioMovimientoOrigen = 'produccion' | 'venta' | 'merma' | 'proceso' | 'ajuste'
 
