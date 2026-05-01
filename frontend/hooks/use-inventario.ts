@@ -6,7 +6,13 @@ import { getProductos } from '@/lib/resources-api'
 import type { Producto } from '@/lib/types'
 
 const normalizeEstadoInventario = (estado: unknown): Producto['estado'] => {
-  if (estado === 'Pulido' || estado === 'Picado' || estado === 'Escuadrado') {
+  if (
+    estado === 'Pulido' ||
+    estado === 'Picado' ||
+    estado === 'Escuadrado' ||
+    estado === 'Devastado' ||
+    estado === 'Resinado'
+  ) {
     return estado
   }
 

@@ -18,3 +18,4 @@ export default function InventarioPage() {
   return <InventarioPageClient />
 }
 
+

@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { AdminPanelCard, AdminShell } from '@/components/admin/admin-shell'
 import { Button } from '@/components/admin/admin-button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -26,13 +25,23 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { useInventarioStore } from '@/hooks/use-inventario'
+import { useConfiguracion } from '@/hooks/use-configuracion'
 import {
   approveInventarioMovimiento,
   createSalidaProcesoInventario,
   getBloques,
   getInventarioMovimientosPage,
   getMonoHiloMasas,
+  getProduccionTrabajadores,
   rejectInventarioMovimiento,
 } from '@/lib/resources-api'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
@@ -46,11 +55,14 @@ import {
   type Dimension,
   type InventarioMovimiento,
   type Producto,
+  type ProduccionTrabajador,
   type UbicacionInventario,
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { BarChart3, ChevronDown, Search } from 'lucide-react'
+import { InventoryOriginDetailDialog } from '../components/inventory-origin-detail-dialog'
+import { buildInventoryOriginProfiles } from '../lib/inventory-origin-profiles'
 
 type EstadoRow = {
   estado: Producto['estado']
@@ -60,25 +72,6 @@ type EstadoRow = {
 
 type MetricView = 'both' | 'losas' | 'm2'
 type UbicacionFilter = 'all' | UbicacionInventario
-
-type OrigenChartGroup = {
-  origenId: string
-  origenNombre: string
-  items: Producto[]
-  totalLosas: number
-  totalM2: number
-  chartData: EstadoRow[]
-  estadoDominante: Producto['estado']
-}
-
-type PartidasOrigenGroup = {
-  origenId: string
-  origenNombre: string
-  mermaLosas: number
-  mermaM2: number
-  reutilizableLosas: number
-  reutilizableM2: number
-}
 
 type AccionFiltroResumenRow = {
   estado: Producto['estado']
@@ -100,38 +93,6 @@ const inventoryChartConfig = {
   },
 } satisfies ChartConfig
 
-const rankingLosasConfig = {
-  losas: {
-    label: 'Losas',
-    color: 'hsl(222, 47%, 11%)',
-  },
-} satisfies ChartConfig
-
-const rankingM2Config = {
-  m2: {
-    label: 'm2',
-    color: 'hsl(160, 84%, 39%)',
-  },
-} satisfies ChartConfig
-
-const breakageChartConfig = {
-  merma: {
-    label: 'Merma total',
-    color: 'hsl(0, 84%, 60%)',
-  },
-  reutilizable: {
-    label: 'Reutilizable',
-    color: 'hsl(205, 85%, 55%)',
-  },
-} satisfies ChartConfig
-
-const estadoBadgeClass: Record<Producto['estado'], string> = {
-  Picado: 'border-blue-200 bg-blue-50 text-blue-700',
-  Escuadrado: 'border-amber-200 bg-amber-50 text-amber-700',
-  Devastado: 'border-violet-200 bg-violet-50 text-violet-700',
-  Resinado: 'border-cyan-200 bg-cyan-50 text-cyan-700',
-  Pulido: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-}
 const movimientoEstadoBadgeClass: Record<InventarioMovimiento['estado'], string> = {
   pendiente: 'border-amber-200 bg-amber-50 text-amber-700',
   aprobado: 'border-emerald-200 bg-emerald-50 text-emerald-700',
@@ -159,6 +120,16 @@ const estadoRequeridoProcesoPorAccion: Record<
   pulir: 'Resinado',
 }
 
+const accionObjetivoProcesoLabel: Record<
+  'escuadrar' | 'devastar' | 'resinar' | 'pulir',
+  string
+> = {
+  escuadrar: 'Escuadrar',
+  devastar: 'Devastar',
+  resinar: 'Resinar',
+  pulir: 'Pulir',
+}
+
 const MOVIMIENTOS_PAGE_SIZE = 10
 
 function buildEstadoRows(items: Producto[]): EstadoRow[] {
@@ -173,15 +144,6 @@ function buildEstadoRows(items: Producto[]): EstadoRow[] {
       m2: Number(m2.toFixed(2)),
     }
   })
-}
-
-function getDominantEstado(rows: EstadoRow[]): Producto['estado'] {
-  return [...rows].sort((a, b) => b.losas - a.losas)[0]?.estado ?? 'Picado'
-}
-
-function shortOrigenLabel(name: string): string {
-  if (name.length <= 24) return name
-  return `${name.slice(0, 21)}...`
 }
 
 function isMetricView(value: string): value is MetricView {
@@ -268,7 +230,9 @@ function resolveMovimientoBadgeDisplay(
 export default function InventarioPage() {
   const { productos } = useInventarioStore()
   const { produccion } = useProduccionStore()
+  const { config } = useConfiguracion()
   const [bloquesYLotes, setBloquesYLotes] = useState<BloqueOLote[]>([])
+  const [produccionTrabajadores, setProduccionTrabajadores] = useState<ProduccionTrabajador[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [tipoFilter, setTipoFilter] = useState<string>('all')
   const [estadoFilter, setEstadoFilter] = useState<string>('all')
@@ -298,6 +262,8 @@ export default function InventarioPage() {
   const [procesoCantidadTouched, setProcesoCantidadTouched] = useState(false)
   const [procesoDialogError, setProcesoDialogError] = useState<string | null>(null)
   const [procesoDialogSubmitting, setProcesoDialogSubmitting] = useState(false)
+  const [procesoConfirmDialogOpen, setProcesoConfirmDialogOpen] = useState(false)
+  const [selectedOriginId, setSelectedOriginId] = useState<string | null>(null)
   const [monoHiloMasas, setMonoHiloMasas] = useState<MonoHiloMasa[]>([])
   const [monoHiloLoading, setMonoHiloLoading] = useState(true)
   const [monoHiloError, setMonoHiloError] = useState<string | null>(null)
@@ -369,6 +335,27 @@ export default function InventarioPage() {
       alive = false
     }
   }, [])
+
+  useEffect(() => {
+    let alive = true
+
+    const loadProduccionTrabajadores = async () => {
+      try {
+        const items = await getProduccionTrabajadores()
+        if (!alive) return
+        setProduccionTrabajadores(items)
+      } catch {
+        if (!alive) return
+        setProduccionTrabajadores([])
+      }
+    }
+
+    void loadProduccionTrabajadores()
+
+    return () => {
+      alive = false
+    }
+  }, [])
   useEffect(() => {
     let alive = true
 
@@ -400,18 +387,7 @@ export default function InventarioPage() {
   }, [])
 
   const canApproveMovimientos = currentUser ? hasPermission(currentUser, 'inventario:approve') : false
-  const canWriteInventario = currentUser
-    ? hasPermission(currentUser, 'inventario:write')
-    : false
-  const canSolicitarSalidaProceso = canWriteInventario
-
-  const bloquesPorId = useMemo(() => {
-    const map = new Map<string, BloqueOLote>()
-    bloquesYLotes.forEach((bloque) => {
-      map.set(bloque.id.trim(), bloque)
-    })
-    return map
-  }, [bloquesYLotes])
+  const canDarSalidaProceso = canApproveMovimientos
 
   const origenesVendidos = useMemo(() => {
     const ids = new Set<string>()
@@ -498,25 +474,20 @@ export default function InventarioPage() {
   const showBothMetrics = showLosas && showM2
   const generalMetricTitle =
     metricView === 'both'
-      ? 'Losas y m2 por estado operativo'
+      ? 'Panorama del stock por estado'
       : metricView === 'losas'
-        ? 'Losas por estado operativo'
-        : 'm2 por estado operativo'
+        ? 'Panorama del stock en losas'
+        : 'Panorama del stock en m2'
 
-  const filteredProductos = useMemo(() => {
+  const stockFilteredProductos = useMemo(() => {
     return productos.filter((producto) => {
-      const query = searchTerm.toLowerCase()
-      const matchesSearch =
-        producto.nombre.toLowerCase().includes(query) ||
-        producto.origenNombre.toLowerCase().includes(query) ||
-        producto.id.toLowerCase().includes(query)
       const matchesTipo = tipoFilter === 'all' || producto.tipo === tipoFilter
       const matchesEstado = estadoFilter === 'all' || producto.estado === estadoFilter
       const matchesDimension = dimensionFilter === 'all' || producto.dimension === dimensionFilter
       const matchesUbicacion = ubicacionFilter === 'all' || producto.ubicacion === ubicacionFilter
-      return matchesSearch && matchesTipo && matchesEstado && matchesDimension && matchesUbicacion
+      return matchesTipo && matchesEstado && matchesDimension && matchesUbicacion
     })
-  }, [productos, searchTerm, tipoFilter, estadoFilter, dimensionFilter, ubicacionFilter])
+  }, [productos, tipoFilter, estadoFilter, dimensionFilter, ubicacionFilter])
 
   const productosAlmacenParaProceso = useMemo(() => {
     const estadoRequerido = estadoRequeridoProcesoPorAccion[procesoAccionObjetivo]
@@ -534,6 +505,62 @@ export default function InventarioPage() {
     setProcesoProductoId(productosAlmacenParaProceso[0]?.id ?? '')
   }, [procesoDialogOpen, procesoProductoId, productosAlmacenParaProceso])
 
+  const originProfiles = useMemo(
+    () =>
+      buildInventoryOriginProfiles({
+        blocks: bloquesYLotes,
+        allProducts: productos,
+        visibleProducts: stockFilteredProductos,
+        produccion,
+        produccionTrabajadores,
+        monoHiloMasas,
+        resolveOriginCode: resolveOrigenCodigo,
+      }),
+    [
+      bloquesYLotes,
+      monoHiloMasas,
+      produccion,
+      produccionTrabajadores,
+      productos,
+      resolveOrigenCodigo,
+      stockFilteredProductos,
+    ],
+  )
+
+  const filteredOriginProfiles = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+    return originProfiles.filter((profile) => {
+      if (profile.visibleProducts.length === 0) return false
+      if (!query) return true
+
+      const haystack = [
+        profile.code,
+        profile.originName,
+        profile.provider,
+        profile.entryDate,
+        profile.blockType ?? '',
+        ...profile.allProducts.map((product) => product.nombre),
+      ]
+        .join(' ')
+        .toLowerCase()
+
+      return haystack.includes(query)
+    })
+  }, [originProfiles, searchTerm])
+
+  const visibleOriginIds = useMemo(
+    () => new Set(filteredOriginProfiles.map((profile) => profile.originId.trim())),
+    [filteredOriginProfiles],
+  )
+
+  const filteredProductos = useMemo(
+    () =>
+      stockFilteredProductos.filter((producto) =>
+        visibleOriginIds.has(producto.origenId.trim()),
+      ),
+    [stockFilteredProductos, visibleOriginIds],
+  )
+
   const generalChartData = useMemo(() => buildEstadoRows(filteredProductos), [filteredProductos])
 
   const accionResumenFiltro = useMemo<AccionFiltroResumenRow[]>(
@@ -550,123 +577,41 @@ export default function InventarioPage() {
     [filteredProductos],
   )
 
-  const groupedByOrigen = useMemo(() => {
-    const grouped = filteredProductos.reduce<Record<string, Omit<OrigenChartGroup, 'chartData' | 'estadoDominante'>>>(
-      (acc, item) => {
-        if (!acc[item.origenId]) {
-          acc[item.origenId] = {
-            origenId: item.origenId,
-            origenNombre: item.origenNombre,
-            items: [],
-            totalLosas: 0,
-            totalM2: 0,
-          }
-        }
-
-        acc[item.origenId].items.push(item)
-        acc[item.origenId].totalLosas += item.cantidadLosas
-        acc[item.origenId].totalM2 += item.metrosCuadrados
-
-        return acc
-      },
-      {},
-    )
-
-    return Object.values(grouped)
-      .map((group) => {
-        const chartData = buildEstadoRows(group.items)
-        return {
-          ...group,
-          chartData,
-          estadoDominante: getDominantEstado(chartData),
-        }
-      })
-      .sort((a, b) => b.totalM2 - a.totalM2)
-  }, [filteredProductos])
-
-  const topLosasByOrigen = useMemo(
+  const filteredOriginSummary = useMemo(
     () =>
-      groupedByOrigen.slice(0, 6).map((group) => ({
-        origen: shortOrigenLabel(group.origenNombre),
-        losas: group.totalLosas,
-      })),
-    [groupedByOrigen],
+      filteredOriginProfiles.reduce(
+        (acc, profile) => {
+          acc.total += 1
+          if (profile.blockType === 'Bloque') acc.bloques += 1
+          if (profile.blockType === 'Lote') acc.lotes += 1
+          acc.items += profile.visibleItemsCount
+          acc.losas += profile.totalVisibleSlabs
+          acc.m2 += profile.totalVisibleM2
+          return acc
+        },
+        { total: 0, bloques: 0, lotes: 0, items: 0, losas: 0, m2: 0 },
+      ),
+    [filteredOriginProfiles],
   )
 
-  const topM2ByOrigen = useMemo(
+  const selectedOriginProfile = useMemo(
     () =>
-      groupedByOrigen.slice(0, 6).map((group) => ({
-        origen: shortOrigenLabel(group.origenNombre),
-        m2: Number(group.totalM2.toFixed(2)),
-      })),
-    [groupedByOrigen],
+      filteredOriginProfiles.find((profile) => profile.originId === selectedOriginId) ??
+      originProfiles.find((profile) => profile.originId === selectedOriginId) ??
+      null,
+    [filteredOriginProfiles, originProfiles, selectedOriginId],
   )
 
-  const partidasPorOrigen = useMemo(() => {
-    const grouped = produccion.reduce<Record<string, PartidasOrigenGroup>>((acc, registro) => {
-      if (!acc[registro.origenId]) {
-        acc[registro.origenId] = {
-          origenId: registro.origenId,
-          origenNombre: registro.origenNombre,
-          mermaLosas: 0,
-          mermaM2: 0,
-          reutilizableLosas: 0,
-          reutilizableM2: 0,
-        }
-      }
+  useEffect(() => {
+    if (selectedOriginId && !selectedOriginProfile) {
+      setSelectedOriginId(null)
+    }
+  }, [selectedOriginId, selectedOriginProfile])
 
-      ;(registro.detallesAcciones ?? []).forEach((detalle) => {
-        const mermaLosas = detalle.losasMermaTotal ?? 0
-        const reutilizableLosas = detalle.losasReutilizables ?? 0
-
-        acc[registro.origenId].mermaLosas += mermaLosas
-        acc[registro.origenId].mermaM2 +=
-          (detalle.metrosMermaTotal ?? 0) > 0
-            ? detalle.metrosMermaTotal ?? 0
-            : losasAMetros(mermaLosas, registro.dimension)
-
-        acc[registro.origenId].reutilizableLosas += reutilizableLosas
-        acc[registro.origenId].reutilizableM2 +=
-          (detalle.metrosReutilizables ?? 0) > 0
-            ? detalle.metrosReutilizables ?? 0
-            : losasAMetros(reutilizableLosas, registro.dimension)
-      })
-
-      return acc
-    }, {})
-
-    return Object.values(grouped)
-      .filter((group) => group.mermaLosas > 0 || group.reutilizableLosas > 0)
-      .sort(
-        (a, b) =>
-          b.mermaLosas +
-          b.reutilizableLosas -
-          (a.mermaLosas + a.reutilizableLosas),
-      )
-  }, [produccion])
-
-  const mermaPorOrigen = useMemo(
-    () => partidasPorOrigen.filter((group) => group.mermaLosas > 0),
-    [partidasPorOrigen],
-  )
-
-  const reutilizablePorOrigen = useMemo(
-    () => partidasPorOrigen.filter((group) => group.reutilizableLosas > 0),
-    [partidasPorOrigen],
-  )
-
-  const resumenPartidas = useMemo(() => {
-    return partidasPorOrigen.reduce(
-      (acc, group) => {
-        acc.mermaLosas += group.mermaLosas
-        acc.mermaM2 += group.mermaM2
-        acc.reutilizableLosas += group.reutilizableLosas
-        acc.reutilizableM2 += group.reutilizableM2
-        return acc
-      },
-      { mermaLosas: 0, mermaM2: 0, reutilizableLosas: 0, reutilizableM2: 0 },
-    )
-  }, [partidasPorOrigen])
+  const monoHiloFormulaHint = useMemo(() => {
+    const divisor = config.monoHiloEspesorLosaCm / 100 + config.monoHiloGrosorDiscoMm / 1000
+    return `Losas estimadas = largo total de masas en metros / ${divisor.toFixed(3)}. Se considera ${config.monoHiloEspesorLosaCm.toFixed(1)} cm de espesor de losa y ${config.monoHiloGrosorDiscoMm.toFixed(0)} mm de corte del disco.`
+  }, [config.monoHiloEspesorLosaCm, config.monoHiloGrosorDiscoMm])
 
   const movimientosOrdenados = useMemo(
     () => [...movimientos].sort((a, b) => b.fechaSolicitud.localeCompare(a.fechaSolicitud)),
@@ -702,6 +647,19 @@ export default function InventarioPage() {
     () => productosAlmacenParaProceso.find((producto) => producto.id === procesoProductoId) ?? null,
     [productosAlmacenParaProceso, procesoProductoId],
   )
+  const procesoProductoResumen = useMemo(
+    () =>
+      procesoProductoSeleccionado
+        ? buildProductoProcesoOptionLabel(
+            resolveOrigenCodigo(
+              procesoProductoSeleccionado.origenId,
+              procesoProductoSeleccionado.origenNombre,
+            ),
+            procesoProductoSeleccionado,
+          )
+        : '',
+    [procesoProductoSeleccionado, resolveOrigenCodigo],
+  )
 
   const closeApproveDialog = () => {
     if (isApproveDialogLoading) return
@@ -719,19 +677,54 @@ export default function InventarioPage() {
   }
 
   const openProcesoDialog = () => {
-    if (!canSolicitarSalidaProceso) return
+    if (!canDarSalidaProceso) return
     setProcesoDialogError(null)
     setProcesoAccionObjetivo('escuadrar')
     setProcesoProductoId('')
     setProcesoCantidadLosas(0)
     setProcesoCantidadTouched(false)
+    setProcesoConfirmDialogOpen(false)
     setProcesoDialogOpen(true)
   }
 
   const closeProcesoDialog = () => {
     if (procesoDialogSubmitting) return
     setProcesoDialogOpen(false)
+    setProcesoConfirmDialogOpen(false)
     setProcesoDialogError(null)
+  }
+
+  const closeProcesoConfirmDialog = () => {
+    if (procesoDialogSubmitting) return
+    setProcesoConfirmDialogOpen(false)
+  }
+
+  const validateSalidaProcesoForm = (): boolean => {
+    if (!procesoProductoSeleccionado) {
+      setProcesoDialogError('Selecciona un producto de almacen para la salida a proceso.')
+      return false
+    }
+
+    const cantidadLosas = Math.trunc(procesoCantidadLosas)
+    if (!Number.isInteger(cantidadLosas) || cantidadLosas <= 0) {
+      setProcesoDialogError('La cantidad de losas debe ser entera y mayor a 0.')
+      return false
+    }
+
+    if (cantidadLosas > procesoProductoSeleccionado.cantidadLosas) {
+      setProcesoDialogError(
+        `La cantidad solicitada excede el stock disponible (${procesoProductoSeleccionado.cantidadLosas} losas).`,
+      )
+      return false
+    }
+
+    return true
+  }
+
+  const openProcesoConfirmDialog = () => {
+    if (!validateSalidaProcesoForm()) return
+    setProcesoDialogError(null)
+    setProcesoConfirmDialogOpen(true)
   }
 
   const handleApproveMovimiento = (movimientoId: string) => {
@@ -805,23 +798,9 @@ export default function InventarioPage() {
   }
 
   const confirmSalidaProceso = async () => {
-    if (!procesoProductoSeleccionado) {
-      setProcesoDialogError('Selecciona un producto de almacen para la salida a proceso.')
-      return
-    }
+    if (!validateSalidaProcesoForm() || !procesoProductoSeleccionado) return
 
     const cantidadLosas = Math.trunc(procesoCantidadLosas)
-    if (!Number.isInteger(cantidadLosas) || cantidadLosas <= 0) {
-      setProcesoDialogError('La cantidad de losas debe ser entera y mayor a 0.')
-      return
-    }
-
-    if (cantidadLosas > procesoProductoSeleccionado.cantidadLosas) {
-      setProcesoDialogError(
-        `La cantidad solicitada excede el stock disponible (${procesoProductoSeleccionado.cantidadLosas} losas).`,
-      )
-      return
-    }
 
     setProcesoDialogError(null)
     setMovimientosError(null)
@@ -833,12 +812,14 @@ export default function InventarioPage() {
         cantidadLosas,
       })
       setMovimientos((prev) => [movimiento, ...prev.filter((item) => item.id !== movimiento.id)])
-      closeProcesoDialog()
+      setProcesoConfirmDialogOpen(false)
+      setProcesoDialogOpen(false)
+      setProcesoDialogError(null)
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : 'No se pudo registrar la solicitud de salida a proceso.'
+          : 'No se pudo registrar la salida a proceso.'
       setProcesoDialogError(message)
       setMovimientosError(message)
     } finally {
@@ -873,33 +854,52 @@ export default function InventarioPage() {
     }
   }
 
-  const breakageChartData = useMemo(
-    () => [
-      {
-        tipo: 'Merma total',
-        merma: showLosas ? resumenPartidas.mermaLosas : Number(resumenPartidas.mermaM2.toFixed(2)),
-      },
-      {
-        tipo: 'Reutilizable',
-        reutilizable: showLosas
-          ? resumenPartidas.reutilizableLosas
-          : Number(resumenPartidas.reutilizableM2.toFixed(2)),
-      },
-    ],
-    [resumenPartidas, showLosas],
-  )
-
   const rightPanel = (
     <div className="space-y-4">
       <AdminPanelCard
-        title="Filtro por accion"
+        title="Vista actual"
+        meta={`${filteredOriginSummary.total} origen(es) visibles`}
+      >
+        <div className="space-y-3 text-sm text-slate-700">
+          <div className="flex items-center justify-between">
+            <span>Bloques</span>
+            <span className="font-semibold text-slate-900">
+              {filteredOriginSummary.bloques}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Lotes</span>
+            <span className="font-semibold text-slate-900">
+              {filteredOriginSummary.lotes}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Losas visibles</span>
+            <span className="font-semibold text-slate-900">
+              {filteredOriginSummary.losas.toLocaleString()}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>m2 visibles</span>
+            <span className="font-semibold text-slate-900">
+              {filteredOriginSummary.m2.toFixed(2)} m2
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            La tabla principal se alimenta con estos bloques y lotes filtrados.
+          </p>
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard
+        title="Ritmo por estado"
         meta={`Tipo ${tipoFilter === 'all' ? 'Todos' : tipoFilter} | Estado ${
           estadoFilter === 'all' ? 'Todos' : estadoFilter
         } | Dim ${dimensionFilter === 'all' ? 'Todas' : dimensionFilter}`}
       >
         <div className="space-y-2 text-sm text-slate-700">
           {accionResumenFiltro.map((row) => (
-            <div key={row.estado} className="rounded-2xl bg-white/70 px-3 py-2">
+            <div key={row.estado} className="rounded-xl bg-white/70 px-3 py-2">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-slate-900">{row.estado}</span>
                 <span className="text-xs text-slate-500">{row.productos} item(s)</span>
@@ -913,89 +913,31 @@ export default function InventarioPage() {
         </div>
       </AdminPanelCard>
 
-      <AdminPanelCard title="Losas partidas" meta="Desde produccion">
+      <AdminPanelCard title="Mono hilo listo" meta="Reserva para picado">
         <div className="space-y-3 text-sm text-slate-700">
           <div className="flex items-center justify-between">
-            <span>Merma total</span>
-            <span className="font-semibold text-rose-700">
-              {resumenPartidas.mermaLosas.toLocaleString()} / {resumenPartidas.mermaM2.toFixed(2)} m2
+            <span>Total de masas</span>
+            <span className="font-semibold text-slate-900">
+              {monoHiloResumen.total.toLocaleString()}
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span>Reutilizable</span>
-            <span className="font-semibold text-sky-700">
-              {resumenPartidas.reutilizableLosas.toLocaleString()} / {resumenPartidas.reutilizableM2.toFixed(2)} m2
+            <span>En almacen</span>
+            <span className="font-semibold text-amber-700">
+              {monoHiloResumen.almacen.toLocaleString()}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>En proceso</span>
+            <span className="font-semibold text-slate-900">
+              {monoHiloResumen.proceso.toLocaleString()}
             </span>
           </div>
           <p className="text-[11px] text-slate-500">
-            Merma total es perdida. Reutilizable se controla aparte y no se mezcla con stock operativo.
+            Sirve para leer rapido cuanta reserva real existe antes de volver a picar.
           </p>
         </div>
       </AdminPanelCard>
-
-      {showLosas && (
-        <AdminPanelCard title="Top bloques" meta="Por losas">
-          {topLosasByOrigen.length === 0 ? (
-            <p className="text-xs text-slate-500">Sin datos para mostrar.</p>
-          ) : (
-            <ChartContainer config={rankingLosasConfig} className="h-[180px] w-full sm:h-[210px]">
-              <BarChart layout="vertical" data={topLosasByOrigen} margin={{ top: 4, right: 10, left: 10, bottom: 0 }}>
-                <CartesianGrid horizontal={false} />
-                <XAxis type="number" hide />
-                <YAxis
-                  dataKey="origen"
-                  type="category"
-                  tickLine={false}
-                  axisLine={false}
-                  width={92}
-                  tick={{ fontSize: 11 }}
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      formatter={(value) => `${Number(value).toLocaleString()} losas`}
-                    />
-                  }
-                />
-                <Bar dataKey="losas" fill="var(--color-losas)" radius={[0, 8, 8, 0]} />
-              </BarChart>
-            </ChartContainer>
-          )}
-        </AdminPanelCard>
-      )}
-
-      {showM2 && (
-        <AdminPanelCard title="Top bloques" meta="Por m2">
-          {topM2ByOrigen.length === 0 ? (
-            <p className="text-xs text-slate-500">Sin datos para mostrar.</p>
-          ) : (
-            <ChartContainer config={rankingM2Config} className="h-[180px] w-full sm:h-[210px]">
-              <BarChart layout="vertical" data={topM2ByOrigen} margin={{ top: 4, right: 10, left: 10, bottom: 0 }}>
-                <CartesianGrid horizontal={false} />
-                <XAxis type="number" hide />
-                <YAxis
-                  dataKey="origen"
-                  type="category"
-                  tickLine={false}
-                  axisLine={false}
-                  width={92}
-                  tick={{ fontSize: 11 }}
-                />
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      formatter={(value) => `${Number(value).toFixed(2)} m2`}
-                    />
-                  }
-                />
-                <Bar dataKey="m2" fill="var(--color-m2)" radius={[0, 8, 8, 0]} />
-              </BarChart>
-            </ChartContainer>
-          )}
-        </AdminPanelCard>
-      )}
     </div>
   )
 
@@ -1006,13 +948,13 @@ export default function InventarioPage() {
           <div>
             <h1 className="text-3xl font-bold text-foreground font-sans">Inventario</h1>
             <p className="mt-1 text-muted-foreground font-sans">
-              Stock operativo separado de estadisticas de partidas (merma/reutilizable).
+              Consulta el stock activo y abre la ficha completa de cada bloque o lote sin saturar la vista.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {canSolicitarSalidaProceso && (
+            {canDarSalidaProceso && (
               <Button type="button" onClick={openProcesoDialog}>
-                Solicitar salida a proceso
+                Dar salida a proceso
               </Button>
             )}
             <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
@@ -1021,14 +963,14 @@ export default function InventarioPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
+        <div className="rounded-[var(--agent-radius-panel)] border border-white/60 bg-white/70 p-4 shadow-[var(--dash-shadow)] backdrop-blur-xl">
           <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-end">
             <div className="space-y-1">
               <Label className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Buscar</Label>
               <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por producto, origen o id..."
+                  placeholder="Buscar por codigo, bloque, lote o proveedor..."
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   className="pl-9"
@@ -1102,7 +1044,7 @@ export default function InventarioPage() {
           </div>
         </div>
 
-        <div className="rounded-[24px] border border-amber-200/70 bg-amber-50/40 p-4 shadow-[var(--dash-shadow)]">
+        <div className="rounded-[var(--agent-radius-panel)] border border-amber-200/70 bg-amber-50/40 p-4 shadow-[var(--dash-shadow)]">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-[0.28em] text-amber-700">Mono hilo</p>
@@ -1188,13 +1130,13 @@ export default function InventarioPage() {
           )}
         </div>
 
-        <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+        <div className="overflow-hidden rounded-[var(--agent-radius-panel)] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Historial exclusivo de almacen</p>
-              <h2 className="text-lg font-semibold text-slate-900">Entradas y salidas con aprobacion</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Historial de movimientos de almacen</h2>
               <p className="mt-1 text-xs text-slate-500">
-                Todo movimiento debe aprobarse por jefatura de almacen antes de completarse.
+                Las salidas a proceso desde almacen se aplican directo. Otros movimientos pueden requerir aprobacion.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1484,9 +1426,9 @@ export default function InventarioPage() {
         >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Solicitar salida a proceso</DialogTitle>
+              <DialogTitle>Dar salida a proceso</DialogTitle>
               <DialogDescription>
-                Esta salida queda pendiente hasta aprobacion de jefatura de almacen.
+                Prepara la salida directa desde almacen hacia proceso y confirma el movimiento en el siguiente paso.
               </DialogDescription>
             </DialogHeader>
 
@@ -1585,7 +1527,7 @@ export default function InventarioPage() {
               <Button
                 type="button"
                 onClick={() => {
-                  void confirmSalidaProceso()
+                  openProcesoConfirmDialog()
                 }}
                 disabled={
                   procesoDialogSubmitting ||
@@ -1593,13 +1535,83 @@ export default function InventarioPage() {
                   procesoCantidadLosas <= 0
                 }
               >
-                {procesoDialogSubmitting ? 'Guardando...' : 'Solicitar salida'}
+                Dar salida
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+        <Dialog
+          open={procesoConfirmDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) closeProcesoConfirmDialog()
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Confirmar salida a proceso</DialogTitle>
+              <DialogDescription>
+                Esta accion mueve el stock de almacen a proceso de forma inmediata.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">Accion objetivo</span>
+                <span className="font-semibold text-slate-950">
+                  {accionObjetivoProcesoLabel[procesoAccionObjetivo]}
+                </span>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-slate-500">Producto</span>
+                <span className="max-w-[70%] text-right font-semibold text-slate-950">
+                  {procesoProductoResumen || '--'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">Cantidad</span>
+                <span className="font-semibold text-slate-950">
+                  {Math.trunc(procesoCantidadLosas).toLocaleString()} losas
+                </span>
+              </div>
+              {procesoProductoSeleccionado ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Equivalencia</span>
+                  <span className="font-semibold text-slate-950">
+                    {(
+                      (Math.trunc(procesoCantidadLosas) /
+                        procesoProductoSeleccionado.cantidadLosas) *
+                      procesoProductoSeleccionado.metrosCuadrados
+                    ).toFixed(2)}{' '}
+                    m2
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeProcesoConfirmDialog}
+                disabled={procesoDialogSubmitting}
+              >
+                Volver
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  void confirmSalidaProceso()
+                }}
+                disabled={procesoDialogSubmitting}
+              >
+                {procesoDialogSubmitting ? 'Procesando...' : 'Confirmar salida'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <div className="overflow-hidden rounded-[var(--agent-radius-panel)] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Stock operativo</p>
@@ -1667,205 +1679,105 @@ export default function InventarioPage() {
           </ChartContainer>
         </div>
 
-        <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+        <div className="overflow-hidden rounded-[var(--agent-radius-panel)] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Constancia de partidas</p>
+              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Bloques y lotes</p>
               <h2 className="text-lg font-semibold text-slate-900">
-                Merma total vs reutilizable desde produccion diaria
+                Tabla compacta para abrir cada ficha completa
               </h2>
               <p className="mt-1 text-xs text-slate-500">
-                Estas partidas no se mezclan con el stock operativo.
+                La vista principal queda ligera y el detalle vive dentro del modal de cada origen.
               </p>
             </div>
-            <p className="text-xs text-slate-500">
-              Vista en {showLosas ? 'losas' : 'm2'} segun selector activo
-            </p>
+            <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
+              {filteredOriginSummary.total} visibles
+            </Badge>
           </div>
 
-          {resumenPartidas.mermaLosas === 0 && resumenPartidas.reutilizableLosas === 0 ? (
+          {filteredOriginProfiles.length === 0 ? (
             <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
-              Sin partidas registradas desde produccion diaria.
+              No hay bloques o lotes para los filtros seleccionados.
             </div>
           ) : (
-            <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-              <ChartContainer config={breakageChartConfig} className="h-[220px] w-full sm:h-[270px]">
-                <BarChart data={breakageChartData} margin={{ top: 10, right: 12, left: 0, bottom: 6 }}>
-                  <CartesianGrid vertical={false} />
-                  <XAxis dataKey="tipo" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-                  <YAxis tickLine={false} axisLine={false} width={44} allowDecimals={!showLosas} />
-                  <ChartTooltip
-                    cursor={false}
-                    content={
-                      <ChartTooltipContent
-                        formatter={(value) => {
-                          const numeric = Number(value ?? 0)
-                          return showLosas
-                            ? `${Math.round(numeric).toLocaleString()} losas`
-                            : `${numeric.toFixed(2)} m2`
-                        }}
-                      />
-                    }
-                  />
-                  <Bar dataKey="merma" name="Merma total" fill="var(--color-merma)" radius={[8, 8, 0, 0]} />
-                  <Bar dataKey="reutilizable" name="Reutilizable" fill="var(--color-reutilizable)" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ChartContainer>
-
-              <div className="grid gap-3 lg:grid-cols-2">
-                <div className="space-y-2">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-rose-600">Merma por bloque</p>
-                  {mermaPorOrigen.length === 0 ? (
-                    <p className="text-xs text-slate-500">Sin merma registrada.</p>
-                  ) : (
-                    mermaPorOrigen.slice(0, 6).map((group) => (
-                      <div
-                        key={`merma-${group.origenId}`}
-                        className="rounded-lg border border-rose-100 bg-rose-50/60 px-3 py-2"
-                      >
-                        <p className="text-sm font-semibold text-slate-900">{group.origenNombre}</p>
-                        <p className="mt-1 text-[11px] text-rose-700">
-                          {group.mermaLosas} losas / {group.mermaM2.toFixed(2)} m2
+            <div className="mt-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Codigo</TableHead>
+                    <TableHead>Fecha de entrada</TableHead>
+                    <TableHead className="text-right">Accion</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredOriginProfiles.map((profile) => (
+                    <TableRow key={profile.originId}>
+                      <TableCell className="whitespace-normal">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold text-slate-950">{profile.code}</p>
+                            {profile.blockType ? (
+                              <Badge
+                                variant="outline"
+                                className="border-slate-200 bg-slate-50 text-slate-700"
+                              >
+                                {profile.blockType}
+                              </Badge>
+                            ) : null}
+                            {profile.baseDimension ? (
+                              <Badge
+                                variant="outline"
+                                className="border-slate-200 bg-slate-50 text-slate-700"
+                              >
+                                {profile.baseDimension}
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <p className="text-xs text-slate-500">{profile.provider}</p>
+                          <p className="text-xs text-slate-500">
+                            {profile.totalVisibleSlabs.toLocaleString()} losas visibles /{' '}
+                            {profile.totalVisibleM2.toFixed(2)} m2
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="whitespace-normal">
+                        <p className="font-medium text-slate-900">
+                          {profile.entryDate || '--'}
                         </p>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-sky-600">Reutilizable por bloque</p>
-                  {reutilizablePorOrigen.length === 0 ? (
-                    <p className="text-xs text-slate-500">Sin reutilizable registrado.</p>
-                  ) : (
-                    reutilizablePorOrigen.slice(0, 6).map((group) => (
-                      <div
-                        key={`reutilizable-${group.origenId}`}
-                        className="rounded-lg border border-sky-100 bg-sky-50/60 px-3 py-2"
-                      >
-                        <p className="text-sm font-semibold text-slate-900">{group.origenNombre}</p>
-                        <p className="mt-1 text-[11px] text-sky-700">
-                          {group.reutilizableLosas} losas / {group.reutilizableM2.toFixed(2)} m2
+                        <p className="text-xs text-slate-500">
+                          {profile.blockStatus ? `Estado ${profile.blockStatus}` : 'Sin estado'}
                         </p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedOriginId(profile.originId)
+                          }}
+                        >
+                          Visualizar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>
 
-        <Card className="bg-transparent border-none outline-none shadow-none p-0">
-          <CardContent className="p-0">
-            {groupedByOrigen.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-                No hay datos de inventario para los filtros seleccionados.
-              </div>
-            ) : (
-              <div className="grid gap-4 lg:grid-cols-2">
-                {groupedByOrigen.map((group) => {
-                  const bloqueOrigen = bloquesPorId.get(group.origenId.trim())
-                  const bloqueVendido = bloqueOrigen?.estado === 'vendido'
-                  const gananciaBloque = bloqueOrigen?.gananciaReal ?? 0
-                  const losasLiquidadas = Math.max(
-                    0,
-                    (bloqueOrigen?.losasProducidas ?? 0) - (bloqueOrigen?.losasPerdidas ?? 0),
-                  )
-
-                  return (
-                    <div
-                      key={group.origenId}
-                      className="overflow-hidden rounded-[20px] border border-slate-200/70 bg-white/80 p-4 shadow-[0_16px_36px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl"
-                    >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Bloque / lote</p>
-                          <p className="text-base font-semibold text-slate-900">{group.origenNombre}</p>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            'w-fit',
-                            bloqueVendido
-                              ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                              : estadoBadgeClass[group.estadoDominante],
-                          )}
-                        >
-                          {bloqueVendido ? 'Vendido' : group.estadoDominante}
-                        </Badge>
-                      </div>
-
-                      <div className="relative mt-3">
-                        {bloqueVendido ? (
-                          <div className="pointer-events-none absolute inset-x-2 top-2 z-10 rounded-xl border border-emerald-300 bg-emerald-50/95 px-3 py-2 shadow-sm">
-                            <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-700">Vendido</p>
-                            <p className="mt-1 text-xs font-semibold text-emerald-900">
-                              Ganancia del bloque: $
-                              {gananciaBloque.toLocaleString(undefined, {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}
-                            </p>
-                            <p className="text-[11px] text-emerald-700">
-                              Losas liquidadas: {losasLiquidadas.toLocaleString()} | Perdidas:{' '}
-                              {(bloqueOrigen?.losasPerdidas ?? 0).toLocaleString()}
-                            </p>
-                          </div>
-                        ) : null}
-
-                        <ChartContainer
-                          config={inventoryChartConfig}
-                          className={cn('h-[200px] w-full sm:h-[230px]', bloqueVendido ? 'pt-16' : '')}
-                        >
-                          <BarChart data={group.chartData} margin={{ top: 10, right: 8, left: 0, bottom: 6 }} barGap={8}>
-                            <CartesianGrid vertical={false} />
-                            <XAxis dataKey="estado" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-                            {showLosas && <YAxis yAxisId="losas" tickLine={false} axisLine={false} width={36} allowDecimals={false} />}
-                            {showM2 && (
-                              <YAxis
-                                yAxisId="m2"
-                                orientation={showLosas ? 'right' : 'left'}
-                                tickLine={false}
-                                axisLine={false}
-                                width={36}
-                              />
-                            )}
-                            <ChartTooltip
-                              cursor={false}
-                              content={
-                                <ChartTooltipContent
-                                  formatter={(value, name) => {
-                                    const numeric = Number(value ?? 0)
-                                    const normalizedName = String(name).toLowerCase()
-                                    const isM2 = normalizedName.includes('m2')
-                                    return isM2 ? `${numeric.toFixed(2)} m2` : `${Math.round(numeric).toLocaleString()} losas`
-                                  }}
-                                />
-                              }
-                            />
-                            {showLosas && <Bar yAxisId="losas" dataKey="losas" name="Losas" fill="var(--color-losas)" radius={[6, 6, 0, 0]} />}
-                            {showM2 && <Bar yAxisId="m2" dataKey="m2" name="m2" fill="var(--color-m2)" radius={[6, 6, 0, 0]} />}
-                          </BarChart>
-                        </ChartContainer>
-                      </div>
-
-                      <p className="mt-2 text-xs text-slate-500">
-                        {[
-                          `${group.items.length} items`,
-                          showLosas ? `${group.totalLosas.toLocaleString()} losas` : null,
-                          showM2 ? `${group.totalM2.toFixed(2)} m2` : null,
-                        ]
-                          .filter(Boolean)
-                          .join(' - ')}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <InventoryOriginDetailDialog
+          profile={selectedOriginProfile}
+          open={selectedOriginProfile !== null}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setSelectedOriginId(null)
+          }}
+          monoHiloFormulaHint={monoHiloFormulaHint}
+        />
       </div>
     </AdminShell>
   )
 }
+
