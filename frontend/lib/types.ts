@@ -2,17 +2,95 @@ import React from 'react'
 
 export const DIMENSIONES_PISO = ['40x40', '60x40', '80x40'] as const
 export const DIMENSIONES_PLANCHA = ['160x65', '160x60'] as const
+export const MONO_HILO_DIMENSIONES_BASE: Dimension[] = ['160x65', '160x60', '80x40', '60x40', '40x40']
+export const VENTA_FONDO_DESGASTE_EQUIPOS_RATE = 0.1
+export const VENTA_FONDO_TRABAJADORES_RATE = 0.05
 
 export type PisoDimension = (typeof DIMENSIONES_PISO)[number]
-export type PlanchaDimension = (typeof DIMENSIONES_PLANCHA)[number]
-export type Dimension = PisoDimension | PlanchaDimension
+export type PlanchaDimension = string
+export type Dimension = string
 export type TipoProducto = 'Piso' | 'Plancha'
 export const PLANCHA_DIMENSION: PlanchaDimension = DIMENSIONES_PLANCHA[0]
 export const PLANCHA_DIMENSIONES: PlanchaDimension[] = [...DIMENSIONES_PLANCHA]
-export const isPlanchaDimension = (dimension: Dimension): dimension is PlanchaDimension =>
-  DIMENSIONES_PLANCHA.includes(dimension as PlanchaDimension)
-export const isPisoDimension = (dimension: Dimension): dimension is PisoDimension =>
-  DIMENSIONES_PISO.includes(dimension as PisoDimension)
+
+const DIMENSION_AREA_M2_FIJA: Record<string, number> = {
+  '40x40': 1 / 6,
+  '60x40': 1 / 4,
+  '80x40': 1 / 3,
+  '160x60': 0.96,
+  '160x65': 1.04,
+}
+
+const DIMENSION_REGEX = /^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/i
+
+function formatDimensionNumber(value: number): string {
+  if (!Number.isFinite(value)) return '0'
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '')
+}
+
+export const normalizeDimension = (dimension: string): Dimension => {
+  const normalized = dimension.trim().toLowerCase().replace(/\s+/g, '')
+  const match = normalized.match(DIMENSION_REGEX)
+  if (!match) return normalized
+
+  return `${formatDimensionNumber(Number(match[1]))}x${formatDimensionNumber(Number(match[2]))}`
+}
+
+export const parseDimension = (
+  dimension: string,
+): { largoCm: number; anchoCm: number } | null => {
+  const normalized = normalizeDimension(dimension)
+  const match = normalized.match(DIMENSION_REGEX)
+  if (!match) return null
+
+  const largoCm = Number(match[1])
+  const anchoCm = Number(match[2])
+  if (!Number.isFinite(largoCm) || !Number.isFinite(anchoCm) || largoCm <= 0 || anchoCm <= 0) {
+    return null
+  }
+
+  return { largoCm, anchoCm }
+}
+
+export const isValidDimension = (dimension: unknown): dimension is Dimension =>
+  typeof dimension === 'string' && parseDimension(dimension) !== null
+
+export const isPisoDimension = (dimension: unknown): dimension is PisoDimension =>
+  typeof dimension === 'string' &&
+  DIMENSIONES_PISO.includes(normalizeDimension(dimension) as PisoDimension)
+
+export const isPlanchaDimension = (dimension: unknown): dimension is PlanchaDimension =>
+  isValidDimension(dimension) && !isPisoDimension(dimension)
+
+export const resolveTipoProductoByDimension = (dimension: Dimension): TipoProducto =>
+  isPlanchaDimension(dimension) ? 'Plancha' : 'Piso'
+
+export const dimensionToAreaM2 = (dimension: Dimension): number => {
+  const normalized = normalizeDimension(dimension)
+  const fixedArea = DIMENSION_AREA_M2_FIJA[normalized]
+  if (fixedArea != null) return fixedArea
+
+  const parsed = parseDimension(normalized)
+  if (!parsed) return 0
+
+  return Number(((parsed.largoCm * parsed.anchoCm) / 10_000).toFixed(4))
+}
+
+export const buildEmptyMetrosPorDimension = (
+  dimensions: Iterable<Dimension> = [...DIMENSIONES_PISO, ...DIMENSIONES_PLANCHA],
+): Record<string, number> => {
+  const totals: Record<string, number> = {}
+
+  for (const dimension of dimensions) {
+    const normalized = normalizeDimension(dimension)
+    if (!normalized) continue
+    if (totals[normalized] == null) {
+      totals[normalized] = 0
+    }
+  }
+
+  return totals
+}
 export type EstadoLosa = 'Crudo' | 'Pulido'
 export type EstadoInventario = 'Picado' | 'Escuadrado' | 'Devastado' | 'Resinado' | 'Pulido'
 export type UbicacionInventario = 'almacen' | 'proceso'
@@ -76,7 +154,7 @@ export const PRECIOS_M2_DEFAULT: Record<Dimension, { crudo: number; pulido: numb
 export interface ConfiguracionSistema {
   tarifasGlobales: Record<AccionLosa, number>
   salariosFijosPorRol: Record<RolConSalarioFijo, number>
-  preciosM2: Record<Dimension, { crudo: number; pulido: number }>
+  preciosM2: Record<string, { crudo: number; pulido: number }>
   monoHiloGrosorDiscoMm: number
   monoHiloEspesorLosaCm: number
   nombreEmpresa: string
@@ -93,18 +171,43 @@ export interface BloqueOLote {
   codigo?: string
   nombre: string
   tipo: 'Bloque' | 'Lote'
-  dimensionBase: Dimension
+  dimensionBase: Dimension | null
   costo: number
   costoTransporte: number
   metrosComprados: number
   fechaIngreso: string
   proveedor: string
+  canteraOrigen: string
   losasProducidas: number
   losasPerdidas: number
   metrosVendibles: number
   gananciaReal: number
   estado: 'activo' | 'agotado' | 'vendido'
+  canEdit?: boolean
+  canDelete?: boolean
+  lockReason?: string
 }
+
+export type CreateBloqueInput = {
+  tipo: BloqueOLote['tipo']
+  dimensionBase?: BloqueOLote['dimensionBase']
+  costo: number
+  costoTransporte: number
+  metrosComprados: number
+  fechaIngreso: string
+  proveedor: string
+  canteraOrigen: string
+}
+
+export type UpdateBloqueInput = Partial<{
+  dimensionBase: BloqueOLote['dimensionBase']
+  costo: number
+  costoTransporte: number
+  metrosComprados: number
+  fechaIngreso: string
+  proveedor: string
+  canteraOrigen: string
+}>
 
 export interface Producto {
   id: string
@@ -128,7 +231,7 @@ export interface MonoHiloEstimadoDimension {
   mermaEstimadaPorcentaje: number
 }
 
-export type MonoHiloEstimados = Record<Dimension, MonoHiloEstimadoDimension>
+export type MonoHiloEstimados = Record<string, MonoHiloEstimadoDimension>
 
 export interface MonoHiloMasa {
   id: string
@@ -170,14 +273,7 @@ export interface CatalogoItem {
 }
 
 export function losasAMetros(losas: number, dimension: Dimension): number {
-  const dimensiones: Record<Dimension, number> = {
-    '40x40': 1 / 6,
-    '60x40': 1 / 4,
-    '80x40': 1 / 3,
-    '160x60': 0.96,
-    '160x65': 1.04,
-  }
-  return losas * dimensiones[dimension]
+  return Number((Math.max(0, losas) * dimensionToAreaM2(dimension)).toFixed(2))
 }
 
 export interface TarifasTrabajador {
@@ -199,6 +295,9 @@ export interface Equipo {
 export interface ProduccionDetalleAccion {
   id: string
   accion: AccionLosa
+  masaId?: string
+  masaCodigo?: string
+  observacion?: string
   trabajadorId?: string
   trabajadorNombre?: string
   trabajadores?: Array<{
@@ -329,19 +428,27 @@ export interface Venta {
   createdAt?: string
   creadoPorId?: string
   creadoPorNombre?: string
+  bloqueId?: string
+  bloqueCodigo?: string
   productoId: string
   productoNombre: string
   detallesProductos?: VentaDetalleProducto[]
   cantidadM2: number
-  metrosPorDimension: Record<Dimension, number>
+  metrosPorDimension: Record<string, number>
   precioM2: number
   descuento: number
+  fondoDesgasteEquipos: number
+  fondoTrabajadores: number
   fondoOperativo: number
   subtotal: number
   total: number
   clienteNombre: string
   clienteEmail: string
   clienteTelefono: string
+  observaciones?: string
+  responsableValidacionId?: string
+  responsableValidacionNombre?: string
+  fechaLiquidacion?: string
   fecha: string
   estado: 'pendiente' | 'completada' | 'cancelada' | 'pendiente_aprobacion_almacen'
   motivoMovimientoAlmacen?: string
@@ -441,6 +548,8 @@ export interface FinancialOperationsSummary {
   ingresosOperativos: number
   ingresosTotales: number
   descuentos: number
+  fondosDesgasteEquipos: number
+  fondosTrabajadores: number
   fondosOperativos: number
   totalMetrosVendidos: number
   produccionTotalM2: number

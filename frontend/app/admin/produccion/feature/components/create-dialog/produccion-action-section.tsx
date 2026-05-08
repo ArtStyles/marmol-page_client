@@ -358,6 +358,22 @@ export function ProduccionActionSection({
                 </div>
               </div>
 
+              {isPicar ? (
+                <div className="mt-3 space-y-1">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                    Observacion del registro
+                  </p>
+                  <Input
+                    value={uso.observacion}
+                    onChange={(event) =>
+                      updateUsage(accion, uso.id, { observacion: event.target.value })
+                    }
+                    placeholder="Roturas, veta, cambio de dimension u otra nota."
+                    className="h-8"
+                  />
+                </div>
+              ) : null}
+
               {dimensionesUso.length > 0 && (
                 <div className="mt-3 rounded-md bg-slate-50/80 p-2">
                   <div className="space-y-2">

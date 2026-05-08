@@ -1,534 +1,512 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useConfiguracion } from '@/hooks/use-configuracion'
 import { useInventarioStore } from '@/hooks/use-inventario'
-import { createVenta, getVentas } from '@/lib/resources-api'
-import { type Dimension, type Producto, type Venta, type VentaDetalleProducto } from '@/lib/types'
+import { ADMIN_STORAGE_KEY, type AdminUser } from '@/lib/admin-auth'
+import { getBloqueCodigo } from '@/lib/bloque-codigo'
+import { getBloques, createVenta, getVentas } from '@/lib/resources-api'
+import { normalizeDimension, type BloqueOLote, type Producto, type Venta } from '@/lib/types'
 import {
-  createDetalleFormulario,
   createEmptyMetros,
-  dimensionOptions,
+  createInitialFloorRows,
+  createSlabRow,
+  floorDimensionOrder,
+  formatMoney,
   getDimensionAreaM2,
-  getMetrosVenta as resolveMetrosVenta,
-  metrosToLosasEquivalentes,
-  getPrecioProducto as resolvePrecioProducto,
-  getVentaBloquesResumen as resolveVentaBloquesResumen,
-  getVentaDetalles as resolveVentaDetalles,
-  getVentaProductoResumen as resolveVentaProductoResumen,
+  getVentaBloqueResumen,
+  isProductoSellableForDocument,
+  resolveInventoryStateFromDocument,
+  resolveVentaSections,
+  round2,
+  slabStateOrder,
 } from '../lib/ventas-helpers'
-import type { FormDetalleProducto } from '../model/types'
+import type {
+  FloorSaleFormRow,
+  SlabDocumentState,
+  SlabSaleFormRow,
+  VentaFormState,
+} from '../model/types'
 
-type ClienteField = 'clienteNombre' | 'clienteEmail' | 'clienteTelefono'
+const INTERNAL_SALE_CONTACT = {
+  nombre: 'Registro interno por bloque',
+  email: 'ventas@interno.local',
+  telefono: 'N/A',
+}
 
-function round2(value: number): number {
-  return Number(value.toFixed(2))
+function buildInitialForm(today: string): VentaFormState {
+  return {
+    bloqueId: '',
+    fecha: today,
+    observaciones: '',
+    fechaLiquidacion: '',
+    floorRows: createInitialFloorRows(),
+    slabRows: [createSlabRow(1)],
+  }
 }
 
 export const useVentasPageState = () => {
   const { productos: inventarioProductos } = useInventarioStore()
-  const productos = useMemo(
-    () => inventarioProductos.filter((producto) => producto.ubicacion === 'almacen'),
-    [inventarioProductos],
-  )
-  const { config } = useConfiguracion()
-
   const [ventas, setVentas] = useState<Venta[]>([])
+  const [bloques, setBloques] = useState<BloqueOLote[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedVenta, setSelectedVenta] = useState<Venta | null>(null)
-  const [detalleCounter, setDetalleCounter] = useState(2)
-  const [formError, setFormError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [numericTouched, setNumericTouched] = useState({
-    descuento: false,
-  })
-  const [formData, setFormData] = useState({
-    descuento: 0,
-    clienteNombre: '',
-    clienteEmail: '',
-    clienteTelefono: '',
-    detallesProductos: [createDetalleFormulario(1)] as FormDetalleProducto[],
-  })
+  const [formError, setFormError] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
+  const [slabCounter, setSlabCounter] = useState(2)
+  const today = new Date().toISOString().split('T')[0]
+  const [formData, setFormData] = useState<VentaFormState>(() => buildInitialForm(today))
+
+  const productos = useMemo(
+    () => inventarioProductos.filter((producto) => isProductoSellableForDocument(producto)),
+    [inventarioProductos],
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+    if (!raw) return
+    try {
+      setCurrentUser(JSON.parse(raw) as AdminUser)
+    } catch {
+      window.localStorage.removeItem(ADMIN_STORAGE_KEY)
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
+
     const load = async () => {
       try {
         setLoading(true)
         setLoadError(null)
-        const fromApi = await getVentas()
+        const [ventasData, bloquesData] = await Promise.all([getVentas(), getBloques()])
         if (!active) return
-        setVentas(fromApi)
-      } catch {
+        setVentas(ventasData)
+        setBloques(bloquesData.filter((bloque) => bloque.tipo === 'Bloque'))
+      } catch (error) {
         if (!active) return
         setVentas([])
-        setLoadError('No se pudieron cargar las ventas desde el backend.')
+        setBloques([])
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : 'No se pudieron cargar las ventas o bloques desde el backend.',
+        )
       } finally {
         if (active) setLoading(false)
       }
     }
+
     void load()
     return () => {
       active = false
     }
   }, [])
 
-  const getPrecioProducto = (producto: Producto): number => {
-    return resolvePrecioProducto(producto, config.preciosM2)
-  }
+  const blocksById = useMemo(() => new Map(bloques.map((bloque) => [bloque.id, bloque])), [bloques])
+  const selectedBlock = formData.bloqueId ? (blocksById.get(formData.bloqueId) ?? null) : null
+  const selectedBlockCode = selectedBlock ? getBloqueCodigo(selectedBlock) : ''
+  const responsableVentasNombre = currentUser?.name ?? 'Usuario autenticado'
+  const responsableValidacionNombre =
+    formData.fechaLiquidacion && currentUser?.name ? currentUser.name : undefined
 
-  const getMetrosVenta = (venta: Venta): Record<Dimension, number> => {
-    return resolveMetrosVenta(venta, productos)
-  }
+  const productosBloque = useMemo(
+    () => productos.filter((producto) => producto.origenId === formData.bloqueId),
+    [formData.bloqueId, productos],
+  )
 
-  const getVentaDetalles = (venta: Venta): VentaDetalleProducto[] => {
-    return resolveVentaDetalles(venta, productos)
-  }
-
-  const getVentaProductoResumen = (venta: Venta): string => {
-    return resolveVentaProductoResumen(venta, productos)
-  }
-
-  const getVentaBloquesResumen = (venta: Venta): string => {
-    return resolveVentaBloquesResumen(venta, productos)
-  }
-
-  const resolveDetalleCantidad = (detalle: FormDetalleProducto, producto: Producto) => {
-    if (producto.tipo === 'Plancha') {
-      const cantidadUnidades = Math.max(0, Math.trunc(detalle.cantidadUnidades || 0))
-      const metrosCuadrados = round2(cantidadUnidades * getDimensionAreaM2(producto.dimension))
-      return {
-        cantidadUnidades,
-        metrosCuadrados,
-      }
-    }
-
-    return {
-      cantidadUnidades: 0,
-      metrosCuadrados: Math.max(0, detalle.metrosCuadrados || 0),
-    }
-  }
-
-  const resolveProductoDetalle = (detalleFormulario: FormDetalleProducto): Producto | undefined => {
-    const hasAnySelector = Boolean(
-      detalleFormulario.tipo ||
-      detalleFormulario.origenId ||
-      detalleFormulario.dimension ||
-      detalleFormulario.estado,
+  const getProductoPiso = (row: FloorSaleFormRow): Producto | undefined =>
+    productosBloque.find(
+      (producto) =>
+        producto.tipo === 'Piso' &&
+        normalizeDimension(producto.dimension) === row.dimension &&
+        producto.estado === resolveInventoryStateFromDocument(row.estado),
     )
 
-    if (
-      detalleFormulario.tipo &&
-      detalleFormulario.origenId &&
-      detalleFormulario.dimension &&
-      detalleFormulario.estado
-    ) {
-      return productos.find(
-        (item) =>
-          item.tipo === detalleFormulario.tipo &&
-          item.origenId === detalleFormulario.origenId &&
-          item.dimension === detalleFormulario.dimension &&
-          item.estado === detalleFormulario.estado,
-      )
-    }
-
-    if (hasAnySelector) {
-      return undefined
-    }
-
-    if (detalleFormulario.productoId) {
-      return productos.find((item) => item.id === detalleFormulario.productoId)
-    }
-
-    return undefined
-  }
-
-  const buildDetalleVenta = (
-    detalleFormulario: FormDetalleProducto,
-  ): VentaDetalleProducto | null => {
-    const producto = resolveProductoDetalle(detalleFormulario)
-    if (!producto) return null
-
-    const { cantidadUnidades, metrosCuadrados } = resolveDetalleCantidad(detalleFormulario, producto)
-    if (metrosCuadrados <= 0) return null
-
-    const precioM2 = getPrecioProducto(producto)
-    const baseDetalle = {
-      productoId: producto.id,
-      productoNombre: producto.nombre,
-      origenId: producto.origenId,
-      origenNombre: producto.origenNombre,
-      dimension: producto.dimension,
-      estado: producto.estado,
-      metrosCuadrados,
-      precioM2,
-      subtotal: metrosCuadrados * precioM2,
-    }
-
-    if (producto.tipo === 'Plancha') {
-      return {
-        ...baseDetalle,
-        cantidadUnidades,
-      }
-    }
-
-    return baseDetalle
-  }
-
-  const filteredVentas = ventas.filter((venta) => {
-    const query = searchTerm.toLowerCase()
-    const detalles = getVentaDetalles(venta)
-
-    const matchDetalle = detalles.some(
-      (detalle) =>
-        detalle.productoNombre.toLowerCase().includes(query) ||
-        detalle.origenNombre.toLowerCase().includes(query),
+  const getProductoPlancha = (row: SlabSaleFormRow): Producto | undefined =>
+    productosBloque.find(
+      (producto) =>
+        producto.tipo === 'Plancha' &&
+        normalizeDimension(producto.dimension) === normalizeDimension(row.dimension) &&
+        producto.estado === resolveInventoryStateFromDocument(row.estado),
     )
 
-    return (
-      venta.id.toLowerCase().includes(query) ||
-      getVentaProductoResumen(venta).toLowerCase().includes(query) ||
-      venta.clienteNombre.toLowerCase().includes(query) ||
-      matchDetalle
-    )
-  })
-
-  const groupedByDate = filteredVentas.reduce<Record<string, Venta[]>>((acc, venta) => {
-    if (!acc[venta.fecha]) {
-      acc[venta.fecha] = []
+  const planchaDimensionsByState = useMemo(() => {
+    const map: Record<SlabDocumentState, string[]> = {
+      Crudo: [],
+      Pulido: [],
     }
-    acc[venta.fecha].push(venta)
-    return acc
-  }, {})
 
-  const fechasOrdenadas = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a))
+    slabStateOrder.forEach((estado) => {
+      const dimensions = Array.from(
+        new Set(
+          productosBloque
+            .filter(
+              (producto) =>
+                producto.tipo === 'Plancha' &&
+                producto.estado === resolveInventoryStateFromDocument(estado),
+            )
+            .map((producto) => normalizeDimension(producto.dimension)),
+        ),
+      ).sort((left, right) => left.localeCompare(right))
 
-  const ventasCompletadas = ventas.filter((venta) => venta.estado === 'completada')
-  const totalRevenue = ventasCompletadas.reduce((sum, venta) => sum + venta.total, 0)
+      map[estado] = dimensions
+    })
 
-  const totalM2PorDimension = ventasCompletadas.reduce<Record<Dimension, number>>(
-    (acc, venta) => {
-      const metros = getMetrosVenta(venta)
-      for (const dimension of dimensionOptions) {
-        acc[dimension] += metros[dimension]
-      }
-      return acc
-    },
-    createEmptyMetros(),
-  )
+    return map
+  }, [productosBloque])
 
-  const totalM2Vendidos = dimensionOptions.reduce(
-    (sum, dimension) => sum + totalM2PorDimension[dimension],
-    0,
-  )
-
-  const totalLosasEquivalentesPorDimension = dimensionOptions.reduce<Record<Dimension, number>>(
-    (acc, dimension) => {
-      acc[dimension] = metrosToLosasEquivalentes(totalM2PorDimension[dimension], dimension)
-      return acc
-    },
-    createEmptyMetros(),
-  )
-
-  const totalLosasEquivalentesVendidas = dimensionOptions.reduce(
-    (sum, dimension) => sum + totalLosasEquivalentesPorDimension[dimension],
-    0,
-  )
-
-  const avgSaleValue = ventasCompletadas.length > 0 ? totalRevenue / ventasCompletadas.length : 0
-
-  const recentVentas = [...ventas].sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 3)
-
-  const detallesCalculados = formData.detallesProductos.flatMap((detalle) => {
-    const parsedDetalle = buildDetalleVenta(detalle)
-    return parsedDetalle ? [parsedDetalle] : []
-  })
-
-  const totalM2Form = detallesCalculados.reduce((sum, detalle) => sum + detalle.metrosCuadrados, 0)
-  const subtotalCalculado = detallesCalculados.reduce((sum, detalle) => sum + detalle.subtotal, 0)
-
-  const metrosPorDimensionForm = detallesCalculados.reduce<Record<Dimension, number>>((acc, detalle) => {
-    acc[detalle.dimension] += detalle.metrosCuadrados
-    return acc
-  }, createEmptyMetros())
-
-  const losasEquivalentesPorDimensionForm = dimensionOptions.reduce<Record<Dimension, number>>(
-    (acc, dimension) => {
-      acc[dimension] = metrosToLosasEquivalentes(metrosPorDimensionForm[dimension], dimension)
-      return acc
-    },
-    createEmptyMetros(),
-  )
-
-  const descuentoCalculado = subtotalCalculado * (formData.descuento / 100)
-  const totalCalculado = subtotalCalculado - descuentoCalculado
-
-  const updateDetalleFormulario = (detalleId: string, patch: Partial<FormDetalleProducto>) => {
-    setFormError(null)
-    setFormData((prev) => ({
-      ...prev,
-      detallesProductos: prev.detallesProductos.map((detalle) => {
-        if (detalle.id !== detalleId) return detalle
-
-        const nextDetalle: FormDetalleProducto = { ...detalle, ...patch }
-
-        const tipoChanged = patch.tipo !== undefined && patch.tipo !== detalle.tipo
-        const origenChanged = patch.origenId !== undefined && patch.origenId !== detalle.origenId
-        const dimensionChanged =
-          patch.dimension !== undefined && patch.dimension !== detalle.dimension
-        const estadoChanged = patch.estado !== undefined && patch.estado !== detalle.estado
-        const selectionChanged = tipoChanged || origenChanged || dimensionChanged || estadoChanged
-
-        if (tipoChanged) {
-          nextDetalle.origenId = ''
-          nextDetalle.dimension = ''
-          nextDetalle.estado = ''
+  const resolvedFloorRows = useMemo(
+    () =>
+      formData.floorRows.map((row) => {
+        const producto = getProductoPiso(row)
+        return {
+          ...row,
+          producto,
+          disponibleM2: producto?.metrosCuadrados ?? 0,
+          total: round2(row.cantidadM2 * row.precioM2),
         }
-
-        if (origenChanged) {
-          nextDetalle.dimension = ''
-          nextDetalle.estado = ''
-        }
-
-        if (dimensionChanged) {
-          nextDetalle.estado = ''
-        }
-
-        const producto = resolveProductoDetalle(nextDetalle)
-        const resolvedProductoId = producto?.id ?? ''
-        const productoChanged = resolvedProductoId !== detalle.productoId
-        nextDetalle.productoId = resolvedProductoId
-
-        if (selectionChanged || productoChanged) {
-          nextDetalle.metrosCuadrados = 0
-          nextDetalle.cantidadUnidades = 0
-        }
-
-        if (producto?.tipo === 'Plancha') {
-          nextDetalle.metrosCuadrados = 0
-        } else if (producto) {
-          nextDetalle.cantidadUnidades = 0
-        }
-
-        return nextDetalle
       }),
-    }))
-  }
+    [formData.floorRows, productosBloque],
+  )
 
-  const handleAgregarDetalleProducto = () => {
-    setFormError(null)
-    setFormData((prev) => ({
-      ...prev,
-      detallesProductos: [...prev.detallesProductos, createDetalleFormulario(detalleCounter)],
-    }))
-    setDetalleCounter((prev) => prev + 1)
-  }
+  const resolvedSlabRows = useMemo(
+    () =>
+      formData.slabRows.map((row) => {
+        const producto = getProductoPlancha(row)
+        const area = getDimensionAreaM2(row.dimension)
+        return {
+          ...row,
+          producto,
+          areaM2: area,
+          equivalenteM2: round2(Math.max(0, row.cantidadUnidades) * area),
+          disponibleUnidades: producto?.cantidadLosas ?? 0,
+          total: round2(row.cantidadUnidades * row.precioUnitario),
+          dimensionOptions: planchaDimensionsByState[row.estado],
+        }
+      }),
+    [formData.slabRows, planchaDimensionsByState, productosBloque],
+  )
 
-  const handleEliminarDetalleProducto = (detalleId: string) => {
-    setFormError(null)
-    setFormData((prev) => {
-      if (prev.detallesProductos.length === 1) return prev
-      return {
-        ...prev,
-        detallesProductos: prev.detallesProductos.filter((detalle) => detalle.id !== detalleId),
-      }
+  const subtotalForm = useMemo(
+    () =>
+      round2(
+        resolvedFloorRows.reduce((sum, row) => sum + row.total, 0) +
+          resolvedSlabRows.reduce((sum, row) => sum + row.total, 0),
+      ),
+    [resolvedFloorRows, resolvedSlabRows],
+  )
+
+  const ventasFiltradas = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+    if (!query) return ventas
+
+    return ventas.filter((venta) => {
+      const bloque = getVentaBloqueResumen(venta, productos).toLowerCase()
+      const responsable = (venta.creadoPorNombre ?? '').toLowerCase()
+      const observaciones = (venta.observaciones ?? '').toLowerCase()
+      return (
+        venta.id.toLowerCase().includes(query) ||
+        bloque.includes(query) ||
+        responsable.includes(query) ||
+        observaciones.includes(query) ||
+        venta.fecha.toLowerCase().includes(query)
+      )
     })
-  }
+  }, [productos, searchTerm, ventas])
 
-  const handleDetalleMetrosChange = (detalleId: string, rawValue: string) => {
-    const parsedValue = rawValue === '' ? 0 : Number(rawValue)
-    updateDetalleFormulario(detalleId, {
-      metrosCuadrados: Number.isFinite(parsedValue) ? Math.max(0, parsedValue) : 0,
-    })
-  }
+  const groupedByDate = useMemo(
+    () =>
+      ventasFiltradas.reduce<Record<string, Venta[]>>((acc, venta) => {
+        if (!acc[venta.fecha]) acc[venta.fecha] = []
+        acc[venta.fecha].push(venta)
+        return acc
+      }, {}),
+    [ventasFiltradas],
+  )
 
-  const handleDetalleUnidadesChange = (detalleId: string, rawValue: string) => {
-    const parsedValue = rawValue === '' ? 0 : Number(rawValue)
-    updateDetalleFormulario(detalleId, {
-      cantidadUnidades: Number.isFinite(parsedValue) ? Math.max(0, Math.trunc(parsedValue)) : 0,
-    })
-  }
+  const orderedDates = useMemo(
+    () => Object.keys(groupedByDate).sort((left, right) => right.localeCompare(left)),
+    [groupedByDate],
+  )
 
-  const handleDescuentoChange = (rawValue: string) => {
-    const parsedValue = rawValue === '' ? 0 : Number(rawValue)
-    setNumericTouched((prev) => ({ ...prev, descuento: rawValue !== '' }))
-    setFormData((prev) => ({
-      ...prev,
-      descuento: Number.isFinite(parsedValue) ? Math.min(100, Math.max(0, parsedValue)) : 0,
-    }))
-  }
-
-  const handleClienteFieldChange = (field: ClienteField, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
-
-  const getLosasEquivalentesPorDimensionVenta = (venta: Venta): Record<Dimension, number> => {
-    const metros = getMetrosVenta(venta)
-    return dimensionOptions.reduce<Record<Dimension, number>>((acc, dimension) => {
-      acc[dimension] = metrosToLosasEquivalentes(metros[dimension], dimension)
-      return acc
-    }, createEmptyMetros())
-  }
-
-  const handleSubmit = async () => {
-    setFormError(null)
-
-    const tieneProductoSinCantidad = formData.detallesProductos.some((detalle) => {
-      if (!detalle.productoId) return false
-      const producto = productos.find((item) => item.id === detalle.productoId)
-      if (!producto) return false
-      if (producto.tipo === 'Plancha') return Math.trunc(detalle.cantidadUnidades || 0) <= 0
-      return detalle.metrosCuadrados <= 0
-    })
-    if (tieneProductoSinCantidad) {
-      setFormError('Cada producto seleccionado debe tener cantidad valida.')
-      return
-    }
-
-    const tieneCantidadSinProducto = formData.detallesProductos.some(
-      (detalle) => !detalle.productoId && (detalle.metrosCuadrados > 0 || detalle.cantidadUnidades > 0),
-    )
-    if (tieneCantidadSinProducto) {
-      setFormError('Selecciona el producto para cada fila con cantidad ingresada.')
-      return
-    }
-
-    const detallesVenta = formData.detallesProductos
-      .filter((detalle) => detalle.productoId)
-      .flatMap((detalle) => {
-        const parsedDetalle = buildDetalleVenta(detalle)
-        return parsedDetalle ? [parsedDetalle] : []
-      })
-
-    if (detallesVenta.length === 0) {
-      setFormError('Agrega al menos un producto para registrar la venta.')
-      return
-    }
-
-    const cantidadM2 = detallesVenta.reduce((sum, detalle) => sum + detalle.metrosCuadrados, 0)
-    const subtotal = detallesVenta.reduce((sum, detalle) => sum + detalle.subtotal, 0)
-    if (cantidadM2 <= 0) {
-      setFormError('La venta debe tener m² mayores a 0.')
-      return
-    }
-
-    const metrosPorDimension = detallesVenta.reduce<Record<Dimension, number>>((acc, detalle) => {
-      acc[detalle.dimension] += detalle.metrosCuadrados
-      return acc
-    }, createEmptyMetros())
-
-    const motivoMovimientoAlmacen = 'Salida por venta registrada desde modulo de ventas'
-    const primerDetalle = detallesVenta[0]
-    if (!primerDetalle) {
-      setFormError('Agrega al menos un producto para registrar la venta.')
-      return
-    }
-    const nombreResumen =
-      detallesVenta.length > 1
-        ? `${primerDetalle.productoNombre} +${detallesVenta.length - 1}`
-        : primerDetalle.productoNombre
-
-    const precioPromedio = subtotal / cantidadM2
-    const descuentoTotal = subtotal * (formData.descuento / 100)
-    const total = subtotal - descuentoTotal
-
-    const newVentaPayload: Omit<Venta, 'id'> = {
-      productoId: primerDetalle.productoId,
-      productoNombre: nombreResumen,
-      detallesProductos: detallesVenta,
-      cantidadM2,
-      metrosPorDimension,
-      precioM2: precioPromedio,
-      descuento: formData.descuento,
-      fondoOperativo: 0,
-      subtotal,
-      total,
-      clienteNombre: formData.clienteNombre,
-      clienteEmail: formData.clienteEmail,
-      clienteTelefono: formData.clienteTelefono,
-      fecha: new Date().toISOString().split('T')[0],
-      estado: 'pendiente_aprobacion_almacen',
-      motivoMovimientoAlmacen,
-    }
-
-    try {
-      const newVenta = await createVenta(newVentaPayload)
-      setVentas((prev) => [newVenta, ...prev])
-    } catch {
-      setFormError('No se pudo registrar la venta en el backend.')
-      return
-    }
-
-    resetForm()
-  }
+  const totalIngresos = useMemo(
+    () => round2(ventas.reduce((sum, venta) => sum + venta.total, 0)),
+    [ventas],
+  )
+  const totalBloques = useMemo(
+    () => new Set(ventas.map((venta) => getVentaBloqueResumen(venta, productos))).size,
+    [productos, ventas],
+  )
+  const totalLiquidaciones = useMemo(
+    () => ventas.filter((venta) => Boolean(venta.fechaLiquidacion)).length,
+    [ventas],
+  )
+  const recentVentas = useMemo(
+    () => [...ventas].sort((left, right) => right.fecha.localeCompare(left.fecha)).slice(0, 4),
+    [ventas],
+  )
 
   const resetForm = (closeDialog = true) => {
-    setFormData({
-      descuento: 0,
-      clienteNombre: '',
-      clienteEmail: '',
-      clienteTelefono: '',
-      detallesProductos: [createDetalleFormulario(1)],
-    })
-    setDetalleCounter(2)
+    setFormData(buildInitialForm(today))
+    setSlabCounter(2)
     setFormError(null)
-    setNumericTouched({
-      descuento: false,
-    })
     if (closeDialog) {
       setIsDialogOpen(false)
     }
   }
 
+  const openCreateDialog = () => {
+    resetForm(false)
+    setIsDialogOpen(true)
+  }
+
+  const handleBlockChange = (bloqueId: string) => {
+    setFormError(null)
+    setFormData((prev) => ({
+      ...prev,
+      bloqueId,
+      floorRows: createInitialFloorRows(),
+      slabRows: [createSlabRow(1)],
+    }))
+    setSlabCounter(2)
+  }
+
+  const updateFloorRow = (rowId: string, patch: Partial<FloorSaleFormRow>) => {
+    setFormError(null)
+    setFormData((prev) => ({
+      ...prev,
+      floorRows: prev.floorRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
+    }))
+  }
+
+  const addSlabRow = () => {
+    setFormError(null)
+    const defaultDimension =
+      planchaDimensionsByState.Crudo[0] ??
+      planchaDimensionsByState.Pulido[0] ??
+      '160x60'
+    setFormData((prev) => ({
+      ...prev,
+      slabRows: [
+        ...prev.slabRows,
+        {
+          ...createSlabRow(slabCounter),
+          dimension: defaultDimension,
+        },
+      ],
+    }))
+    setSlabCounter((prev) => prev + 1)
+  }
+
+  const removeSlabRow = (rowId: string) => {
+    setFormError(null)
+    setFormData((prev) => ({
+      ...prev,
+      slabRows: prev.slabRows.length === 1
+        ? prev.slabRows
+        : prev.slabRows.filter((row) => row.id !== rowId),
+    }))
+  }
+
+  const updateSlabRow = (rowId: string, patch: Partial<SlabSaleFormRow>) => {
+    setFormError(null)
+    setFormData((prev) => ({
+      ...prev,
+      slabRows: prev.slabRows.map((row) => {
+        if (row.id !== rowId) return row
+        const next = { ...row, ...patch }
+        if (patch.estado && patch.estado !== row.estado) {
+          const nextDimension =
+            planchaDimensionsByState[patch.estado]?.[0] ??
+            next.dimension
+          next.dimension = nextDimension
+        }
+        return next
+      }),
+    }))
+  }
+
+  const getVentaSections = (venta: Venta) => resolveVentaSections(venta, productos)
+
+  const handleSubmit = async () => {
+    setFormError(null)
+
+    if (!formData.bloqueId || !selectedBlock) {
+      setFormError('Selecciona un bloque valido para registrar la venta.')
+      return
+    }
+
+    const detalles: Venta['detallesProductos'] = []
+
+    for (const row of resolvedFloorRows) {
+      const touched = row.cantidadM2 > 0 || row.precioM2 > 0
+      if (!touched) continue
+
+      if (!row.producto) {
+        setFormError(`No existe stock vendible para ${row.dimension} ${row.estado} en este bloque.`)
+        return
+      }
+      if (row.cantidadM2 <= 0) {
+        setFormError(`La cantidad de ${row.dimension} ${row.estado} debe ser mayor a 0.`)
+        return
+      }
+      if (row.precioM2 <= 0) {
+        setFormError(`El precio por m2 de ${row.dimension} ${row.estado} debe ser mayor a 0.`)
+        return
+      }
+      if (row.cantidadM2 > row.disponibleM2 + 0.001) {
+        setFormError(`La venta de ${row.dimension} ${row.estado} excede el stock disponible.`)
+        return
+      }
+
+      detalles.push({
+        productoId: row.producto.id,
+        productoNombre: row.producto.nombre,
+        origenId: row.producto.origenId,
+        origenNombre: row.producto.origenNombre,
+        dimension: row.producto.dimension,
+        estado: row.producto.estado,
+        metrosCuadrados: round2(row.cantidadM2),
+        precioM2: round2(row.precioM2),
+        subtotal: round2(row.cantidadM2 * row.precioM2),
+      })
+    }
+
+    for (const row of resolvedSlabRows) {
+      const touched = row.cantidadUnidades > 0 || row.precioUnitario > 0
+      if (!touched) continue
+
+      if (!row.producto) {
+        setFormError(`No existe plancha ${row.dimension} ${row.estado} disponible en este bloque.`)
+        return
+      }
+      if (!Number.isInteger(row.cantidadUnidades) || row.cantidadUnidades <= 0) {
+        setFormError(`La cantidad de planchas ${row.dimension} ${row.estado} debe ser entera y mayor a 0.`)
+        return
+      }
+      if (row.precioUnitario <= 0) {
+        setFormError(`El precio por unidad de la plancha ${row.dimension} ${row.estado} debe ser mayor a 0.`)
+        return
+      }
+      if (row.cantidadUnidades > row.disponibleUnidades) {
+        setFormError(`La venta de planchas ${row.dimension} ${row.estado} excede el stock disponible.`)
+        return
+      }
+      if (row.areaM2 <= 0) {
+        setFormError(`La dimension ${row.dimension} no tiene un area valida para calcular la venta.`)
+        return
+      }
+
+      detalles.push({
+        productoId: row.producto.id,
+        productoNombre: row.producto.nombre,
+        origenId: row.producto.origenId,
+        origenNombre: row.producto.origenNombre,
+        dimension: row.producto.dimension,
+        estado: row.producto.estado,
+        cantidadUnidades: row.cantidadUnidades,
+        metrosCuadrados: row.equivalenteM2,
+        precioM2: round2(row.precioUnitario / row.areaM2),
+        subtotal: round2(row.cantidadUnidades * row.precioUnitario),
+      })
+    }
+
+    if (detalles.length === 0) {
+      setFormError('Registra al menos una fila de piso o plancha para guardar la venta.')
+      return
+    }
+
+    const cantidadM2 = round2(detalles.reduce((sum, detalle) => sum + detalle.metrosCuadrados, 0))
+    const subtotal = round2(detalles.reduce((sum, detalle) => sum + detalle.subtotal, 0))
+    const metrosPorDimension = detalles.reduce<Record<string, number>>((acc, detalle) => {
+      acc[detalle.dimension] = round2((acc[detalle.dimension] ?? 0) + detalle.metrosCuadrados)
+      return acc
+    }, createEmptyMetros([...floorDimensionOrder, ...detalles.map((detalle) => detalle.dimension)]))
+
+    const payload: Omit<Venta, 'id'> = {
+      bloqueId: selectedBlock.id,
+      bloqueCodigo: selectedBlockCode,
+      productoId: detalles[0].productoId,
+      productoNombre: detalles[0].productoNombre,
+      detallesProductos: detalles,
+      cantidadM2,
+      metrosPorDimension,
+      precioM2: cantidadM2 > 0 ? round2(subtotal / cantidadM2) : 0,
+      descuento: 0,
+      fondoDesgasteEquipos: 0,
+      fondoTrabajadores: 0,
+      fondoOperativo: 0,
+      subtotal,
+      total: subtotal,
+      clienteNombre: INTERNAL_SALE_CONTACT.nombre,
+      clienteEmail: INTERNAL_SALE_CONTACT.email,
+      clienteTelefono: INTERNAL_SALE_CONTACT.telefono,
+      observaciones: formData.observaciones.trim() || undefined,
+      responsableValidacionId: formData.fechaLiquidacion ? currentUser?.id : undefined,
+      responsableValidacionNombre,
+      fechaLiquidacion: formData.fechaLiquidacion || undefined,
+      fecha: formData.fecha,
+      estado: 'pendiente_aprobacion_almacen',
+      motivoMovimientoAlmacen: `Salida por venta del bloque ${selectedBlockCode || selectedBlock.nombre}`,
+      creadoPorId: currentUser?.id,
+      creadoPorNombre: responsableVentasNombre,
+      movimientoInventarioId: undefined,
+    }
+
+    try {
+      const created = await createVenta(payload)
+      setVentas((prev) => [created, ...prev])
+      resetForm()
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : 'No se pudo registrar la venta en el backend.',
+      )
+    }
+  }
+
   return {
-    productos,
-    ventas,
-    searchTerm,
-    setSearchTerm,
-    isDialogOpen,
-    setIsDialogOpen,
-    selectedVenta,
-    setSelectedVenta,
+    bloques,
+    currentUser,
     formData,
-    numericTouched,
-    loading,
-    loadError,
     formError,
+    getVentaBloqueResumen,
+    getVentaSections,
     groupedByDate,
-    fechasOrdenadas,
-    ventasCompletadas,
-    totalRevenue,
-    totalM2PorDimension,
-    totalM2Vendidos,
-    totalLosasEquivalentesPorDimension,
-    totalLosasEquivalentesVendidas,
-    avgSaleValue,
-    recentVentas,
-    detallesCalculados,
-    totalM2Form,
-    subtotalCalculado,
-    metrosPorDimensionForm,
-    losasEquivalentesPorDimensionForm,
-    descuentoCalculado,
-    totalCalculado,
-    getPrecioProducto,
-    getMetrosVenta,
-    getVentaDetalles,
-    getVentaProductoResumen,
-    getVentaBloquesResumen,
-    getLosasEquivalentesPorDimensionVenta,
-    updateDetalleFormulario,
-    handleAgregarDetalleProducto,
-    handleEliminarDetalleProducto,
-    handleDetalleMetrosChange,
-    handleDetalleUnidadesChange,
-    handleDescuentoChange,
-    handleClienteFieldChange,
+    handleBlockChange,
     handleSubmit,
+    isDialogOpen,
+    loadError,
+    loading,
+    openCreateDialog,
+    orderedDates,
+    recentVentas,
     resetForm,
+    resolvedFloorRows,
+    resolvedSlabRows,
+    responsableValidacionNombre,
+    responsableVentasNombre,
+    searchTerm,
+    selectedBlock,
+    selectedBlockCode,
+    selectedVenta,
+    setFormData,
+    setIsDialogOpen,
+    setSearchTerm,
+    setSelectedVenta,
+    subtotalForm,
+    totalBloques,
+    totalIngresos,
+    totalLiquidaciones,
+    updateFloorRow,
+    updateSlabRow,
+    addSlabRow,
+    removeSlabRow,
+    ventas: ventasFiltradas,
+    rawVentas: ventas,
+    formatMoney,
   }
 }
-
-

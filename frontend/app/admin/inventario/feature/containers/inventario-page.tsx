@@ -39,7 +39,9 @@ import {
   approveInventarioMovimiento,
   createSalidaProcesoInventario,
   getBloques,
+  getGastos,
   getInventarioMovimientosPage,
+  getMermas,
   getMonoHiloMasas,
   getProduccionTrabajadores,
   rejectInventarioMovimiento,
@@ -50,7 +52,9 @@ import { dimensiones, estadosInventario, tiposProducto } from '@/lib/data'
 import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import {
   type BloqueOLote,
+  type Gasto,
   losasAMetros,
+  type Merma,
   type MonoHiloMasa,
   type Dimension,
   type InventarioMovimiento,
@@ -228,10 +232,12 @@ function resolveMovimientoBadgeDisplay(
 }
 
 export default function InventarioPage() {
-  const { productos } = useInventarioStore()
+  const { productos, reload: reloadInventario } = useInventarioStore()
   const { produccion } = useProduccionStore()
   const { config } = useConfiguracion()
   const [bloquesYLotes, setBloquesYLotes] = useState<BloqueOLote[]>([])
+  const [gastos, setGastos] = useState<Gasto[]>([])
+  const [mermas, setMermas] = useState<Merma[]>([])
   const [produccionTrabajadores, setProduccionTrabajadores] = useState<ProduccionTrabajador[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [tipoFilter, setTipoFilter] = useState<string>('all')
@@ -330,6 +336,48 @@ export default function InventarioPage() {
     }
 
     void loadBloquesYLotes()
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+
+    const loadGastos = async () => {
+      try {
+        const items = await getGastos()
+        if (!alive) return
+        setGastos(items)
+      } catch {
+        if (!alive) return
+        setGastos([])
+      }
+    }
+
+    void loadGastos()
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+
+    const loadMermas = async () => {
+      try {
+        const items = await getMermas()
+        if (!alive) return
+        setMermas(items)
+      } catch {
+        if (!alive) return
+        setMermas([])
+      }
+    }
+
+    void loadMermas()
 
     return () => {
       alive = false
@@ -511,6 +559,8 @@ export default function InventarioPage() {
         blocks: bloquesYLotes,
         allProducts: productos,
         visibleProducts: stockFilteredProductos,
+        gastos,
+        mermas,
         produccion,
         produccionTrabajadores,
         monoHiloMasas,
@@ -518,6 +568,8 @@ export default function InventarioPage() {
       }),
     [
       bloquesYLotes,
+      gastos,
+      mermas,
       monoHiloMasas,
       produccion,
       produccionTrabajadores,
@@ -537,6 +589,7 @@ export default function InventarioPage() {
         profile.code,
         profile.originName,
         profile.provider,
+        profile.block?.canteraOrigen ?? '',
         profile.entryDate,
         profile.blockType ?? '',
         ...profile.allProducts.map((product) => product.nombre),
@@ -745,6 +798,7 @@ export default function InventarioPage() {
       setMovimientos((prev) =>
         prev.map((movimiento) => (movimiento.id === updated.id ? updated : movimiento)),
       )
+      await reloadInventario().catch(() => undefined)
       closeApproveDialog()
     } catch (error) {
       const message =
@@ -784,6 +838,7 @@ export default function InventarioPage() {
       setMovimientos((prev) =>
         prev.map((movimiento) => (movimiento.id === updated.id ? updated : movimiento)),
       )
+      await reloadInventario().catch(() => undefined)
       closeRejectDialog()
     } catch (error) {
       const message =
@@ -812,6 +867,7 @@ export default function InventarioPage() {
         cantidadLosas,
       })
       setMovimientos((prev) => [movimiento, ...prev.filter((item) => item.id !== movimiento.id)])
+      await reloadInventario().catch(() => undefined)
       setProcesoConfirmDialogOpen(false)
       setProcesoDialogOpen(false)
       setProcesoDialogError(null)

@@ -68,58 +68,63 @@ export function useProduccionStore(options: UseProduccionStoreOptions = {}) {
   const [produccion, setProduccionState] = useState<ProduccionDiaria[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
   const syncQueueRef = useRef(Promise.resolve())
   const hasHydratedRef = useRef(false)
   const previousProduccionRef = useRef<ProduccionDiaria[]>([])
   const skipNextSyncRef = useRef(false)
 
-  useEffect(() => {
-    let active = true
-    const load = async () => {
-      if (!enabled) {
-        if (!active) return
-        previousProduccionRef.current = []
-        setProduccionState([])
-        setError(null)
-        hasHydratedRef.current = true
-        setLoading(false)
-        return
-      }
-
-      const sessionUser = readSessionUser()
-      const canReadProduccion = hasPermission(sessionUser, 'produccion:read')
-      if (!canReadProduccion) {
-        if (!active) return
-        previousProduccionRef.current = []
-        setProduccionState([])
-        setError(null)
-        hasHydratedRef.current = true
-        setLoading(false)
-        return
-      }
-
-      try {
-        setLoading(true)
-        setError(null)
-        const items = await getProduccion()
-        if (!active) return
-        previousProduccionRef.current = items
-        setProduccionState(items)
-      } catch {
-        if (!active) return
-        setError('No se pudo cargar produccion desde el backend.')
-      } finally {
-        if (active) {
-          hasHydratedRef.current = true
-          setLoading(false)
-        }
-      }
+  const loadProduccion = useCallback(async () => {
+    if (!enabled) {
+      if (!mountedRef.current) return
+      previousProduccionRef.current = []
+      skipNextSyncRef.current = true
+      setProduccionState([])
+      setError(null)
+      hasHydratedRef.current = true
+      setLoading(false)
+      return
     }
-    void load()
-    return () => {
-      active = false
+
+    const sessionUser = readSessionUser()
+    const canReadProduccion = hasPermission(sessionUser, 'produccion:read')
+    if (!canReadProduccion) {
+      if (!mountedRef.current) return
+      previousProduccionRef.current = []
+      skipNextSyncRef.current = true
+      setProduccionState([])
+      setError(null)
+      hasHydratedRef.current = true
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+      const items = await getProduccion()
+      if (!mountedRef.current) return
+      previousProduccionRef.current = items
+      skipNextSyncRef.current = true
+      setProduccionState(items)
+    } catch {
+      if (!mountedRef.current) return
+      setError('No se pudo cargar produccion desde el backend.')
+    } finally {
+      if (mountedRef.current) {
+        hasHydratedRef.current = true
+        setLoading(false)
+      }
     }
   }, [enabled])
+
+  useEffect(() => {
+    mountedRef.current = true
+    void loadProduccion()
+    return () => {
+      mountedRef.current = false
+    }
+  }, [loadProduccion])
 
   const syncProduccion = useCallback(async (prev: ProduccionDiaria[], next: ProduccionDiaria[]) => {
     const prevById = new Map(prev.map((item) => [item.id, item]))
@@ -188,5 +193,6 @@ export function useProduccionStore(options: UseProduccionStoreOptions = {}) {
     replaceProduccion,
     loading,
     error,
+    reload: loadProduccion,
   }
 }

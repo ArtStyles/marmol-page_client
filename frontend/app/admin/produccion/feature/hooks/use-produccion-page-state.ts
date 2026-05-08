@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   approveProduccionAlmacen,
   cancelMonoHiloProduccion,
@@ -19,7 +19,10 @@ import { useProduccionStore } from '@/hooks/use-produccion'
 import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import {
   DIMENSIONES_PISO,
+  isPlanchaDimension,
+  isValidDimension,
   losasAMetros,
+  normalizeDimension,
   PLANCHA_DIMENSION,
   PLANCHA_DIMENSIONES,
   TIPO_EQUIPO_POR_ACCION,
@@ -67,10 +70,9 @@ const estadoProcesoRequeridoPorAccion: Record<
 
 const PROCESS_ACTIONS: AccionLosa[] = ['escuadrar', 'devastar', 'resinar', 'pulir']
 const ACTION_ORDER: AccionLosa[] = ['picar', 'escuadrar', 'devastar', 'resinar', 'pulir']
-const DIMENSION_OPTIONS: Dimension[] = [...DIMENSIONES_PISO, ...PLANCHA_DIMENSIONES]
-const MONO_HILO_DIMENSIONS: Dimension[] = [...DIMENSION_OPTIONS]
+const BASE_DIMENSION_OPTIONS: Dimension[] = [...DIMENSIONES_PISO, ...PLANCHA_DIMENSIONES]
 const isPlanchaDimensionAllowed = (dimension: Dimension): boolean =>
-  PLANCHA_DIMENSIONES.includes(dimension as (typeof PLANCHA_DIMENSIONES)[number])
+  isPlanchaDimension(dimension)
 
 const getMonoHiloLosasDisponibles = (masa: MonoHiloMasa, dimension: Dimension): number => {
   const estimado = masa.estimados[dimension]
@@ -93,12 +95,13 @@ const buildPseudoOrigen = (
     codigo: origenNombre,
     nombre: origenNombre,
     tipo: 'Bloque',
-    dimensionBase: '60x40',
+    dimensionBase: null,
     costo: 0,
     costoTransporte: 0,
     metrosComprados: 0,
     fechaIngreso: '',
     proveedor: '',
+    canteraOrigen: '',
     losasProducidas: 0,
     losasPerdidas: 0,
     metrosVendibles: 0,
@@ -123,7 +126,7 @@ const isMonoHiloRegistro = (registro: Pick<ProduccionDiaria, 'workflowTipo'>): b
 const isMonoHiloMasaActiva = (masa: MonoHiloMasa): boolean => masa.estado !== 'anulada'
 
 export const useProduccionPageState = () => {
-  const { produccion, replaceProduccion } = useProduccionStore()
+  const { produccion, replaceProduccion, reload: reloadProduccion } = useProduccionStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [dateFilter, setDateFilter] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -142,61 +145,93 @@ export const useProduccionPageState = () => {
   const [entryActionError, setEntryActionError] = useState<string | null>(null)
   const [entryUpdateLoadingById, setEntryUpdateLoadingById] = useState<Record<string, boolean>>({})
   const [entryDeleteLoadingById, setEntryDeleteLoadingById] = useState<Record<string, boolean>>({})
+  const mountedRef = useRef(true)
+  const dimensionOptions = useMemo(() => {
+    const collected = new Set<Dimension>(BASE_DIMENSION_OPTIONS)
 
-  useEffect(() => {
-    let alive = true
+    productos.forEach((producto) => collected.add(normalizeDimension(producto.dimension)))
+    produccion.forEach((registro) => collected.add(normalizeDimension(registro.dimension)))
+    monoHiloMasas.forEach((masa) => {
+      Object.keys(masa.estimados).forEach((dimension) => {
+        if (isValidDimension(dimension)) {
+          collected.add(normalizeDimension(dimension))
+        }
+      })
+    })
 
-    const load = async () => {
-      setLoadingDependencies(true)
-      setDependenciesError(null)
-      try {
-        const sessionUser = (() => {
-          if (typeof window === 'undefined') return null
-          const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
-          if (!raw) return null
-          try {
-            return JSON.parse(raw) as AdminUser
-          } catch {
-            return null
-          }
-        })()
+    return Array.from(collected)
+  }, [monoHiloMasas, produccion, productos])
+  const monoHiloDimensions = useMemo(() => {
+    const collected = new Set<Dimension>(dimensionOptions)
 
-        const canReadBloques = hasPermission(sessionUser, 'bloques:read')
-        const canReadInventario = hasPermission(sessionUser, 'inventario:read')
-        const canReadProduccion = hasPermission(sessionUser, 'produccion:read')
-        const canReadEquipos = hasPermission(sessionUser, 'equipos:read')
-        const canReadTrabajadores = hasPermission(sessionUser, 'trabajadores:read')
+    monoHiloMasas.forEach((masa) => {
+      Object.keys(masa.estimados).forEach((dimension) => {
+        if (isValidDimension(dimension)) {
+          collected.add(normalizeDimension(dimension))
+        }
+      })
+    })
 
-        const [bloquesData, monoHiloData, productosData, equiposData, trabajadoresData] = await Promise.all([
-          canReadBloques ? getBloques() : Promise.resolve<BloqueOLote[]>([]),
-          canReadProduccion ? getMonoHiloMasas() : Promise.resolve<MonoHiloMasa[]>([]),
-          canReadInventario ? getProductos() : Promise.resolve<Producto[]>([]),
-          canReadEquipos ? getEquipos() : Promise.resolve<Equipo[]>([]),
-          canReadTrabajadores ? getTrabajadores() : Promise.resolve<Trabajador[]>([]),
-        ])
+    return Array.from(collected)
+  }, [dimensionOptions, monoHiloMasas])
 
-        if (!alive) return
-        setBloquesYLotes(bloquesData)
-        setMonoHiloMasas(monoHiloData)
-        setProductos(productosData)
-        setEquipos(equiposData)
-        setTrabajadores(trabajadoresData)
-      } catch (error) {
-        if (!alive) return
-        setDependenciesError(
-          error instanceof Error ? error.message : 'No se pudieron cargar catalogos de produccion.',
-        )
-      } finally {
-        if (alive) setLoadingDependencies(false)
-      }
-    }
+  const loadDependencies = useCallback(async () => {
+    setLoadingDependencies(true)
+    setDependenciesError(null)
+    try {
+      const sessionUser = (() => {
+        if (typeof window === 'undefined') return null
+        const raw = window.localStorage.getItem(ADMIN_STORAGE_KEY)
+        if (!raw) return null
+        try {
+          return JSON.parse(raw) as AdminUser
+        } catch {
+          return null
+        }
+      })()
 
-    void load()
+      const canReadBloques = hasPermission(sessionUser, 'bloques:read')
+      const canReadInventario = hasPermission(sessionUser, 'inventario:read')
+      const canReadProduccion = hasPermission(sessionUser, 'produccion:read')
+      const canReadEquipos = hasPermission(sessionUser, 'equipos:read')
+      const canReadTrabajadores = hasPermission(sessionUser, 'trabajadores:read')
 
-    return () => {
-      alive = false
+      const [bloquesData, monoHiloData, productosData, equiposData, trabajadoresData] = await Promise.all([
+        canReadBloques ? getBloques() : Promise.resolve<BloqueOLote[]>([]),
+        canReadProduccion ? getMonoHiloMasas() : Promise.resolve<MonoHiloMasa[]>([]),
+        canReadInventario ? getProductos() : Promise.resolve<Producto[]>([]),
+        canReadEquipos ? getEquipos() : Promise.resolve<Equipo[]>([]),
+        canReadTrabajadores ? getTrabajadores() : Promise.resolve<Trabajador[]>([]),
+      ])
+
+      if (!mountedRef.current) return
+      setBloquesYLotes(bloquesData)
+      setMonoHiloMasas(monoHiloData)
+      setProductos(productosData)
+      setEquipos(equiposData)
+      setTrabajadores(trabajadoresData)
+    } catch (error) {
+      if (!mountedRef.current) return
+      setDependenciesError(
+        error instanceof Error ? error.message : 'No se pudieron cargar catalogos de produccion.',
+      )
+    } finally {
+      if (mountedRef.current) setLoadingDependencies(false)
     }
   }, [])
+
+  useEffect(() => {
+    mountedRef.current = true
+    void loadDependencies()
+
+    return () => {
+      mountedRef.current = false
+    }
+  }, [loadDependencies])
+
+  const reloadProduccionContext = useCallback(async () => {
+    await Promise.all([reloadProduccion(), loadDependencies()])
+  }, [loadDependencies, reloadProduccion])
 
   const trabajadoresActivos = useMemo(
     () =>
@@ -239,7 +274,7 @@ export const useProduccionPageState = () => {
     for (const masa of monoHiloMasasActivas) {
       if (masa.ubicacion !== 'proceso') continue
 
-      for (const dimension of MONO_HILO_DIMENSIONS) {
+    for (const dimension of monoHiloDimensions) {
         const disponibles = getMonoHiloLosasDisponibles(masa, dimension)
         if (disponibles <= 0) continue
 
@@ -257,7 +292,7 @@ export const useProduccionPageState = () => {
     for (const masa of monoHiloMasasActivas) {
       if (masa.ubicacion !== 'proceso') continue
 
-      for (const dimension of MONO_HILO_DIMENSIONS) {
+      for (const dimension of monoHiloDimensions) {
         const disponibles = getMonoHiloLosasDisponibles(masa, dimension)
         if (disponibles <= 0) continue
         map.set(`${masa.id}::${dimension}`, disponibles)
@@ -352,7 +387,7 @@ export const useProduccionPageState = () => {
         ? getBloqueCodigo(bloque)
         : masa.bloqueCodigo.trim() || masa.bloqueNombre.trim() || 'SIN-BLOQUE'
 
-      for (const dimension of MONO_HILO_DIMENSIONS) {
+    for (const dimension of monoHiloDimensions) {
         const disponibleLosas = getMonoHiloLosasDisponibles(masa, dimension)
         if (disponibleLosas <= 0) continue
 
@@ -576,7 +611,7 @@ export const useProduccionPageState = () => {
         }
 
         if (!tipo) {
-          return MONO_HILO_DIMENSIONS.reduce(
+      return monoHiloDimensions.reduce(
             (maxValue, dimensionItem) =>
               Math.max(maxValue, resolveDisponibilidadMonoHilo(dimensionItem)),
             0,
@@ -753,7 +788,7 @@ export const useProduccionPageState = () => {
       } else if (primerOrigen) {
         const dimensionInicial =
           (PROCESS_ACTIONS.includes(accionInicial) || accionInicial === 'picar')
-            ? DIMENSION_OPTIONS.find(
+        ? dimensionOptions.find(
                 (dimension) =>
                   (getLosasDisponiblesParaAccion(accionInicial, primerOrigen.id, '', dimension, '') ?? 0) > 0,
               ) ?? PLANCHA_DIMENSION
@@ -783,10 +818,10 @@ export const useProduccionPageState = () => {
 
   const resolveAvailableDimensionsForUsage = useCallback(
     (accion: AccionLosa, uso: ActionUsageForm): Dimension[] => {
-      if (accion !== 'picar' && !PROCESS_ACTIONS.includes(accion)) return DIMENSION_OPTIONS
-      if (!uso.origenId) return DIMENSION_OPTIONS
+      if (accion !== 'picar' && !PROCESS_ACTIONS.includes(accion)) return dimensionOptions
+      if (!uso.origenId) return dimensionOptions
 
-      const disponibles = DIMENSION_OPTIONS.filter(
+      const disponibles = dimensionOptions.filter(
         (dimension) =>
           (getLosasDisponiblesParaAccion(accion, uso.origenId, uso.tipo, dimension, uso.masaId) ?? 0) > 0,
       )
@@ -1120,10 +1155,18 @@ export const useProduccionPageState = () => {
         return [...registro.masas, ...prev.filter((item) => !ids.has(item.id))]
       })
       replaceProduccion((prev) => [registro.produccion, ...prev])
+      await reloadProduccionContext().catch(() => undefined)
 
       return registro.masas
     },
-    [bloquesActivosMonoHilo, equiposActivos, replaceProduccion, today, trabajadoresActivos],
+    [
+      bloquesActivosMonoHilo,
+      equiposActivos,
+      reloadProduccionContext,
+      replaceProduccion,
+      today,
+      trabajadoresActivos,
+    ],
   )
 
   const handleSubmit = async (event: FormEvent) => {
@@ -1303,11 +1346,21 @@ export const useProduccionPageState = () => {
           }
 
           if (tipoUso === 'Plancha' && !isPlanchaDimensionAllowed(dimensionUso.dimension)) {
-            setFormError(`Plancha solo permite dimensiones ${PLANCHA_DIMENSIONES.join(' y ')}.`)
+      setFormError('Plancha solo permite medidas validas distintas a los formatos de piso.')
             return
           }
 
           const dimensionUsoReal = resolveDimensionByTipo(tipoUso, dimensionUso.dimension)
+          const masaSeleccionada =
+            accion === 'picar'
+              ? picarUsageOptions.find(
+                  (option) =>
+                    option.masaId === usoNormalizado.masaId &&
+                    option.origenId === usoNormalizado.origenId &&
+                    option.tipo === tipoUso &&
+                    option.dimension === dimensionUsoReal,
+                ) ?? picarUsageOptions.find((option) => option.masaId === usoNormalizado.masaId)
+              : undefined
 
           if (accion === 'picar') {
             if (!usoNormalizado.masaId) {
@@ -1331,6 +1384,11 @@ export const useProduccionPageState = () => {
               stockKeyMonoHilo,
               reservadoMonoHilo + dimensionUso.cantidadLosas,
             )
+
+            if (!masaSeleccionada) {
+              setFormError('No se pudo resolver la masa seleccionada para registrar el picado.')
+              return
+            }
           }
 
           if (accion === 'escuadrar' || accion === 'devastar' || accion === 'resinar' || accion === 'pulir') {
@@ -1385,6 +1443,9 @@ export const useProduccionPageState = () => {
           comboActual.detallesAcciones.push({
             id: `PGA-${Date.now()}-${Math.random().toString(16).slice(2, 7)}`,
             accion,
+            masaId: accion === 'picar' ? usoNormalizado.masaId : undefined,
+            masaCodigo: accion === 'picar' ? masaSeleccionada?.masaCodigo : undefined,
+            observacion: accion === 'picar' ? usoNormalizado.observacion.trim() || undefined : undefined,
             trabajadorId: trabajadoresEquipo[0]?.id,
             trabajadorNombre: trabajadoresEquipo[0]?.nombre,
             trabajadores: trabajadoresEquipo.map((trabajador) => ({
@@ -1450,11 +1511,33 @@ export const useProduccionPageState = () => {
     try {
       const createdRecords: ProduccionDiaria[] = []
       for (const payload of payloads) {
-        const created = await createProduccion(payload)
-        createdRecords.push(created)
+        try {
+          const created = await createProduccion(payload)
+          createdRecords.push(created)
+        } catch (error) {
+          if (createdRecords.length > 0) {
+            replaceProduccion((prev) => [
+              ...createdRecords,
+              ...prev.filter((registro) => !createdRecords.some((created) => created.id === registro.id)),
+            ])
+            await reloadProduccionContext().catch(() => undefined)
+          }
+
+          const baseMessage =
+            error instanceof Error
+              ? error.message
+              : 'No se pudo registrar la produccion en el backend.'
+          setFormError(
+            createdRecords.length > 0
+              ? `${baseMessage} Se registraron ${createdRecords.length} entrada(s) antes del error.`
+              : baseMessage,
+          )
+          return
+        }
       }
 
       replaceProduccion((prev) => [...createdRecords, ...prev])
+      await reloadProduccionContext().catch(() => undefined)
       resetFormAndClose()
     } catch (error) {
       setFormError(
@@ -1487,6 +1570,7 @@ export const useProduccionPageState = () => {
       replaceProduccion((prev) =>
         prev.map((registro) => (registro.id === updated.id ? updated : registro)),
       )
+      await reloadProduccionContext().catch(() => undefined)
 
       return true
     } catch (error) {
@@ -1513,6 +1597,7 @@ export const useProduccionPageState = () => {
       replaceProduccion((prev) =>
         prev.map((registro) => (registro.id === updated.id ? updated : registro)),
       )
+      await reloadProduccionContext().catch(() => undefined)
 
       return true
     } catch (error) {
@@ -1539,6 +1624,7 @@ export const useProduccionPageState = () => {
       replaceProduccion((prev) =>
         prev.map((registro) => (registro.id === updated.id ? updated : registro)),
       )
+      await reloadProduccionContext().catch(() => undefined)
       return updated
     } catch (error) {
       setEntryActionError(
@@ -1557,6 +1643,7 @@ export const useProduccionPageState = () => {
     try {
       await deleteProduccion(produccionId)
       replaceProduccion((prev) => prev.filter((registro) => registro.id !== produccionId))
+      await reloadProduccionContext().catch(() => undefined)
       return true
     } catch (error) {
       setEntryActionError(
@@ -1587,6 +1674,7 @@ export const useProduccionPageState = () => {
         })
         return Array.from(masasById.values())
       })
+      await reloadProduccionContext().catch(() => undefined)
       return true
     } catch (error) {
       setEntryActionError(

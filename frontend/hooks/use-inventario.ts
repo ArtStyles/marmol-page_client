@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { getProductos } from '@/lib/resources-api'
 import type { Producto } from '@/lib/types'
@@ -51,51 +51,54 @@ export function useInventarioStore(options: UseInventarioStoreOptions = {}) {
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
 
-  useEffect(() => {
-    let active = true
-    const load = async () => {
-      if (!enabled) {
-        if (!active) return
-        setProductos([])
-        setError(null)
-        setLoading(false)
-        return
-      }
-
-      const sessionUser = readSessionUser()
-      const canReadInventario = hasPermission(sessionUser, 'inventario:read')
-      if (!canReadInventario) {
-        if (!active) return
-        setProductos([])
-        setError(null)
-        setLoading(false)
-        return
-      }
-
-      try {
-        setLoading(true)
-        setError(null)
-        const items = await getProductos()
-        if (!active) return
-        setProductos(items.map((item) => normalizeProducto(item)))
-      } catch {
-        if (!active) return
-        setError('No se pudo cargar el inventario desde el backend.')
-      } finally {
-        if (active) setLoading(false)
-      }
+  const loadInventario = useCallback(async () => {
+    if (!enabled) {
+      if (!mountedRef.current) return
+      setProductos([])
+      setError(null)
+      setLoading(false)
+      return
     }
-    void load()
-    return () => {
-      active = false
+
+    const sessionUser = readSessionUser()
+    const canReadInventario = hasPermission(sessionUser, 'inventario:read')
+    if (!canReadInventario) {
+      if (!mountedRef.current) return
+      setProductos([])
+      setError(null)
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+      const items = await getProductos()
+      if (!mountedRef.current) return
+      setProductos(items.map((item) => normalizeProducto(item)))
+    } catch {
+      if (!mountedRef.current) return
+      setError('No se pudo cargar el inventario desde el backend.')
+    } finally {
+      if (mountedRef.current) setLoading(false)
     }
   }, [enabled])
+
+  useEffect(() => {
+    mountedRef.current = true
+    void loadInventario()
+    return () => {
+      mountedRef.current = false
+    }
+  }, [loadInventario])
 
   return {
     productos,
     setProductos,
     loading,
     error,
+    reload: loadInventario,
   }
 }

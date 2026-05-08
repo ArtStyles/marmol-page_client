@@ -2,6 +2,7 @@ import type {
   BloqueOLote,
   CatalogoItem,
   ConfiguracionSistema,
+  CreateBloqueInput,
   Equipo,
   FinancialSummary,
   Gasto,
@@ -15,6 +16,7 @@ import type {
   Producto,
   SystemLog,
   Trabajador,
+  UpdateBloqueInput,
   Venta,
 } from './types'
 import { apiRequest } from './api-client'
@@ -56,18 +58,13 @@ export const deleteProducto = async (productoId: string): Promise<boolean> => {
 
 export const getBloques = (): Promise<BloqueOLote[]> => apiRequest<BloqueOLote[]>('/bloques')
 
-export const createBloque = (
-  input: Omit<BloqueOLote, 'id' | 'nombre'> & { nombre?: string },
-): Promise<BloqueOLote> =>
+export const createBloque = (input: CreateBloqueInput): Promise<BloqueOLote> =>
   apiRequest<BloqueOLote>('/bloques', {
     method: 'POST',
     body: input,
   })
 
-export const updateBloque = (
-  bloqueId: string,
-  patch: Partial<BloqueOLote>,
-): Promise<BloqueOLote> =>
+export const updateBloque = (bloqueId: string, patch: UpdateBloqueInput): Promise<BloqueOLote> =>
   apiRequest<BloqueOLote>(`/bloques/${bloqueId}`, {
     method: 'PATCH',
     body: patch,

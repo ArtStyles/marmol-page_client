@@ -18,6 +18,7 @@ export type ActionUsageForm = {
   masaId: string
   origenId: string
   tipo: TipoProducto | ''
+  observacion: string
   trabajadorIds: string[]
   equipoId: string
   dimensiones: ActionUsageDimensionForm[]

@@ -11,6 +11,7 @@ import { dimensiones } from '@/lib/data'
 import {
   DIMENSIONES_PLANCHA,
   DIMENSIONES_PISO,
+  losasAMetros,
   type BloqueOLote,
   type Dimension,
 } from '@/lib/types'
@@ -23,7 +24,7 @@ import {
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import { cn } from '@/lib/utils'
-import { Plus, Search, Eye, Edit, Trash2, CircleOff, RotateCcw, Lock } from 'lucide-react'
+import { Plus, Search, Eye, Edit, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -55,13 +56,11 @@ type LoteSeleccionKey = Dimension
 type LoteSeleccionValores = {
   metrosComprados: number
   costo: number
-  costoTransporte: number
 }
 
 type LoteSeleccionTouched = {
   metrosComprados: boolean
   costo: boolean
-  costoTransporte: boolean
 }
 
 const LOTE_SELECCION_OPCIONES: LoteSeleccionKey[] = [...DIMENSIONES_PISO, ...DIMENSIONES_PLANCHA]
@@ -96,20 +95,59 @@ const LOTE_SELECCION_CONFIG: Record<
 }
 
 const createLoteValoresIniciales = (): Record<LoteSeleccionKey, LoteSeleccionValores> => ({
-  '40x40': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
-  '60x40': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
-  '80x40': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
-  '160x60': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
-  '160x65': { metrosComprados: 0, costo: 0, costoTransporte: 0 },
+  '40x40': { metrosComprados: 0, costo: 0 },
+  '60x40': { metrosComprados: 0, costo: 0 },
+  '80x40': { metrosComprados: 0, costo: 0 },
+  '160x60': { metrosComprados: 0, costo: 0 },
+  '160x65': { metrosComprados: 0, costo: 0 },
 })
 
 const createLoteTouchedInicial = (): Record<LoteSeleccionKey, LoteSeleccionTouched> => ({
-  '40x40': { metrosComprados: false, costo: false, costoTransporte: false },
-  '60x40': { metrosComprados: false, costo: false, costoTransporte: false },
-  '80x40': { metrosComprados: false, costo: false, costoTransporte: false },
-  '160x60': { metrosComprados: false, costo: false, costoTransporte: false },
-  '160x65': { metrosComprados: false, costo: false, costoTransporte: false },
+  '40x40': { metrosComprados: false, costo: false },
+  '60x40': { metrosComprados: false, costo: false },
+  '80x40': { metrosComprados: false, costo: false },
+  '160x60': { metrosComprados: false, costo: false },
+  '160x65': { metrosComprados: false, costo: false },
 })
+
+const roundCurrency = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100
+
+const distribuirTransporteLote = (
+  opciones: LoteSeleccionKey[],
+  valores: Record<LoteSeleccionKey, LoteSeleccionValores>,
+  transporteTotal: number,
+): Record<LoteSeleccionKey, number> => {
+  const cantidades = opciones.map((option) => {
+    const cantidadLosas = Math.max(0, Math.trunc(valores[option].metrosComprados))
+    return {
+      option,
+      cantidadLosas,
+      metrosCuadrados: losasAMetros(cantidadLosas, LOTE_SELECCION_CONFIG[option].dimensionBase),
+    }
+  })
+
+  const totalMetrosCuadrados = cantidades.reduce((sum, item) => sum + item.metrosCuadrados, 0)
+  const totalLosas = cantidades.reduce((sum, item) => sum + item.cantidadLosas, 0)
+  const usarMetrosCuadrados = totalMetrosCuadrados > 0
+  const totalPeso = usarMetrosCuadrados ? totalMetrosCuadrados : totalLosas
+  const distribucion = {} as Record<LoteSeleccionKey, number>
+  let acumulado = 0
+
+  cantidades.forEach((item, index) => {
+    const esUltimo = index === cantidades.length - 1
+    if (esUltimo) {
+      distribucion[item.option] = roundCurrency(Math.max(0, transporteTotal - acumulado))
+      return
+    }
+
+    const peso = usarMetrosCuadrados ? item.metrosCuadrados : item.cantidadLosas
+    const monto = totalPeso > 0 ? roundCurrency((transporteTotal * peso) / totalPeso) : 0
+    distribucion[item.option] = monto
+    acumulado += monto
+  })
+
+  return distribucion
+}
 const bloqueEstadoLabel: Record<BloqueOLote['estado'], string> = {
   activo: 'Activo',
   agotado: 'Agotado',
@@ -130,12 +168,10 @@ export default function BloquesPage() {
   const [selectedBloque, setSelectedBloque] = useState<BloqueOLote | null>(null)
   const [editingBloque, setEditingBloque] = useState<BloqueOLote | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<BloqueOLote | null>(null)
-  const [statusTarget, setStatusTarget] = useState<BloqueOLote | null>(null)
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [numericTouched, setNumericTouched] = useState({
     metrosComprados: false,
@@ -149,6 +185,7 @@ export default function BloquesPage() {
     costo: 0,
     costoTransporte: 0,
     proveedor: '',
+    canteraOrigen: '',
   })
   const [loteSeleccionado, setLoteSeleccionado] = useState<LoteSeleccionKey[]>(['60x40'])
   const [loteValores, setLoteValores] = useState<Record<LoteSeleccionKey, LoteSeleccionValores>>(
@@ -204,7 +241,8 @@ export default function BloquesPage() {
       bloques.filter(
         (bloque) =>
           getBloqueCodigo(bloque).toLowerCase().includes(searchTerm.toLowerCase()) ||
-          bloque.proveedor.toLowerCase().includes(searchTerm.toLowerCase()),
+          bloque.proveedor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bloque.canteraOrigen.toLowerCase().includes(searchTerm.toLowerCase()),
       ),
     [bloques, searchTerm],
   )
@@ -353,12 +391,12 @@ export default function BloquesPage() {
       }
       try {
         const updated = await updateBloque(editingBloque.id, {
-          tipo: formData.tipo,
           dimensionBase: formData.dimensionBase,
           metrosComprados: formData.metrosComprados,
           costo: formData.costo,
           costoTransporte: formData.costoTransporte,
           proveedor: formData.proveedor,
+          canteraOrigen: formData.canteraOrigen,
         })
         setBloques((prev) => prev.map((bloque) => (bloque.id === updated.id ? updated : bloque)))
         resetForm()
@@ -395,6 +433,11 @@ export default function BloquesPage() {
           return
         }
 
+        const transporteDistribuido = distribuirTransporteLote(
+          loteSeleccionado,
+          loteValores,
+          formData.costoTransporte,
+        )
         const nuevosLotes: BloqueOLote[] = []
 
         for (const option of loteSeleccionado) {
@@ -406,15 +449,11 @@ export default function BloquesPage() {
             tipo: 'Lote',
             dimensionBase: optionConfig.dimensionBase,
             costo: optionValores.costo,
-            costoTransporte: optionValores.costoTransporte,
+            costoTransporte: transporteDistribuido[option] ?? 0,
             metrosComprados: cantidadLosas,
             fechaIngreso: today,
             proveedor: formData.proveedor,
-            losasProducidas: 0,
-            losasPerdidas: 0,
-            metrosVendibles: 0,
-            gananciaReal: 0,
-            estado: 'activo',
+            canteraOrigen: formData.canteraOrigen,
           })
 
           nuevosLotes.push(newBloque)
@@ -433,11 +472,7 @@ export default function BloquesPage() {
         metrosComprados: formData.metrosComprados,
         fechaIngreso: today,
         proveedor: formData.proveedor,
-        losasProducidas: 0,
-        losasPerdidas: 0,
-        metrosVendibles: 0,
-        gananciaReal: 0,
-        estado: 'activo',
+        canteraOrigen: formData.canteraOrigen,
       })
 
       setBloques((prev) => [newBloque, ...prev])
@@ -450,15 +485,20 @@ export default function BloquesPage() {
   }
 
   const handleEdit = (bloque: BloqueOLote) => {
-    if (!canModify(bloque.fechaIngreso) || isBloqueVendido(bloque)) return
+    if (!canModify(bloque.fechaIngreso) || bloque.canEdit === false || isBloqueVendido(bloque)) return
     setEditingBloque(bloque)
+    const dimensionEditable =
+      bloque.dimensionBase && bloque.dimensionBase in LOTE_SELECCION_CONFIG
+        ? (bloque.dimensionBase as LoteSeleccionKey)
+        : '60x40'
     setFormData({
       tipo: bloque.tipo,
-      dimensionBase: bloque.dimensionBase,
+      dimensionBase: bloque.dimensionBase ?? dimensionEditable,
       metrosComprados: bloque.metrosComprados,
       costo: bloque.costo,
       costoTransporte: bloque.costoTransporte,
       proveedor: bloque.proveedor,
+      canteraOrigen: bloque.canteraOrigen,
     })
     setNumericTouched({
       metrosComprados: true,
@@ -470,16 +510,14 @@ export default function BloquesPage() {
     const loteTouchedInicial = createLoteTouchedInicial()
 
     if (bloque.tipo === 'Lote') {
-      const key = bloque.dimensionBase
+      const key = dimensionEditable
       loteValoresIniciales[key] = {
         metrosComprados: bloque.metrosComprados,
         costo: bloque.costo,
-        costoTransporte: bloque.costoTransporte,
       }
       loteTouchedInicial[key] = {
         metrosComprados: true,
         costo: true,
-        costoTransporte: true,
       }
       setLoteSeleccionado([key])
     } else {
@@ -492,7 +530,7 @@ export default function BloquesPage() {
   }
 
   const openDeleteConfirm = (bloque: BloqueOLote) => {
-    if (!canModify(bloque.fechaIngreso) || isBloqueVendido(bloque)) return
+    if (!canModify(bloque.fechaIngreso) || bloque.canDelete === false || isBloqueVendido(bloque)) return
     setDeleteTarget(bloque)
   }
 
@@ -510,28 +548,6 @@ export default function BloquesPage() {
     }
   }
 
-  const openEstadoConfirm = (bloque: BloqueOLote) => {
-    if (!canModify(bloque.fechaIngreso) || isBloqueVendido(bloque)) return
-    setStatusTarget(bloque)
-  }
-
-  const confirmToggleEstado = async (bloque: BloqueOLote) => {
-    if (!canModify(bloque.fechaIngreso) || isBloqueVendido(bloque)) return
-    setIsUpdatingStatus(true)
-    setActionError(null)
-    try {
-      const updated = await updateBloque(bloque.id, {
-        estado: bloque.estado === 'activo' ? 'agotado' : 'activo',
-      })
-      setBloques((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'No se pudo actualizar el estado.')
-    } finally {
-      setIsUpdatingStatus(false)
-      setStatusTarget(null)
-    }
-  }
-
   const resetForm = () => {
     setEditingBloque(null)
     setFormData({
@@ -541,6 +557,7 @@ export default function BloquesPage() {
       costo: 0,
       costoTransporte: 0,
       proveedor: '',
+      canteraOrigen: '',
     })
     setNumericTouched({
       metrosComprados: false,
@@ -564,13 +581,14 @@ export default function BloquesPage() {
 
   const renderAcciones = (bloque: BloqueOLote) => {
     const bloqueVendido = isBloqueVendido(bloque)
-    const allowed = canModify(bloque.fechaIngreso) && !bloqueVendido
+    const canEditItem = canModify(bloque.fechaIngreso) && !bloqueVendido && bloque.canEdit !== false
+    const canDeleteItem = canModify(bloque.fechaIngreso) && !bloqueVendido && bloque.canDelete !== false
     const blockedTitle = bloqueVendido
       ? 'Bloque vendido: acciones bloqueadas'
-      : 'Solo administrador despues del dia'
+      : bloque.lockReason || 'Registro bloqueado por historial operativo'
 
     return (
-      <div className="grid w-fit grid-cols-2 gap-1 justify-self-start lg:justify-self-end">
+      <div className="flex w-fit items-center gap-1 justify-self-start lg:justify-self-end">
         <Button size="icon" variant="ghost" onClick={() => setSelectedBloque(bloque)} title="Ver detalle">
           <Eye className="h-4 w-4" />
         </Button>
@@ -578,8 +596,8 @@ export default function BloquesPage() {
           size="icon"
           variant="ghost"
           onClick={() => handleEdit(bloque)}
-          disabled={!allowed}
-          title={allowed ? 'Editar' : blockedTitle}
+          disabled={!canEditItem}
+          title={canEditItem ? 'Editar' : blockedTitle}
         >
           <Edit className="h-4 w-4" />
         </Button>
@@ -587,25 +605,10 @@ export default function BloquesPage() {
           size="icon"
           variant="ghost"
           onClick={() => openDeleteConfirm(bloque)}
-          disabled={!allowed}
-          title={allowed ? 'Eliminar' : blockedTitle}
+          disabled={!canDeleteItem}
+          title={canDeleteItem ? 'Eliminar' : blockedTitle}
         >
           <Trash2 className="h-4 w-4 text-destructive" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={() => openEstadoConfirm(bloque)}
-          disabled={!allowed}
-          title={allowed ? (bloque.estado === 'activo' ? 'Agotar' : 'Reactivar') : blockedTitle}
-        >
-          {bloque.estado === 'activo' ? (
-            <CircleOff className="h-4 w-4 text-amber-600" />
-          ) : bloque.estado === 'agotado' ? (
-            <RotateCcw className="h-4 w-4 text-emerald-600" />
-          ) : (
-            <Lock className="h-4 w-4 text-emerald-700" />
-          )}
         </Button>
       </div>
     )
@@ -639,11 +642,12 @@ export default function BloquesPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label>Tipo</Label>
-                  <Select
-                    value={formData.tipo}
-                    onValueChange={(value: 'Bloque' | 'Lote') =>
-                      setFormData((prev) => ({
-                        ...prev,
+	                  <Select
+	                    value={formData.tipo}
+	                    disabled={Boolean(editingBloque)}
+	                    onValueChange={(value: 'Bloque' | 'Lote') =>
+	                      setFormData((prev) => ({
+	                        ...prev,
                         tipo: value,
                         dimensionBase: value === 'Lote' ? prev.dimensionBase : '60x40',
                       }))
@@ -713,7 +717,41 @@ export default function BloquesPage() {
                         onChange={(event) => setFormData({ ...formData, proveedor: event.target.value })}
                         placeholder="Nombre del proveedor"
                         required
+	                      />
+	                    </div>
+
+	                    <div className="space-y-2">
+	                      <Label>Cantera / origen</Label>
+	                      <Input
+	                        value={formData.canteraOrigen}
+	                        onChange={(event) =>
+	                          setFormData({ ...formData, canteraOrigen: event.target.value })
+	                        }
+	                        placeholder="Cantera, mina u origen del material"
+	                      />
+	                    </div>
+
+	                    <div className="space-y-2">
+	                      <Label>Costo transporte total del lote ($)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={
+                          numericTouched.costoTransporte || formData.costoTransporte > 0
+                            ? formData.costoTransporte
+                            : ''
+                        }
+                        onChange={(event) => {
+                          const value = event.target.value
+                          setNumericTouched((prev) => ({ ...prev, costoTransporte: value !== '' }))
+                          setFormData({ ...formData, costoTransporte: value === '' ? 0 : Number(value) })
+                        }}
+                        required
                       />
+                      <p className="text-xs text-slate-500">
+                        Se registra una sola vez y se reparte entre las medidas seleccionadas.
+                      </p>
                     </div>
 
                     {loteSeleccionado.length === 0 ? (
@@ -730,7 +768,7 @@ export default function BloquesPage() {
                               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                                 {optionConfig.label}
                               </p>
-                              <div className="grid gap-3 sm:grid-cols-3">
+                              <div className="grid gap-3 sm:grid-cols-2">
                                 <div className="space-y-2">
                                   <Label>Cantidad losas</Label>
                                   <Input
@@ -760,23 +798,6 @@ export default function BloquesPage() {
                                     required
                                   />
                                 </div>
-                                <div className="space-y-2">
-                                  <Label>Costo transporte ($)</Label>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    placeholder="0"
-                                    value={
-                                      optionTouched.costoTransporte || optionValues.costoTransporte > 0
-                                        ? optionValues.costoTransporte
-                                        : ''
-                                    }
-                                    onChange={(event) =>
-                                      updateLoteValor(option, 'costoTransporte', event.target.value)
-                                    }
-                                    required
-                                  />
-                                </div>
                               </div>
                             </div>
                           )
@@ -786,9 +807,9 @@ export default function BloquesPage() {
                   </>
                 ) : (
                   <>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>{formData.tipo === 'Lote' ? 'Cantidad losas' : 'Dimension (m3)'}</Label>
+	                    <div className="grid gap-4 sm:grid-cols-2">
+	                      <div className="space-y-2">
+	                        <Label>{formData.tipo === 'Lote' ? 'Cantidad losas' : 'Dimension (m3)'}</Label>
                         <Input
                           type="number"
                           min="0"
@@ -810,16 +831,27 @@ export default function BloquesPage() {
 
                       <div className="space-y-2">
                         <Label>Proveedor</Label>
-                        <Input
-                          value={formData.proveedor}
-                          onChange={(event) => setFormData({ ...formData, proveedor: event.target.value })}
-                          placeholder="Nombre del proveedor"
-                          required
-                        />
-                      </div>
-                    </div>
+	                        <Input
+	                          value={formData.proveedor}
+	                          onChange={(event) => setFormData({ ...formData, proveedor: event.target.value })}
+	                          placeholder="Nombre del proveedor"
+	                          required
+	                        />
+	                      </div>
+	                    </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
+	                    <div className="space-y-2">
+	                      <Label>Cantera / origen</Label>
+	                      <Input
+	                        value={formData.canteraOrigen}
+	                        onChange={(event) =>
+	                          setFormData({ ...formData, canteraOrigen: event.target.value })
+	                        }
+	                        placeholder="Cantera, mina u origen del material"
+	                      />
+	                    </div>
+
+	                    <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label>Costo material ($)</Label>
                         <Input
@@ -878,7 +910,7 @@ export default function BloquesPage() {
             <div className="relative w-full sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar por codigo..."
+                placeholder="Buscar por codigo, proveedor u origen..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 className="pl-9"
@@ -994,58 +1026,6 @@ export default function BloquesPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog
-          open={!!statusTarget}
-          onOpenChange={(open) => {
-            if (!open && !isUpdatingStatus) setStatusTarget(null)
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                {statusTarget?.estado === 'activo'
-                  ? 'Agotar bloque/lote'
-                  : statusTarget?.estado === 'agotado'
-                    ? 'Reactivar bloque/lote'
-                    : 'Bloque vendido'}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                Esta accion cambiara el estado del registro seleccionado.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-
-            {statusTarget ? (
-              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                <p>
-                  Codigo: <span className="font-semibold">{getBloqueCodigo(statusTarget)}</span>
-                </p>
-                <p>
-                  Estado actual: <span className="font-semibold">{statusTarget.estado}</span>
-                </p>
-              </div>
-            ) : null}
-
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isUpdatingStatus}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={!statusTarget || isUpdatingStatus}
-                onClick={(event) => {
-                  event.preventDefault()
-                  if (statusTarget) void confirmToggleEstado(statusTarget)
-                }}
-              >
-                {isUpdatingStatus
-                  ? 'Guardando...'
-                  : statusTarget?.estado === 'activo'
-                    ? 'Confirmar agotado'
-                    : statusTarget?.estado === 'agotado'
-                      ? 'Confirmar reactivacion'
-                      : 'Accion no disponible'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
         <Dialog open={!!selectedBloque} onOpenChange={() => setSelectedBloque(null)}>
           <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
             {selectedBloque && (
@@ -1095,6 +1075,10 @@ export default function BloquesPage() {
                     <div>
                       <p className="text-muted-foreground">Proveedor</p>
                       <p className="font-medium">{selectedBloque.proveedor}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Cantera / origen</p>
+                      <p className="font-medium">{selectedBloque.canteraOrigen || '--'}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Costo material</p>

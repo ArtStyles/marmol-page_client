@@ -46,6 +46,7 @@ export const createUsageRow = (): ActionUsageForm => ({
   masaId: '',
   origenId: '',
   tipo: '',
+  observacion: '',
   trabajadorIds: [],
   equipoId: '',
   // Start with one default dimension to reduce manual clicks in daily capture.
@@ -148,15 +149,14 @@ export const canEditProduccionEntrada = (registro: ProduccionDiaria): boolean =>
   !isMonoHiloProduccion(registro) &&
   !isProduccionEnAlmacen(registro) &&
   registro.aprobacionTallerEstado !== 'aprobado' &&
-  registro.cantidadPicar <= 0 &&
+  registro.cantidadPicar > 0 &&
   !isProduccionProceso(registro)
 
 export const canDeleteProduccionEntrada = (registro: ProduccionDiaria): boolean =>
   !isProduccionAnulada(registro) &&
   !isMonoHiloProduccion(registro) &&
   !isProduccionEnAlmacen(registro) &&
-  !isProduccionProceso(registro) &&
-  registro.cantidadPicar <= 0
+  registro.aprobacionTallerEstado !== 'aprobado'
 
 export const getProduccionEditLockReason = (registro: ProduccionDiaria): string | null => {
   if (isProduccionAnulada(registro)) {
@@ -171,8 +171,8 @@ export const getProduccionEditLockReason = (registro: ProduccionDiaria): string 
   if (registro.aprobacionTallerEstado === 'aprobado') {
     return 'La entrada ya fue aprobada por taller.'
   }
-  if (registro.cantidadPicar > 0) {
-    return 'Las entradas de picado consumen masas de mono hilo y no se editan.'
+  if (registro.cantidadPicar <= 0) {
+    return 'Este modal solo permite ajustar entradas de picado.'
   }
   if (isProduccionProceso(registro)) {
     return 'Entradas de proceso no se editan desde este modulo.'
@@ -190,11 +190,8 @@ export const getProduccionDeleteLockReason = (registro: ProduccionDiaria): strin
   if (isProduccionEnAlmacen(registro)) {
     return 'La entrada ya esta en almacen.'
   }
-  if (registro.cantidadPicar > 0) {
-    return 'Las entradas de picado consumen masas de mono hilo y no se eliminan.'
-  }
-  if (isProduccionProceso(registro)) {
-    return 'Entradas de proceso no se eliminan desde este modulo.'
+  if (registro.aprobacionTallerEstado === 'aprobado') {
+    return 'La entrada ya fue aprobada por taller.'
   }
   return null
 }
