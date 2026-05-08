@@ -77,9 +77,17 @@ export class GetFinancialSummaryUseCase {
       (sum, venta) => sum + venta.subtotal * (venta.descuento / 100),
       0,
     )
-    const ingresosOperativos = round2(totalSubtotal - totalDescuentos)
     const ingresosTotales = round2(ventasCompletadas.reduce((sum, venta) => sum + venta.total, 0))
-    const fondosOperativos = round2(ventasCompletadas.reduce((sum, venta) => sum + (venta.fondoOperativo ?? 0), 0))
+    const fondosDesgasteEquipos = round2(
+      ventasCompletadas.reduce((sum, venta) => sum + (venta.fondoDesgasteEquipos ?? 0), 0),
+    )
+    const fondosTrabajadores = round2(
+      ventasCompletadas.reduce((sum, venta) => sum + (venta.fondoTrabajadores ?? 0), 0),
+    )
+    const fondosOperativos = round2(
+      ventasCompletadas.reduce((sum, venta) => sum + (venta.fondoOperativo ?? 0), 0),
+    )
+    const ingresosOperativos = round2(Math.max(0, ingresosTotales - fondosOperativos))
     const totalMetrosVendidos = round2(ventasCompletadas.reduce((sum, venta) => sum + venta.cantidadM2, 0))
     const produccionTotalM2 = round2(produccionDiaria.reduce((sum, registro) => sum + registro.totalM2, 0))
 
@@ -219,6 +227,8 @@ export class GetFinancialSummaryUseCase {
         ingresosOperativos,
         ingresosTotales,
         descuentos: round2(totalDescuentos),
+        fondosDesgasteEquipos,
+        fondosTrabajadores,
         fondosOperativos,
         totalMetrosVendidos,
         produccionTotalM2,

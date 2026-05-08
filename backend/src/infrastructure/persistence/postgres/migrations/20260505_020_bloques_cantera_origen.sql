@@ -1,0 +1,2 @@
+ALTER TABLE bloques
+  ADD COLUMN IF NOT EXISTS cantera_origen TEXT NOT NULL DEFAULT '';

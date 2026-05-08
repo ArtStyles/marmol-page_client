@@ -1,5 +1,9 @@
 import { DomainError } from '../../errors/domain.error.js'
-import type { InventarioMovimientoDetalle, Producto } from '../../../domain/entities/index.js'
+import {
+  dimensionToAreaM2,
+  type InventarioMovimientoDetalle,
+  type Producto,
+} from '../../../domain/entities/index.js'
 import type {
   InventarioMovimientoRepositoryPort,
   ProductoRepositoryPort,
@@ -10,15 +14,6 @@ interface ResolvedSalidaDetalle {
   producto: Producto
   metrosCuadrados: number
   cantidadLosas: number
-}
-
-function dimensionToArea(dimension: Producto['dimension']): number {
-  if (dimension === '40x40') return 1 / 6
-  if (dimension === '60x40') return 1 / 4
-  if (dimension === '80x40') return 1 / 3
-  if (dimension === '160x60') return 0.96
-  if (dimension === '160x65') return 1.04
-  return 1 / 3
 }
 
 function round2(value: number): number {
@@ -51,6 +46,30 @@ function resolveDetalleUbicacionOrigen(detalle: InventarioMovimientoDetalle): Pr
 
 function resolveDetalleUbicacionDestino(detalle: InventarioMovimientoDetalle): Producto['ubicacion'] {
   return detalle.ubicacionDestino ?? 'almacen'
+}
+
+export function buildEntradaRollbackDetalles(
+  detalles: InventarioMovimientoDetalle[],
+): InventarioMovimientoDetalle[] {
+  return detalles.map((detalle) => ({
+    ...detalle,
+    productoId: undefined,
+    estado: detalle.estadoDestino ?? detalle.estado,
+    ubicacionOrigen: detalle.ubicacionDestino ?? 'almacen',
+    ubicacionDestino: undefined,
+  }))
+}
+
+export function buildSalidaRollbackDetalles(
+  detalles: InventarioMovimientoDetalle[],
+): InventarioMovimientoDetalle[] {
+  return detalles.map((detalle) => ({
+    ...detalle,
+    productoId: undefined,
+    estado: detalle.estado ?? detalle.estadoDestino,
+    ubicacionOrigen: undefined,
+    ubicacionDestino: detalle.ubicacionOrigen ?? 'almacen',
+  }))
 }
 
 function matchesDetalleBase(producto: Producto, detalle: InventarioMovimientoDetalle): boolean {
@@ -121,7 +140,7 @@ export async function applyInventarioEntrada(
   const productos = await productoRepository.findAll()
 
   for (const detalle of detalles) {
-    const area = dimensionToArea(detalle.dimension)
+    const area = dimensionToAreaM2(detalle.dimension)
     const cantidadLosas = normalizeDetalleCantidadLosas(detalle, area)
     const metrosCuadrados = normalizeDetalleMetros(detalle, area)
     const ubicacionDestino = resolveDetalleUbicacionDestino(detalle)
@@ -185,7 +204,7 @@ async function resolveSalidaDetalles(
 
   return detalles
     .map((detalle) => {
-      const area = dimensionToArea(detalle.dimension)
+      const area = dimensionToAreaM2(detalle.dimension)
       const cantidadLosas = normalizeDetalleCantidadLosas(detalle, area)
       const metrosCuadrados = normalizeDetalleMetros(detalle, area)
 

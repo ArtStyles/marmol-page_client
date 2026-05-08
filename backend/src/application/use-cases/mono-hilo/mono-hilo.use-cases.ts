@@ -7,13 +7,19 @@ import type {
   RegisterMonoHiloProduccionResponseDto,
   UpdateMonoHiloMasaUbicacionDto,
 } from '../../dtos/index.js'
-import type {
-  Dimension,
-  MonoHiloEstimados,
-  MonoHiloMasa,
-  ProduccionDiaria,
-  Trabajador,
-  UbicacionMasaMonoHilo,
+import {
+  MONO_HILO_DIMENSIONES_BASE,
+  PLANCHA_DIMENSION_DEFAULT,
+  normalizeDimension,
+  parseDimension,
+  resolveTipoProductoByDimension,
+  type Dimension,
+  type MonoHiloEstimadoDimension,
+  type MonoHiloEstimados,
+  type MonoHiloMasa,
+  type ProduccionDiaria,
+  type Trabajador,
+  type UbicacionMasaMonoHilo,
 } from '../../../domain/entities/index.js'
 import type {
   BloqueRepositoryPort,
@@ -27,15 +33,7 @@ import type {
 const DEFAULT_GROSOR_DISCO_MM = 8
 const DEFAULT_ESPESOR_LOSA_CM = 3
 
-const MONO_HILO_DIMENSIONS: Dimension[] = ['160x65', '160x60', '80x40', '60x40', '40x40']
-
-const dimensionObjetivoSpecs: Record<Dimension, { largoCm: number; anchoCm: number }> = {
-  '160x65': { largoCm: 160, anchoCm: 65 },
-  '160x60': { largoCm: 160, anchoCm: 60 },
-  '80x40': { largoCm: 80, anchoCm: 40 },
-  '60x40': { largoCm: 60, anchoCm: 40 },
-  '40x40': { largoCm: 40, anchoCm: 40 },
-}
+const MONO_HILO_DIMENSIONS: Dimension[] = [...MONO_HILO_DIMENSIONES_BASE]
 
 interface MonoHiloActor {
   userId: string
@@ -287,8 +285,11 @@ export class RegisterMonoHiloProduccionUseCase {
         }),
       )
 
-      const tipoPlaceholder: ProduccionDiaria['tipo'] =
-        bloque.dimensionBase === '160x60' || bloque.dimensionBase === '160x65' ? 'Plancha' : 'Piso'
+      const tipoPlaceholder: ProduccionDiaria['tipo'] = bloque.dimensionBase
+        ? resolveTipoProductoByDimension(bloque.dimensionBase)
+        : 'Plancha'
+      const dimensionPlaceholder: ProduccionDiaria['dimension'] =
+        bloque.dimensionBase ?? PLANCHA_DIMENSION_DEFAULT
 
       produccion = await this.produccionRepository.create({
         fecha,
@@ -299,7 +300,7 @@ export class RegisterMonoHiloProduccionUseCase {
         workflowTipo: 'mono_hilo',
         estadoRegistro: 'activo',
         tipo: tipoPlaceholder,
-        dimension: bloque.dimensionBase,
+        dimension: dimensionPlaceholder,
         cantidadPicar: 0,
         cantidadEscuadrar: 0,
         cantidadDevastar: 0,
@@ -418,6 +419,7 @@ export async function consumeMonoHiloMasasParaPicado(
   repository: MonoHiloMasaRepositoryPort,
 ): Promise<void> {
   if (dto.cantidadLosas <= 0) return
+  const dimension = resolveMonoHiloDimension(dto.dimension)
 
   const bloqueId = dto.bloqueId.trim()
   if (!bloqueId) {
@@ -432,14 +434,53 @@ export async function consumeMonoHiloMasasParaPicado(
 
   const candidatas = inventario
     .filter((masa) => masa.bloqueId === bloqueId)
+    .filter((masa) => !dto.masaId || masa.id === dto.masaId)
     .filter((masa) => masa.estado !== 'anulada')
     .filter((masa) => masa.ubicacion === 'proceso')
     .map((masa) => ({
       masa,
-      disponible: resolveLosasDisponibles(masa, dto.dimension),
+      disponible: resolveLosasDisponibles(masa, dimension),
     }))
     .filter((item) => item.disponible > 0)
     .sort((a, b) => b.disponible - a.disponible)
+
+  if (dto.masaId) {
+    const masaSeleccionada = inventario.find((masa) => masa.id === dto.masaId)
+    if (!masaSeleccionada || masaSeleccionada.bloqueId !== bloqueId) {
+      throw new DomainError(
+        `La masa ${dto.masaId} no pertenece al bloque seleccionado.`,
+        404,
+        'MONO_HILO_MASA_PICADO_NOT_FOUND',
+        {
+          bloqueId,
+          masaId: dto.masaId,
+        },
+      )
+    }
+    if (masaSeleccionada.estado === 'anulada') {
+      throw new DomainError(
+        `La masa ${masaSeleccionada.codigo} fue anulada y no puede consumirse.`,
+        409,
+        'MONO_HILO_MASA_PICADO_ANULADA',
+        {
+          bloqueId,
+          masaId: dto.masaId,
+        },
+      )
+    }
+    if (masaSeleccionada.ubicacion !== 'proceso') {
+      throw new DomainError(
+        `La masa ${masaSeleccionada.codigo} no esta disponible en proceso para picado.`,
+        409,
+        'MONO_HILO_MASA_PICADO_UBICACION_INVALIDA',
+        {
+          bloqueId,
+          masaId: dto.masaId,
+          ubicacion: masaSeleccionada.ubicacion,
+        },
+      )
+    }
+  }
 
   const totalDisponible = candidatas.reduce((sum, item) => sum + item.disponible, 0)
   if (totalDisponible < dto.cantidadLosas) {
@@ -457,36 +498,165 @@ export async function consumeMonoHiloMasasParaPicado(
   }
 
   let restante = dto.cantidadLosas
+  const snapshot = new Map<string, Pick<MonoHiloMasa, 'estimados' | 'ubicacion'>>()
 
-  for (const item of candidatas) {
-    if (restante <= 0) break
+  try {
+    for (const item of candidatas) {
+      if (restante <= 0) break
 
-    const retirar = Math.min(restante, item.disponible)
-    const estimadoActual = item.masa.estimados[dto.dimension]
-    const estimadosActualizados: MonoHiloEstimados = {
-      ...item.masa.estimados,
-      [dto.dimension]: {
-        ...estimadoActual,
-        losasConsumidas: estimadoActual.losasConsumidas + retirar,
-      },
+      snapshot.set(item.masa.id, {
+        estimados: structuredClone(item.masa.estimados),
+        ubicacion: item.masa.ubicacion,
+      })
+
+      const retirar = Math.min(restante, item.disponible)
+      const estimadoActual = resolveEstimadoDimension(item.masa, dimension)
+      const estimadosActualizados: MonoHiloEstimados = {
+        ...item.masa.estimados,
+        [dimension]: {
+          ...estimadoActual,
+          losasConsumidas: estimadoActual.losasConsumidas + retirar,
+        },
+      }
+
+      const ubicacion = hasDisponibilidad(estimadosActualizados) ? item.masa.ubicacion : 'consumida'
+
+      const updated = await repository.update(item.masa.id, {
+        estimados: estimadosActualizados,
+        ubicacion,
+      })
+
+      if (!updated) {
+        throw new DomainError(
+          `No se pudo actualizar masa ${item.masa.id} para consumo de picado.`,
+          500,
+          'MONO_HILO_CONSUMO_UPDATE_FAILED',
+        )
+      }
+
+      restante -= retirar
     }
+  } catch (error) {
+    await Promise.all(
+      Array.from(snapshot.entries()).map(async ([masaId, previous]) => {
+        try {
+          await repository.update(masaId, previous)
+        } catch {
+          // Best effort rollback.
+        }
+      }),
+    )
+    throw error
+  }
+}
 
-    const ubicacion = hasDisponibilidad(estimadosActualizados) ? item.masa.ubicacion : 'consumida'
+export async function restoreMonoHiloMasasParaPicado(
+  dto: ConsumeMonoHiloParaPicadoDto,
+  repository: MonoHiloMasaRepositoryPort,
+): Promise<void> {
+  if (dto.cantidadLosas <= 0) return
+  const dimension = resolveMonoHiloDimension(dto.dimension)
 
-    const updated = await repository.update(item.masa.id, {
-      estimados: estimadosActualizados,
-      ubicacion,
-    })
+  const bloqueId = dto.bloqueId.trim()
+  if (!bloqueId) {
+    throw new DomainError(
+      'Debe indicar el bloque asociado para revertir el consumo de mono hilo.',
+      400,
+      'MONO_HILO_RESTORE_BLOQUE_REQUERIDO',
+    )
+  }
 
-    if (!updated) {
+  const inventario = await repository.findAll()
+  const candidatas = inventario
+    .filter((masa) => masa.bloqueId === bloqueId)
+    .filter((masa) => !dto.masaId || masa.id === dto.masaId)
+    .filter((masa) => masa.estado !== 'anulada')
+    .filter((masa) => masa.ubicacion === 'proceso' || masa.ubicacion === 'consumida')
+    .map((masa) => ({
+      masa,
+      consumidas: resolveEstimadoDimension(masa, dimension).losasConsumidas,
+    }))
+    .filter((item) => item.consumidas > 0)
+    .sort((a, b) => b.consumidas - a.consumidas)
+
+  if (dto.masaId) {
+    const masaSeleccionada = inventario.find((masa) => masa.id === dto.masaId)
+    if (!masaSeleccionada || masaSeleccionada.bloqueId !== bloqueId) {
       throw new DomainError(
-        `No se pudo actualizar masa ${item.masa.id} para consumo de picado.`,
-        500,
-        'MONO_HILO_CONSUMO_UPDATE_FAILED',
+        `La masa ${dto.masaId} no pertenece al bloque seleccionado para revertir.`,
+        404,
+        'MONO_HILO_MASA_RESTORE_NOT_FOUND',
+        {
+          bloqueId,
+          masaId: dto.masaId,
+        },
       )
     }
+  }
 
-    restante -= retirar
+  const totalConsumido = candidatas.reduce((sum, item) => sum + item.consumidas, 0)
+  if (totalConsumido < dto.cantidadLosas) {
+    throw new DomainError(
+      'No existe consumo suficiente de mono hilo para revertir el registro de picado.',
+      409,
+      'MONO_HILO_RESTORE_STOCK_INSUFICIENTE',
+      {
+        bloqueId,
+        dimension: dto.dimension,
+        solicitadoLosas: dto.cantidadLosas,
+        consumidoLosas: totalConsumido,
+      },
+    )
+  }
+
+  let restante = dto.cantidadLosas
+  const snapshot = new Map<string, Pick<MonoHiloMasa, 'estimados' | 'ubicacion'>>()
+
+  try {
+    for (const item of candidatas) {
+      if (restante <= 0) break
+
+      snapshot.set(item.masa.id, {
+        estimados: structuredClone(item.masa.estimados),
+        ubicacion: item.masa.ubicacion,
+      })
+
+      const reintegrar = Math.min(restante, item.consumidas)
+      const estimadoActual = resolveEstimadoDimension(item.masa, dimension)
+      const estimadosActualizados: MonoHiloEstimados = {
+        ...item.masa.estimados,
+        [dimension]: {
+          ...estimadoActual,
+          losasConsumidas: Math.max(0, estimadoActual.losasConsumidas - reintegrar),
+        },
+      }
+
+      const updated = await repository.update(item.masa.id, {
+        estimados: estimadosActualizados,
+        ubicacion: hasDisponibilidad(estimadosActualizados) ? 'proceso' : item.masa.ubicacion,
+      })
+
+      if (!updated) {
+        throw new DomainError(
+          `No se pudo restaurar la masa ${item.masa.id} tras revertir el picado.`,
+          500,
+          'MONO_HILO_RESTORE_UPDATE_FAILED',
+        )
+      }
+
+      restante -= reintegrar
+    }
+  } catch (error) {
+    await Promise.all(
+      Array.from(snapshot.entries()).map(async ([masaId, previous]) => {
+        try {
+          await repository.update(masaId, previous)
+        } catch {
+          // Best effort rollback.
+        }
+      }),
+    )
+    throw error
   }
 }
 
@@ -631,33 +801,97 @@ function buildMonoHiloEstimados(params: {
   grosorDiscoMm: number
   espesorLosaCm: number
 }): MonoHiloEstimados {
-  const kerfCm = params.grosorDiscoMm / 10
-  const volumenTotalCm3 = params.largoCm * params.anchoCm * params.profundidadCm
-
   const estimados = {} as MonoHiloEstimados
 
   MONO_HILO_DIMENSIONS.forEach((dimension) => {
-    const spec = dimensionObjetivoSpecs[dimension]
-
-    const cortesLargo = resolveCortesLineales(params.largoCm, spec.largoCm, kerfCm)
-    const cortesAncho = resolveCortesLineales(params.anchoCm, spec.anchoCm, kerfCm)
-    const capasProfundidad = resolveCapasProfundidad(params.profundidadCm, params.espesorLosaCm, kerfCm)
-
-    const losasEstimadas = Math.max(0, cortesLargo * cortesAncho * capasProfundidad)
-    const volumenUtilCm3 =
-      losasEstimadas * spec.largoCm * spec.anchoCm * params.espesorLosaCm
-    const mermaCm3 = Math.max(0, volumenTotalCm3 - volumenUtilCm3)
-
-    estimados[dimension] = {
-      losasEstimadas,
-      losasConsumidas: 0,
-      mermaEstimadaM3: round4(mermaCm3 / 1_000_000),
-      mermaEstimadaPorcentaje:
-        volumenTotalCm3 <= 0 ? 0 : round2((mermaCm3 / volumenTotalCm3) * 100),
-    }
+    estimados[dimension] = buildMonoHiloEstimadoForDimension(params, dimension)
   })
 
   return estimados
+}
+
+function buildMonoHiloEstimadoForDimension(
+  params: {
+    largoCm: number
+    anchoCm: number
+    profundidadCm: number
+    grosorDiscoMm: number
+    espesorLosaCm: number
+  },
+  dimension: Dimension,
+): MonoHiloEstimadoDimension {
+  const spec = resolveDimensionObjetivoSpec(dimension)
+  const kerfCm = params.grosorDiscoMm / 10
+  const volumenTotalCm3 = params.largoCm * params.anchoCm * params.profundidadCm
+  const cortesLargo = resolveCortesLineales(params.largoCm, spec.largoCm, kerfCm)
+  const cortesAncho = resolveCortesLineales(params.anchoCm, spec.anchoCm, kerfCm)
+  const capasProfundidad = resolveCapasProfundidad(
+    params.profundidadCm,
+    params.espesorLosaCm,
+    kerfCm,
+  )
+
+  const losasEstimadas = Math.max(0, cortesLargo * cortesAncho * capasProfundidad)
+  const volumenUtilCm3 = losasEstimadas * spec.largoCm * spec.anchoCm * params.espesorLosaCm
+  const mermaCm3 = Math.max(0, volumenTotalCm3 - volumenUtilCm3)
+
+  return {
+    losasEstimadas,
+    losasConsumidas: 0,
+    mermaEstimadaM3: round4(mermaCm3 / 1_000_000),
+    mermaEstimadaPorcentaje: volumenTotalCm3 <= 0 ? 0 : round2((mermaCm3 / volumenTotalCm3) * 100),
+  }
+}
+
+function resolveMonoHiloDimension(dimension: string): Dimension {
+  const normalized = normalizeDimension(dimension)
+  if (!parseDimension(normalized)) {
+    throw new DomainError(
+      `La dimension ${dimension} no es valida para mono hilo.`,
+      400,
+      'MONO_HILO_DIMENSION_INVALIDA',
+      { dimension },
+    )
+  }
+
+  return normalized
+}
+
+function resolveDimensionObjetivoSpec(dimension: Dimension): { largoCm: number; anchoCm: number } {
+  const parsed = parseDimension(dimension)
+  if (!parsed) {
+    throw new DomainError(
+      `La dimension ${dimension} no es valida para mono hilo.`,
+      400,
+      'MONO_HILO_DIMENSION_INVALIDA',
+      { dimension },
+    )
+  }
+
+  return parsed
+}
+
+function resolveEstimadoDimension(
+  masa: Pick<
+    MonoHiloMasa,
+    'estimados' | 'largoCm' | 'anchoCm' | 'profundidadCm' | 'grosorDiscoMm' | 'espesorLosaCm'
+  >,
+  dimension: Dimension,
+): MonoHiloEstimadoDimension {
+  const normalized = resolveMonoHiloDimension(dimension)
+  return (
+    masa.estimados[normalized] ??
+    buildMonoHiloEstimadoForDimension(
+      {
+        largoCm: masa.largoCm,
+        anchoCm: masa.anchoCm,
+        profundidadCm: masa.profundidadCm,
+        grosorDiscoMm: masa.grosorDiscoMm,
+        espesorLosaCm: masa.espesorLosaCm,
+      },
+      normalized,
+    )
+  )
 }
 
 function resolveCortesLineales(
@@ -687,7 +921,7 @@ function resolveMargenAutomaticoCm(
   const kerfCm = grosorDiscoMm / 10
   const candidatos = MONO_HILO_DIMENSIONS
     .map((dimension) => {
-      const spec = dimensionObjetivoSpecs[dimension]
+      const spec = resolveDimensionObjetivoSpec(dimension)
       const cortesLargo = resolveCortesLineales(largoCm, spec.largoCm, kerfCm)
       const cortesAncho = resolveCortesLineales(anchoCm, spec.anchoCm, kerfCm)
       return {
@@ -721,15 +955,14 @@ function resolveMargenLinealAutomaticoCm(
 }
 
 function resolveLosasDisponibles(masa: MonoHiloMasa, dimension: Dimension): number {
-  const estimado = masa.estimados[dimension]
+  const estimado = resolveEstimadoDimension(masa, dimension)
   return Math.max(0, estimado.losasEstimadas - estimado.losasConsumidas)
 }
 
 function hasDisponibilidad(estimados: MonoHiloEstimados): boolean {
-  return MONO_HILO_DIMENSIONS.some((dimension) => {
-    const item = estimados[dimension]
-    return item.losasEstimadas - item.losasConsumidas > 0
-  })
+  return Object.values(estimados).some(
+    (item) => item.losasEstimadas - item.losasConsumidas > 0,
+  )
 }
 
 function round2(value: number): number {

@@ -1,12 +1,14 @@
+import { DomainError } from '../../errors/domain.error.js'
 import type { CatalogoRepositoryPort } from '../../../domain/ports/index.js'
+import {
+  normalizeDimension,
+  resolveTipoProductoByDimension,
+} from '../../../domain/entities/index.js'
 import type {
   CatalogoItemResponseDto,
   CreateCatalogoItemDto,
   UpdateCatalogoItemDto,
 } from '../../dtos/index.js'
-
-const PLANCHA_DIMENSIONS = ['160x65', '160x60'] as const
-const DEFAULT_PLANCHA_DIMENSION = PLANCHA_DIMENSIONS[0]
 
 export class GetCatalogoItemsUseCase {
   constructor(private readonly repository: CatalogoRepositoryPort) {}
@@ -28,15 +30,12 @@ export class CreateCatalogoItemUseCase {
   constructor(private readonly repository: CatalogoRepositoryPort) {}
 
   async execute(dto: CreateCatalogoItemDto): Promise<CatalogoItemResponseDto> {
-    const normalizedDimension = normalizePlanchaDimension(dto.dimension)
-    return this.repository.create(
-      dto.tipo === 'Plancha'
-        ? {
-            ...dto,
-            dimension: normalizedDimension,
-          }
-        : dto,
-    )
+    const dimension = normalizeDimension(dto.dimension)
+    assertTipoDimensionCompatible(dto.tipo, dimension)
+    return this.repository.create({
+      ...dto,
+      dimension,
+    })
   }
 }
 
@@ -48,18 +47,12 @@ export class UpdateCatalogoItemUseCase {
     if (!current) return null
 
     const tipoFinal = dto.tipo ?? current.tipo
-    const currentDimension =
-      current.tipo === 'Plancha' ? normalizePlanchaDimension(current.dimension) : current.dimension
-    const dtoDimension = dto.dimension
-      ? normalizePlanchaDimension(dto.dimension)
-      : currentDimension
-    const payload =
-      tipoFinal === 'Plancha'
-        ? {
-            ...dto,
-            dimension: dtoDimension,
-          }
-        : dto
+    const dimensionFinal = dto.dimension ? normalizeDimension(dto.dimension) : current.dimension
+    assertTipoDimensionCompatible(tipoFinal, dimensionFinal)
+    const payload = {
+      ...dto,
+      dimension: dimensionFinal,
+    }
 
     return this.repository.update(id, payload)
   }
@@ -72,9 +65,18 @@ export class DeleteCatalogoItemUseCase {
     return this.repository.delete(id)
   }
 }
-
-function normalizePlanchaDimension(dimension: CreateCatalogoItemDto['dimension']): CreateCatalogoItemDto['dimension'] {
-  return PLANCHA_DIMENSIONS.includes(dimension as (typeof PLANCHA_DIMENSIONS)[number])
-    ? dimension
-    : DEFAULT_PLANCHA_DIMENSION
+function assertTipoDimensionCompatible(tipo: 'Piso' | 'Plancha', dimension: string): void {
+  const tipoCalculado = resolveTipoProductoByDimension(dimension)
+  if (tipoCalculado !== tipo) {
+    throw new DomainError(
+      `La dimension ${dimension} no corresponde al tipo ${tipo}.`,
+      409,
+      'CATALOGO_DIMENSION_TIPO_INVALIDO',
+      {
+        tipo,
+        dimension,
+        tipoCalculado,
+      },
+    )
+  }
 }

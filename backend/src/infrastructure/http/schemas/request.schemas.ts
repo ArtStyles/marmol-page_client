@@ -1,8 +1,20 @@
 import { z } from 'zod'
 import { parseTrabajadorRole } from '../../../application/security/role-normalization.js'
-import { GASTO_FLUJOS, GASTO_TIPOS_MANUALES } from '../../../domain/entities/index.js'
+import {
+  GASTO_FLUJOS,
+  GASTO_TIPOS_MANUALES,
+  isValidDimension,
+  normalizeDimension,
+} from '../../../domain/entities/index.js'
 
-const dimensionSchema = z.enum(['40x40', '60x40', '80x40', '160x60', '160x65'])
+const dimensionSchema = z
+  .string()
+  .trim()
+  .transform((value) => normalizeDimension(value))
+  .refine((value) => isValidDimension(value), {
+    message: 'Dimension invalida',
+  })
+const bloqueDimensionSchema = z.union([dimensionSchema, z.null()])
 const tipoProductoSchema = z.enum(['Piso', 'Plancha'])
 const estadoCatalogoSchema = z.enum(['Crudo', 'Pulido'])
 const estadoInventarioSchema = z.enum(['Picado', 'Escuadrado', 'Devastado', 'Resinado', 'Pulido'])
@@ -40,22 +52,41 @@ const tarifasTrabajadorSchema = z.object({
   pulir: z.number(),
 })
 
-export const createBloqueSchema = z.object({
+const applyBloqueDimensionRules = (
+  value: { tipo?: 'Bloque' | 'Lote'; dimensionBase?: string | null },
+  ctx: z.RefinementCtx,
+) => {
+  if (value.tipo === 'Lote' && !value.dimensionBase) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Los lotes requieren una dimension valida.',
+      path: ['dimensionBase'],
+    })
+  }
+}
+
+const createBloqueSchemaBase = z.object({
   tipo: z.enum(['Bloque', 'Lote']),
-  dimensionBase: dimensionSchema,
-  costo: z.number(),
-  costoTransporte: z.number(),
-  metrosComprados: z.number(),
+  dimensionBase: bloqueDimensionSchema.optional(),
+  costo: z.number().nonnegative(),
+  costoTransporte: z.number().nonnegative(),
+  metrosComprados: z.number().nonnegative(),
   fechaIngreso: z.string(),
   proveedor: z.string(),
-  losasProducidas: z.number(),
-  losasPerdidas: z.number(),
-  metrosVendibles: z.number(),
-  gananciaReal: z.number(),
-  estado: z.enum(['activo', 'agotado', 'vendido']),
+  canteraOrigen: z.string(),
 })
 
-export const updateBloqueSchema = createBloqueSchema.partial()
+export const createBloqueSchema = createBloqueSchemaBase.superRefine(applyBloqueDimensionRules)
+
+export const updateBloqueSchema = z.object({
+  dimensionBase: bloqueDimensionSchema.optional(),
+  costo: z.number().nonnegative().optional(),
+  costoTransporte: z.number().nonnegative().optional(),
+  metrosComprados: z.number().nonnegative().optional(),
+  fechaIngreso: z.string().optional(),
+  proveedor: z.string().optional(),
+  canteraOrigen: z.string().optional(),
+})
 
 export const createProductoSchema = z.object({
   nombre: z.string().min(1),
@@ -190,6 +221,8 @@ export const createMermaSchema = z.object({
 export const updateMermaSchema = createMermaSchema.partial()
 
 export const createVentaSchema = z.object({
+  bloqueId: z.string().optional(),
+  bloqueCodigo: z.string().optional(),
   productoId: z.string(),
   productoNombre: z.string(),
   detallesProductos: z
@@ -209,21 +242,21 @@ export const createVentaSchema = z.object({
     )
     .optional(),
   cantidadM2: z.number(),
-  metrosPorDimension: z.object({
-    '40x40': z.number(),
-    '60x40': z.number(),
-    '80x40': z.number(),
-    '160x60': z.number(),
-    '160x65': z.number(),
-  }),
+  metrosPorDimension: z.record(z.string(), z.number()),
   precioM2: z.number(),
   descuento: z.number(),
-  fondoOperativo: z.number(),
+  fondoDesgasteEquipos: z.number().optional(),
+  fondoTrabajadores: z.number().optional(),
+  fondoOperativo: z.number().optional(),
   subtotal: z.number(),
   total: z.number(),
   clienteNombre: z.string(),
   clienteEmail: z.string().email(),
   clienteTelefono: z.string(),
+  observaciones: z.string().optional(),
+  responsableValidacionId: z.string().optional(),
+  responsableValidacionNombre: z.string().optional(),
+  fechaLiquidacion: z.string().optional(),
   fecha: z.string(),
   estado: z.enum(['pendiente', 'completada', 'cancelada', 'pendiente_aprobacion_almacen']),
   motivoMovimientoAlmacen: z.string().min(5),
@@ -257,7 +290,7 @@ export const createLogSchema = z.object({
 export const updateConfiguracionSchema = z.object({
   tarifasGlobales: z.record(accionLosaSchema, z.number()).optional(),
   salariosFijosPorRol: z.record(z.string(), z.number()).optional(),
-  preciosM2: z.record(dimensionSchema, z.object({ crudo: z.number(), pulido: z.number() })).optional(),
+  preciosM2: z.record(z.string(), z.object({ crudo: z.number(), pulido: z.number() })).optional(),
   monoHiloGrosorDiscoMm: z.number().positive().optional(),
   monoHiloEspesorLosaCm: z.number().positive().optional(),
   nombreEmpresa: z.string().optional(),
@@ -273,6 +306,9 @@ export const updateConfiguracionSchema = z.object({
 const produccionDetalleAccionSchema = z.object({
   id: z.string().min(1),
   accion: accionLosaSchema,
+  masaId: z.string().min(1).optional(),
+  masaCodigo: z.string().min(1).optional(),
+  observacion: z.string().optional(),
   trabajadorId: z.string().optional(),
   trabajadorNombre: z.string().optional(),
   trabajadores: z

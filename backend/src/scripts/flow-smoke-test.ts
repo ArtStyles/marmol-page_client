@@ -72,6 +72,10 @@ async function main(): Promise<void> {
       productoRepo,
       inventarioMovimientoRepo,
       gastoRepo,
+      monoHiloMasaRepo,
+      produccionRepo,
+      mermaRepo,
+      ventaRepo,
     )
     const createSalidaProcesoUseCase = new CreateSalidaProcesoInventarioUseCase(
       inventarioMovimientoRepo,
@@ -97,7 +101,14 @@ async function main(): Promise<void> {
       trabajadorRepo,
       configuracionPort,
     )
-    const approveProduccionTallerUseCase = new ApproveProduccionTallerUseCase(produccionRepo)
+    const approveProduccionTallerUseCase = new ApproveProduccionTallerUseCase(
+      produccionRepo,
+      productoRepo,
+      monoHiloMasaRepo,
+      produccionTrabajadorRepo,
+      trabajadorRepo,
+      configuracionPort,
+    )
     const approveEntradaProduccionAlmacenUseCase = new ApproveEntradaProduccionAlmacenUseCase(
       produccionRepo,
       bloqueRepo,
@@ -127,11 +138,7 @@ async function main(): Promise<void> {
         metrosComprados: 10,
         fechaIngreso: '2026-04-30',
         proveedor: 'Proveedor Smoke Test',
-        losasProducidas: 0,
-        losasPerdidas: 0,
-        metrosVendibles: 0,
-        gananciaReal: 0,
-        estado: 'activo',
+        canteraOrigen: 'Cantera Smoke Test',
       },
       actorAdmin,
     )
@@ -329,6 +336,8 @@ async function main(): Promise<void> {
         metrosPorDimension: createDimensionTotals(),
         precioM2: 1250,
         descuento: 0,
+        fondoDesgasteEquipos: 0,
+        fondoTrabajadores: 0,
         fondoOperativo: 0,
         subtotal: 0,
         total: 0,

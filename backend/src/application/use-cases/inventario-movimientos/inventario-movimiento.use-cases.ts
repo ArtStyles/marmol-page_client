@@ -14,6 +14,7 @@ import type {
   InventarioMovimientoDetalle,
   Venta,
 } from '../../../domain/entities/index.js'
+import { dimensionToAreaM2 } from '../../../domain/entities/index.js'
 import type {
   BloqueRepositoryPort,
   InventarioMovimientoPageCursor,
@@ -26,6 +27,8 @@ import type {
 import {
   applyInventarioEntrada,
   applyInventarioSalida,
+  buildEntradaRollbackDetalles,
+  buildSalidaRollbackDetalles,
   validateInventarioSalida,
 } from './inventario-movimiento.helpers.js'
 
@@ -143,15 +146,6 @@ function resolveEstadoRetornoProceso(
   )
 }
 
-function dimensionToArea(dimension: Dimension): number {
-  if (dimension === '40x40') return 1 / 6
-  if (dimension === '60x40') return 1 / 4
-  if (dimension === '80x40') return 1 / 3
-  if (dimension === '160x60') return 0.96
-  if (dimension === '160x65') return 1.04
-  return 1 / 3
-}
-
 function round2(value: number): number {
   return Number(value.toFixed(2))
 }
@@ -164,7 +158,7 @@ function resolveMetrosParaMovimiento(
     const proporcion = cantidadLosas / producto.cantidadLosas
     return round2(proporcion * producto.metrosCuadrados)
   }
-  return round2(cantidadLosas * dimensionToArea(producto.dimension))
+  return round2(cantidadLosas * dimensionToAreaM2(producto.dimension))
 }
 
 export class CreateSalidaProcesoInventarioUseCase {
@@ -229,23 +223,45 @@ export class CreateSalidaProcesoInventarioUseCase {
     await validateInventarioSalida([detalle], this.productoRepository, this.repository)
 
     const now = new Date().toISOString()
-    await applyInventarioSalida([detalle], this.productoRepository)
-    await applyInventarioEntrada([detalle], this.productoRepository)
+    let salidaAplicada = false
+    let entradaAplicada = false
 
-    return this.repository.create({
-      fechaSolicitud: now,
-      fechaResolucion: now,
-      tipo: 'salida',
-      origen: 'proceso',
-      estado: 'aprobado',
-      motivo,
-      observaciones: `Salida directa a proceso para ${dto.accionObjetivo}.`,
-      solicitadoPorId: actor.userId,
-      solicitadoPorNombre: actor.userName,
-      aprobadoPorId: actor.userId,
-      aprobadoPorNombre: actor.userName,
-      detalles: [detalle],
-    })
+    try {
+      await applyInventarioSalida([detalle], this.productoRepository)
+      salidaAplicada = true
+
+      await applyInventarioEntrada([detalle], this.productoRepository)
+      entradaAplicada = true
+
+      return await this.repository.create({
+        fechaSolicitud: now,
+        fechaResolucion: now,
+        tipo: 'salida',
+        origen: 'proceso',
+        estado: 'aprobado',
+        motivo,
+        observaciones: `Salida directa a proceso para ${dto.accionObjetivo}.`,
+        solicitadoPorId: actor.userId,
+        solicitadoPorNombre: actor.userName,
+        aprobadoPorId: actor.userId,
+        aprobadoPorNombre: actor.userName,
+        detalles: [detalle],
+      })
+    } catch (error) {
+      if (entradaAplicada) {
+        await applyInventarioSalida(
+          buildEntradaRollbackDetalles([detalle]),
+          this.productoRepository,
+        ).catch(() => undefined)
+      }
+      if (salidaAplicada) {
+        await applyInventarioEntrada(
+          buildSalidaRollbackDetalles([detalle]),
+          this.productoRepository,
+        ).catch(() => undefined)
+      }
+      throw error
+    }
   }
 }
 
@@ -356,45 +372,70 @@ export class ApproveInventarioMovimientoUseCase {
       )
     }
 
-    if (movimiento.origen === 'proceso') {
-      const detallesSalidaProceso = movimiento.detalles.map((detalle) => ({
-        ...detalle,
-        estado: detalle.estado ?? detalle.estadoDestino,
-      }))
-      await applyInventarioSalida(detallesSalidaProceso, this.productoRepository)
+    const detallesSalidaProceso = movimiento.detalles.map((detalle) => ({
+      ...detalle,
+      estado: detalle.estado ?? detalle.estadoDestino,
+    }))
+    const detallesEntradaProceso = movimiento.detalles.map((detalle) => ({
+      ...detalle,
+      estado: detalle.estadoDestino ?? detalle.estado,
+      ubicacionDestino: detalle.ubicacionDestino ?? 'proceso',
+    }))
 
-      const detallesEntradaProceso = movimiento.detalles.map((detalle) => ({
-        ...detalle,
-        estado: detalle.estadoDestino ?? detalle.estado,
-        ubicacionDestino: detalle.ubicacionDestino ?? 'proceso',
-      }))
-      await applyInventarioEntrada(detallesEntradaProceso, this.productoRepository)
-    } else if (movimiento.tipo === 'entrada') {
-      await applyInventarioEntrada(movimiento.detalles, this.productoRepository)
-    } else {
-      await applyInventarioSalida(movimiento.detalles, this.productoRepository)
-    }
+    let rollbackDetallesSalida: InventarioMovimientoDetalle[] = []
+    let rollbackDetallesEntrada: InventarioMovimientoDetalle[] = []
 
-    const updated = await this.repository.update(id, {
-      estado: 'aprobado',
-      fechaResolucion: new Date().toISOString(),
-      aprobadoPorId: actor.userId,
-      aprobadoPorNombre: actor.userName,
-      observaciones: dto.observaciones?.trim() || movimiento.observaciones,
-      motivoRechazo: undefined,
-    })
+    try {
+      if (movimiento.origen === 'proceso') {
+        await applyInventarioSalida(detallesSalidaProceso, this.productoRepository)
+        rollbackDetallesSalida = buildSalidaRollbackDetalles(detallesSalidaProceso)
 
-    if (!updated) {
-      throw new DomainError(
-        `No se pudo actualizar movimiento ${id}`,
-        500,
-        'MOVIMIENTO_UPDATE_FAILED',
+        await applyInventarioEntrada(detallesEntradaProceso, this.productoRepository)
+        rollbackDetallesEntrada = buildEntradaRollbackDetalles(detallesEntradaProceso)
+      } else if (movimiento.tipo === 'entrada') {
+        await applyInventarioEntrada(movimiento.detalles, this.productoRepository)
+        rollbackDetallesEntrada = buildEntradaRollbackDetalles(movimiento.detalles)
+      } else {
+        await applyInventarioSalida(movimiento.detalles, this.productoRepository)
+        rollbackDetallesSalida = buildSalidaRollbackDetalles(movimiento.detalles)
+      }
+
+      const updated = await this.repository.update(id, {
+        estado: 'aprobado',
+        fechaResolucion: new Date().toISOString(),
+        aprobadoPorId: actor.userId,
+        aprobadoPorNombre: actor.userName,
+        observaciones: dto.observaciones?.trim() || movimiento.observaciones,
+        motivoRechazo: undefined,
+      })
+
+      if (!updated) {
+        throw new DomainError(
+          `No se pudo actualizar movimiento ${id}`,
+          500,
+          'MOVIMIENTO_UPDATE_FAILED',
+        )
+      }
+
+      await this.syncReferenciaAprobada(
+        updated.id,
+        updated.referenciaId,
+        updated.origen,
+        actor,
+        updated.motivo,
+        updated.detalles,
       )
+      await this.syncBloquesVendidos(updated.detalles)
+      return updated
+    } catch (error) {
+      if (rollbackDetallesEntrada.length > 0) {
+        await applyInventarioSalida(rollbackDetallesEntrada, this.productoRepository).catch(() => undefined)
+      }
+      if (rollbackDetallesSalida.length > 0) {
+        await applyInventarioEntrada(rollbackDetallesSalida, this.productoRepository).catch(() => undefined)
+      }
+      throw error
     }
-
-    await this.syncReferenciaAprobada(updated.id, updated.referenciaId, updated.origen, actor, updated.motivo, updated.detalles)
-    await this.syncBloquesVendidos(updated.detalles)
-    return updated
   }
 
   private async syncReferenciaAprobada(
@@ -466,6 +507,8 @@ export class ApproveInventarioMovimientoUseCase {
     detallesMovimiento: InventarioMovimientoDetalle[],
   ): Promise<void> {
     const gananciasPorOrigen = new Map<string, number>()
+    const totalVentaRealizada =
+      venta.total > 0 ? venta.total : round2(venta.subtotal - venta.subtotal * (venta.descuento / 100))
 
     const acumularGanancia = (origenId: string, monto: number): void => {
       if (!origenId || monto <= 0) return
@@ -474,10 +517,15 @@ export class ApproveInventarioMovimientoUseCase {
 
     const detallesVenta = venta.detallesProductos ?? []
     if (detallesVenta.length > 0) {
+      const subtotalDetalles = detallesVenta.reduce((sum, detalle) => sum + Math.max(0, detalle.subtotal), 0)
+      const factorDefault = 1 / detallesVenta.length
+
       detallesVenta.forEach((detalle) => {
-        acumularGanancia(detalle.origenId.trim(), detalle.subtotal)
+        const base = Math.max(0, detalle.subtotal)
+        const factor = subtotalDetalles > 0 ? base / subtotalDetalles : factorDefault
+        acumularGanancia(detalle.origenId.trim(), round2(totalVentaRealizada * factor))
       })
-    } else if (venta.subtotal > 0) {
+    } else if (totalVentaRealizada > 0) {
       const detallesValidos = detallesMovimiento.filter((detalle) => detalle.origenId.trim().length > 0)
       if (detallesValidos.length > 0) {
         const totalMetros = detallesValidos.reduce(
@@ -489,7 +537,7 @@ export class ApproveInventarioMovimientoUseCase {
         detallesValidos.forEach((detalle) => {
           const base = Math.max(0, detalle.metrosCuadrados)
           const factor = totalMetros > 0 ? base / totalMetros : factorDefault
-          acumularGanancia(detalle.origenId.trim(), round2(venta.subtotal * factor))
+          acumularGanancia(detalle.origenId.trim(), round2(totalVentaRealizada * factor))
         })
       }
     }

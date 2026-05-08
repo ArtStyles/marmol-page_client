@@ -26,12 +26,13 @@ CREATE TABLE IF NOT EXISTS bloques (
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   nombre TEXT NOT NULL,
   tipo TEXT NOT NULL CHECK (tipo IN ('Bloque', 'Lote')),
-  dimension_base TEXT NOT NULL CHECK (dimension_base IN ('40x40', '60x40', '80x40', '160x60', '160x65')),
+  dimension_base TEXT CHECK (dimension_base IS NULL OR dimension_base ~* '^[0-9]+(\\.[0-9]+)?x[0-9]+(\\.[0-9]+)?$'),
   costo NUMERIC(14,2) NOT NULL,
   costo_transporte NUMERIC(14,2) NOT NULL,
   metros_comprados NUMERIC(10,2) NOT NULL,
   fecha_ingreso DATE NOT NULL,
   proveedor TEXT NOT NULL,
+  cantera_origen TEXT NOT NULL DEFAULT '',
   losas_producidas INTEGER NOT NULL DEFAULT 0,
   losas_perdidas INTEGER NOT NULL DEFAULT 0,
   metros_vendibles NUMERIC(10,2) NOT NULL DEFAULT 0,
@@ -48,7 +49,7 @@ CREATE TABLE IF NOT EXISTS productos (
   tipo TEXT NOT NULL CHECK (tipo IN ('Piso', 'Plancha')),
   estado TEXT NOT NULL CHECK (estado IN ('Picado', 'Escuadrado', 'Devastado', 'Resinado', 'Pulido')),
   ubicacion TEXT NOT NULL DEFAULT 'almacen' CHECK (ubicacion IN ('almacen', 'proceso')),
-  dimension TEXT NOT NULL CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65')),
+  dimension TEXT NOT NULL CHECK (dimension ~* '^[0-9]+(\\.[0-9]+)?x[0-9]+(\\.[0-9]+)?$'),
   origen_id TEXT NOT NULL,
   origen_nombre TEXT NOT NULL,
   cantidad_losas INTEGER NOT NULL,
@@ -94,7 +95,7 @@ CREATE TABLE IF NOT EXISTS catalogo_items (
   nombre TEXT NOT NULL,
   tipo TEXT NOT NULL CHECK (tipo IN ('Piso', 'Plancha')),
   acabado TEXT NOT NULL CHECK (acabado IN ('Crudo', 'Pulido')),
-  dimension TEXT NOT NULL CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65')),
+  dimension TEXT NOT NULL CHECK (dimension ~* '^[0-9]+(\\.[0-9]+)?x[0-9]+(\\.[0-9]+)?$'),
   precio_m2 NUMERIC(10,2) NOT NULL,
   stock_losas INTEGER NOT NULL DEFAULT 0,
   destacado BOOLEAN NOT NULL DEFAULT false,
@@ -148,7 +149,7 @@ CREATE TABLE IF NOT EXISTS produccion (
   workflow_tipo TEXT NOT NULL DEFAULT 'regular' CHECK (workflow_tipo IN ('regular', 'mono_hilo')),
   estado_registro TEXT NOT NULL DEFAULT 'activo' CHECK (estado_registro IN ('activo', 'anulado')),
   tipo TEXT NOT NULL CHECK (tipo IN ('Piso', 'Plancha')),
-  dimension TEXT NOT NULL CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65')),
+  dimension TEXT NOT NULL CHECK (dimension ~* '^[0-9]+(\\.[0-9]+)?x[0-9]+(\\.[0-9]+)?$'),
   cantidad_picar INTEGER NOT NULL DEFAULT 0,
   cantidad_pulir INTEGER NOT NULL DEFAULT 0,
   cantidad_escuadrar INTEGER NOT NULL DEFAULT 0,
@@ -192,7 +193,7 @@ CREATE TABLE IF NOT EXISTS produccion_trabajadores (
   origen_id TEXT NOT NULL,
   origen_nombre TEXT NOT NULL,
   tipo TEXT NOT NULL CHECK (tipo IN ('Piso', 'Plancha')),
-  dimension TEXT NOT NULL CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65')),
+  dimension TEXT NOT NULL CHECK (dimension ~* '^[0-9]+(\\.[0-9]+)?x[0-9]+(\\.[0-9]+)?$'),
   cantidad_losas INTEGER NOT NULL,
   pago_por_losa NUMERIC(10,2) NOT NULL,
   pago_total NUMERIC(14,2) NOT NULL,
@@ -210,7 +211,7 @@ CREATE TABLE IF NOT EXISTS mermas (
   origen_id TEXT NOT NULL,
   origen_nombre TEXT NOT NULL,
   tipo TEXT NOT NULL CHECK (tipo IN ('Piso', 'Plancha')),
-  dimension TEXT NOT NULL CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65')),
+  dimension TEXT NOT NULL CHECK (dimension ~* '^[0-9]+(\\.[0-9]+)?x[0-9]+(\\.[0-9]+)?$'),
   cantidad_losas INTEGER NOT NULL,
   metros_cuadrados NUMERIC(10,2) NOT NULL,
   motivo TEXT NOT NULL,
@@ -226,6 +227,8 @@ CREATE TABLE IF NOT EXISTS ventas (
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   creado_por_id TEXT,
   creado_por_nombre TEXT,
+  bloque_id TEXT,
+  bloque_codigo TEXT,
   producto_id TEXT NOT NULL,
   producto_nombre TEXT NOT NULL,
   detalles_productos JSONB,
@@ -233,12 +236,18 @@ CREATE TABLE IF NOT EXISTS ventas (
   metros_por_dimension JSONB NOT NULL,
   precio_m2 NUMERIC(10,2) NOT NULL,
   descuento NUMERIC(10,2) NOT NULL DEFAULT 0,
+  fondo_desgaste_equipos NUMERIC(10,2) NOT NULL DEFAULT 0,
+  fondo_trabajadores NUMERIC(10,2) NOT NULL DEFAULT 0,
   fondo_operativo NUMERIC(10,2) NOT NULL DEFAULT 0,
   subtotal NUMERIC(14,2) NOT NULL,
   total NUMERIC(14,2) NOT NULL,
   cliente_nombre TEXT NOT NULL,
   cliente_email TEXT NOT NULL,
   cliente_telefono TEXT NOT NULL,
+  observaciones TEXT,
+  responsable_validacion_id TEXT,
+  responsable_validacion_nombre TEXT,
+  fecha_liquidacion DATE,
   fecha DATE NOT NULL,
   estado TEXT NOT NULL CHECK (estado IN ('pendiente', 'completada', 'cancelada', 'pendiente_aprobacion_almacen')),
   motivo_movimiento_almacen TEXT,
@@ -412,15 +421,16 @@ ALTER TABLE productos
 ALTER TABLE bloques DROP CONSTRAINT IF EXISTS bloques_dimension_base_check;
 ALTER TABLE bloques
   ADD CONSTRAINT bloques_dimension_base_check
-  CHECK (dimension_base IN ('40x40', '60x40', '80x40', '160x60', '160x65'));
+  CHECK (dimension_base IS NULL OR dimension_base ~* '^[0-9]+(\\.[0-9]+)?x[0-9]+(\\.[0-9]+)?$');
+ALTER TABLE bloques ALTER COLUMN dimension_base DROP NOT NULL;
 ALTER TABLE productos DROP CONSTRAINT IF EXISTS productos_dimension_check;
 ALTER TABLE productos
   ADD CONSTRAINT productos_dimension_check
-  CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65'));
+  CHECK (dimension ~* '^[0-9]+(\\.[0-9]+)?x[0-9]+(\\.[0-9]+)?$');
 ALTER TABLE catalogo_items DROP CONSTRAINT IF EXISTS catalogo_items_dimension_check;
 ALTER TABLE catalogo_items
   ADD CONSTRAINT catalogo_items_dimension_check
-  CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65'));
+  CHECK (dimension ~* '^[0-9]+(\\.[0-9]+)?x[0-9]+(\\.[0-9]+)?$');
 ALTER TABLE catalogo_items ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS bloque_id TEXT NOT NULL DEFAULT '';
@@ -464,7 +474,7 @@ ALTER TABLE produccion ADD COLUMN IF NOT EXISTS creado_por_nombre TEXT;
 ALTER TABLE produccion DROP CONSTRAINT IF EXISTS produccion_dimension_check;
 ALTER TABLE produccion
   ADD CONSTRAINT produccion_dimension_check
-  CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65'));
+  CHECK (dimension ~* '^[0-9]+(\\.[0-9]+)?x[0-9]+(\\.[0-9]+)?$');
 ALTER TABLE produccion DROP CONSTRAINT IF EXISTS produccion_workflow_tipo_check;
 ALTER TABLE produccion
   ADD CONSTRAINT produccion_workflow_tipo_check
@@ -484,15 +494,23 @@ ALTER TABLE produccion_trabajadores ADD COLUMN IF NOT EXISTS produccion_detalle_
 ALTER TABLE produccion_trabajadores DROP CONSTRAINT IF EXISTS produccion_trabajadores_dimension_check;
 ALTER TABLE produccion_trabajadores
   ADD CONSTRAINT produccion_trabajadores_dimension_check
-  CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65'));
+  CHECK (dimension ~* '^[0-9]+(\\.[0-9]+)?x[0-9]+(\\.[0-9]+)?$');
 ALTER TABLE mermas ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE mermas DROP CONSTRAINT IF EXISTS mermas_dimension_check;
 ALTER TABLE mermas
   ADD CONSTRAINT mermas_dimension_check
-  CHECK (dimension IN ('40x40', '60x40', '80x40', '160x60', '160x65'));
+  CHECK (dimension ~* '^[0-9]+(\\.[0-9]+)?x[0-9]+(\\.[0-9]+)?$');
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS creado_por_id TEXT;
 ALTER TABLE ventas ADD COLUMN IF NOT EXISTS creado_por_nombre TEXT;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bloque_id TEXT;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bloque_codigo TEXT;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS fondo_desgaste_equipos NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS fondo_trabajadores NUMERIC(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS observaciones TEXT;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS responsable_validacion_id TEXT;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS responsable_validacion_nombre TEXT;
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS fecha_liquidacion DATE;
 ALTER TABLE gastos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE historial_pagos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE historial_pagos ADD COLUMN IF NOT EXISTS creado_por_id TEXT;

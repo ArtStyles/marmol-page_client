@@ -49,6 +49,8 @@ export interface FinancialOperationsSummaryDto {
   ingresosOperativos: number
   ingresosTotales: number
   descuentos: number
+  fondosDesgasteEquipos: number
+  fondosTrabajadores: number
   fondosOperativos: number
   totalMetrosVendidos: number
   produccionTotalM2: number

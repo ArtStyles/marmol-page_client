@@ -9,15 +9,17 @@ import type {
   MermaRepositoryPort,
   ProductoRepositoryPort,
 } from '../../../domain/ports/index.js'
+import {
+  dimensionToAreaM2,
+  normalizeDimension,
+  resolveTipoProductoByDimension,
+} from '../../../domain/entities/index.js'
 import { validateInventarioSalida } from '../inventario-movimientos/inventario-movimiento.helpers.js'
 
 interface MermaActor {
   userId: string
   userName: string
 }
-
-const PLANCHA_DIMENSIONS = ['160x65', '160x60'] as const
-const DEFAULT_PLANCHA_DIMENSION = PLANCHA_DIMENSIONS[0]
 
 export class GetMermasUseCase {
   constructor(private readonly repository: MermaRepositoryPort) {}
@@ -43,11 +45,12 @@ export class CreateMermaUseCase {
   ) {}
 
   async execute(dto: CreateMermaDto, actor: MermaActor): Promise<MermaResponseDto> {
-    const dimension = dto.tipo === 'Plancha' ? normalizePlanchaDimension(dto.dimension) : dto.dimension
+    const dimension = normalizeDimension(dto.dimension)
+    assertTipoDimensionCompatible(dto.tipo, dimension)
     const normalizedDto: CreateMermaDto = {
       ...dto,
       dimension,
-      metrosCuadrados: round2(dto.cantidadLosas * dimensionToArea(dimension)),
+      metrosCuadrados: round2(dto.cantidadLosas * dimensionToAreaM2(dimension)),
     }
 
     const detalleMovimiento = {
@@ -128,19 +131,20 @@ export class DeleteMermaUseCase {
   }
 }
 
-function dimensionToArea(dimension: CreateMermaDto['dimension']): number {
-  if (dimension === '40x40') return 1 / 6
-  if (dimension === '60x40') return 1 / 4
-  if (dimension === '80x40') return 1 / 3
-  if (dimension === '160x60') return 0.96
-  if (dimension === '160x65') return 1.04
-  return 1 / 3
-}
-
-function normalizePlanchaDimension(dimension: CreateMermaDto['dimension']): CreateMermaDto['dimension'] {
-  return PLANCHA_DIMENSIONS.includes(dimension as (typeof PLANCHA_DIMENSIONS)[number])
-    ? dimension
-    : DEFAULT_PLANCHA_DIMENSION
+function assertTipoDimensionCompatible(tipo: 'Piso' | 'Plancha', dimension: string): void {
+  const tipoCalculado = resolveTipoProductoByDimension(dimension)
+  if (tipoCalculado !== tipo) {
+    throw new DomainError(
+      `La dimension ${dimension} no corresponde al tipo ${tipo}.`,
+      409,
+      'MERMA_DIMENSION_TIPO_INVALIDO',
+      {
+        tipo,
+        dimension,
+        tipoCalculado,
+      },
+    )
+  }
 }
 
 function round2(value: number): number {

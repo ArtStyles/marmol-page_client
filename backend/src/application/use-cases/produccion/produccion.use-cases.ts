@@ -11,13 +11,17 @@ import type {
   UpdateProduccionDto,
   UpdateProduccionTrabajadorDto,
 } from '../../dtos/index.js'
-import type {
-  EstadoInventario,
-  InventarioMovimientoDetalle,
-  ProduccionDetalleAccion,
-  ProduccionDiaria,
-  ProduccionTrabajador,
-  Trabajador,
+import {
+  dimensionToAreaM2,
+  isPlanchaDimension,
+  isPisoDimension,
+  normalizeDimension,
+  type EstadoInventario,
+  type InventarioMovimientoDetalle,
+  type ProduccionDetalleAccion,
+  type ProduccionDiaria,
+  type ProduccionTrabajador,
+  type Trabajador,
 } from '../../../domain/entities/index.js'
 import type {
   BloqueRepositoryPort,
@@ -29,16 +33,20 @@ import type {
   MonoHiloMasaRepositoryPort,
   TrabajadorRepositoryPort,
 } from '../../../domain/ports/index.js'
-import { applyInventarioEntrada } from '../inventario-movimientos/inventario-movimiento.helpers.js'
-import { consumeMonoHiloMasasParaPicado } from '../mono-hilo/mono-hilo.use-cases.js'
+import {
+  applyInventarioEntrada,
+  applyInventarioSalida,
+  buildEntradaRollbackDetalles,
+} from '../inventario-movimientos/inventario-movimiento.helpers.js'
+import {
+  consumeMonoHiloMasasParaPicado,
+  restoreMonoHiloMasasParaPicado,
+} from '../mono-hilo/mono-hilo.use-cases.js'
 
 interface ProduccionActor {
   userId: string
   userName: string
 }
-
-const PLANCHA_DIMENSIONS = ['160x65', '160x60'] as const
-const DEFAULT_PLANCHA_DIMENSION = PLANCHA_DIMENSIONS[0]
 
 export class GetProduccionUseCase {
   constructor(private readonly repository: ProduccionRepositoryPort) {}
@@ -68,49 +76,70 @@ export class CreateProduccionUseCase {
 
   async execute(dto: CreateProduccionDto, actor: ProduccionActor): Promise<ProduccionResponseDto> {
     const normalizedDto = normalizeProduccionDto(dto)
-    if (isMonoHiloWorkflow(normalizedDto)) {
-      validateMonoHiloProduccionDto(normalizedDto)
-    } else {
-      validateDetalleAcciones(normalizedDto)
-      validateResinaConsumo(normalizedDto)
-      await consumeMonoHiloMasasParaPicado(
-        {
-          bloqueId: normalizedDto.origenId,
-          dimension: normalizedDto.dimension,
-          cantidadLosas: normalizedDto.cantidadPicar,
-        },
-        this.monoHiloRepository,
-      )
-      await consumeProcesoStockParaProduccion(normalizedDto, this.productoRepository)
+    let created: ProduccionResponseDto | null = null
+    let regularSideEffectsApplied = false
+
+    try {
+      if (isMonoHiloWorkflow(normalizedDto)) {
+        validateMonoHiloProduccionDto(normalizedDto)
+      } else {
+        validateDetalleAcciones(normalizedDto)
+        validateResinaConsumo(normalizedDto)
+        await applyRegularProduccionSideEffects(
+          normalizedDto,
+          this.productoRepository,
+          this.monoHiloRepository,
+        )
+        regularSideEffectsApplied = true
+      }
+
+      created = await this.repository.create({
+        ...normalizedDto,
+        creadoPorId: actor.userId,
+        creadoPorNombre: actor.userName,
+        workflowTipo: normalizedDto.workflowTipo ?? 'regular',
+        estadoRegistro: normalizedDto.estadoRegistro ?? 'activo',
+        aprobacionTallerEstado: 'pendiente',
+        aprobacionAlmacenEstado: 'pendiente',
+        inventarioAplicado: false,
+        movimientoInventarioIds: [],
+      })
+
+      if (!isMonoHiloWorkflow(created)) {
+        await createProduccionTrabajadoresForRegistro(
+          created,
+          this.produccionTrabajadorRepository,
+          this.trabajadorRepository,
+          this.configuracionPort,
+        )
+      }
+
+      return created
+    } catch (error) {
+      if (created) {
+        await this.repository.delete(created.id).catch(() => undefined)
+      }
+      if (regularSideEffectsApplied) {
+        await revertRegularProduccionSideEffects(
+          normalizedDto,
+          this.productoRepository,
+          this.monoHiloRepository,
+        ).catch(() => undefined)
+      }
+      throw error
     }
-
-    const created = await this.repository.create({
-      ...normalizedDto,
-      creadoPorId: actor.userId,
-      creadoPorNombre: actor.userName,
-      workflowTipo: normalizedDto.workflowTipo ?? 'regular',
-      estadoRegistro: normalizedDto.estadoRegistro ?? 'activo',
-      aprobacionTallerEstado: 'pendiente',
-      aprobacionAlmacenEstado: 'pendiente',
-      inventarioAplicado: false,
-      movimientoInventarioIds: [],
-    })
-
-    if (!isMonoHiloWorkflow(created)) {
-      await createProduccionTrabajadoresForRegistro(
-        created,
-        this.produccionTrabajadorRepository,
-        this.trabajadorRepository,
-        this.configuracionPort,
-      )
-    }
-
-    return created
   }
 }
 
 export class ApproveProduccionTallerUseCase {
-  constructor(private readonly repository: ProduccionRepositoryPort) {}
+  constructor(
+    private readonly repository: ProduccionRepositoryPort,
+    private readonly productoRepository: ProductoRepositoryPort,
+    private readonly monoHiloRepository: MonoHiloMasaRepositoryPort,
+    private readonly produccionTrabajadorRepository: ProduccionTrabajadorRepositoryPort,
+    private readonly trabajadorRepository: TrabajadorRepositoryPort,
+    private readonly configuracionPort: ConfiguracionPort,
+  ) {}
 
   async execute(
     id: string,
@@ -133,6 +162,14 @@ export class ApproveProduccionTallerUseCase {
     const now = new Date().toISOString()
 
     if (!dto.aprobado) {
+      if (produccion.aprobacionTallerEstado === 'rechazado') {
+        throw new DomainError(
+          'La produccion ya fue rechazada por taller.',
+          409,
+          'PRODUCCION_TALLER_YA_RECHAZADA',
+        )
+      }
+
       const motivoRechazo = dto.motivoRechazo?.trim()
       if (!motivoRechazo) {
         throw new DomainError(
@@ -142,21 +179,114 @@ export class ApproveProduccionTallerUseCase {
         )
       }
 
-      const rejected = await this.repository.update(id, {
-        aprobacionTallerEstado: 'rechazado',
+      await assertProduccionTrabajadoresEditable(id, this.produccionTrabajadorRepository)
+      let trabajadoresEliminados = false
+      let stockRevertido = false
+
+      try {
+        trabajadoresEliminados =
+          (await deleteProduccionTrabajadoresForRegistro(
+          id,
+          this.produccionTrabajadorRepository,
+          this.trabajadorRepository,
+        )) > 0
+        await revertRegularProduccionSideEffects(
+          produccion,
+          this.productoRepository,
+          this.monoHiloRepository,
+        )
+        stockRevertido = true
+
+        const rejected = await this.repository.update(id, {
+          aprobacionTallerEstado: 'rechazado',
+          aprobacionTallerPorId: actor.userId,
+          aprobacionTallerPorNombre: actor.userName,
+          aprobacionTallerFecha: now,
+          aprobacionTallerMotivoRechazo: motivoRechazo,
+          aprobacionAlmacenEstado: 'pendiente',
+          aprobacionAlmacenPorId: undefined,
+          aprobacionAlmacenPorNombre: undefined,
+          aprobacionAlmacenFecha: undefined,
+          aprobacionAlmacenMotivo: undefined,
+          inventarioAplicado: false,
+          movimientoInventarioIds: [],
+        })
+
+        if (!rejected) {
+          throw new DomainError(
+            `No se pudo actualizar produccion ${id}`,
+            500,
+            'PRODUCCION_UPDATE_FAILED',
+          )
+        }
+
+        return rejected
+      } catch (error) {
+        if (stockRevertido) {
+          await applyRegularProduccionSideEffects(
+            produccion,
+            this.productoRepository,
+            this.monoHiloRepository,
+          ).catch(() => undefined)
+        }
+        if (trabajadoresEliminados) {
+          await createProduccionTrabajadoresForRegistro(
+            produccion,
+            this.produccionTrabajadorRepository,
+            this.trabajadorRepository,
+            this.configuracionPort,
+          ).catch(() => undefined)
+        }
+        throw error
+      }
+    }
+
+    let stockReaplicado = false
+    let trabajadoresRecreados = false
+    if (produccion.aprobacionTallerEstado === 'rechazado') {
+      try {
+        await applyRegularProduccionSideEffects(
+          produccion,
+          this.productoRepository,
+          this.monoHiloRepository,
+        )
+        stockReaplicado = true
+        await createProduccionTrabajadoresForRegistro(
+          produccion,
+          this.produccionTrabajadorRepository,
+          this.trabajadorRepository,
+          this.configuracionPort,
+        )
+        trabajadoresRecreados = true
+      } catch (error) {
+        if (stockReaplicado) {
+          await revertRegularProduccionSideEffects(
+            produccion,
+            this.productoRepository,
+            this.monoHiloRepository,
+          ).catch(() => undefined)
+        }
+        if (trabajadoresRecreados) {
+          await deleteProduccionTrabajadoresForRegistro(
+            produccion.id,
+            this.produccionTrabajadorRepository,
+            this.trabajadorRepository,
+          ).catch(() => undefined)
+        }
+        throw error
+      }
+    }
+
+    try {
+      const approved = await this.repository.update(id, {
+        aprobacionTallerEstado: 'aprobado',
         aprobacionTallerPorId: actor.userId,
         aprobacionTallerPorNombre: actor.userName,
         aprobacionTallerFecha: now,
-        aprobacionTallerMotivoRechazo: motivoRechazo,
-        aprobacionAlmacenEstado: 'pendiente',
-        aprobacionAlmacenPorId: undefined,
-        aprobacionAlmacenPorNombre: undefined,
-        aprobacionAlmacenFecha: undefined,
-        aprobacionAlmacenMotivo: undefined,
-        inventarioAplicado: false,
+        aprobacionTallerMotivoRechazo: undefined,
       })
 
-      if (!rejected) {
+      if (!approved) {
         throw new DomainError(
           `No se pudo actualizar produccion ${id}`,
           500,
@@ -164,26 +294,24 @@ export class ApproveProduccionTallerUseCase {
         )
       }
 
-      return rejected
+      return approved
+    } catch (error) {
+      if (trabajadoresRecreados) {
+        await deleteProduccionTrabajadoresForRegistro(
+          produccion.id,
+          this.produccionTrabajadorRepository,
+          this.trabajadorRepository,
+        ).catch(() => undefined)
+      }
+      if (stockReaplicado) {
+        await revertRegularProduccionSideEffects(
+          produccion,
+          this.productoRepository,
+          this.monoHiloRepository,
+        ).catch(() => undefined)
+      }
+      throw error
     }
-
-    const approved = await this.repository.update(id, {
-      aprobacionTallerEstado: 'aprobado',
-      aprobacionTallerPorId: actor.userId,
-      aprobacionTallerPorNombre: actor.userName,
-      aprobacionTallerFecha: now,
-      aprobacionTallerMotivoRechazo: undefined,
-    })
-
-    if (!approved) {
-      throw new DomainError(
-        `No se pudo actualizar produccion ${id}`,
-        500,
-        'PRODUCCION_UPDATE_FAILED',
-      )
-    }
-
-    return approved
   }
 }
 
@@ -247,49 +375,67 @@ export class ApproveEntradaProduccionAlmacenUseCase {
       )
     }
 
-    await applyInventarioEntrada(detallesEntrada, this.productoRepository)
-    await actualizarBloquePorProduccion(produccion, this.bloqueRepository)
-
     const now = new Date().toISOString()
-    const movimiento = await this.movimientoRepository.create({
-      fechaSolicitud: now,
-      fechaResolucion: now,
-      tipo: 'entrada',
-      origen: 'produccion',
-      estado: 'aprobado',
-      referenciaId: produccion.id,
-      motivo,
-      observaciones: `Entrada aprobada para produccion ${produccion.id}`,
-      solicitadoPorId: produccion.aprobacionTallerPorId,
-      solicitadoPorNombre: produccion.aprobacionTallerPorNombre,
-      aprobadoPorId: actor.userId,
-      aprobadoPorNombre: actor.userName,
-      detalles: detallesEntrada,
-    })
+    const bloquePrevio = await this.bloqueRepository.findById(produccion.origenId)
+    let movimientoCreadoId: string | null = null
 
-    const movimientoInventarioIds = produccion.movimientoInventarioIds?.includes(movimiento.id)
-      ? (produccion.movimientoInventarioIds ?? [])
-      : [...(produccion.movimientoInventarioIds ?? []), movimiento.id]
+    try {
+      await applyInventarioEntrada(detallesEntrada, this.productoRepository)
+      await actualizarBloquePorProduccion(produccion, this.bloqueRepository)
 
-    const updated = await this.repository.update(id, {
-      aprobacionAlmacenEstado: 'aprobado',
-      aprobacionAlmacenPorId: actor.userId,
-      aprobacionAlmacenPorNombre: actor.userName,
-      aprobacionAlmacenFecha: now,
-      aprobacionAlmacenMotivo: motivo,
-      inventarioAplicado: true,
-      movimientoInventarioIds,
-    })
+      const movimiento = await this.movimientoRepository.create({
+        fechaSolicitud: now,
+        fechaResolucion: now,
+        tipo: 'entrada',
+        origen: 'produccion',
+        estado: 'aprobado',
+        referenciaId: produccion.id,
+        motivo,
+        observaciones: `Entrada aprobada para produccion ${produccion.id}`,
+        solicitadoPorId: produccion.aprobacionTallerPorId,
+        solicitadoPorNombre: produccion.aprobacionTallerPorNombre,
+        aprobadoPorId: actor.userId,
+        aprobadoPorNombre: actor.userName,
+        detalles: detallesEntrada,
+      })
+      movimientoCreadoId = movimiento.id
 
-    if (!updated) {
-      throw new DomainError(
-        `No se pudo actualizar produccion ${id}`,
-        500,
-        'PRODUCCION_UPDATE_FAILED',
-      )
+      const movimientoInventarioIds = produccion.movimientoInventarioIds?.includes(movimiento.id)
+        ? (produccion.movimientoInventarioIds ?? [])
+        : [...(produccion.movimientoInventarioIds ?? []), movimiento.id]
+
+      const updated = await this.repository.update(id, {
+        aprobacionAlmacenEstado: 'aprobado',
+        aprobacionAlmacenPorId: actor.userId,
+        aprobacionAlmacenPorNombre: actor.userName,
+        aprobacionAlmacenFecha: now,
+        aprobacionAlmacenMotivo: motivo,
+        inventarioAplicado: true,
+        movimientoInventarioIds,
+      })
+
+      if (!updated) {
+        throw new DomainError(
+          `No se pudo actualizar produccion ${id}`,
+          500,
+          'PRODUCCION_UPDATE_FAILED',
+        )
+      }
+
+      return updated
+    } catch (error) {
+      if (movimientoCreadoId) {
+        await this.movimientoRepository.delete(movimientoCreadoId).catch(() => undefined)
+      }
+      await applyInventarioSalida(
+        buildEntradaRollbackDetalles(detallesEntrada),
+        this.productoRepository,
+      ).catch(() => undefined)
+      if (bloquePrevio) {
+        await this.bloqueRepository.update(bloquePrevio.id, bloquePrevio).catch(() => undefined)
+      }
+      throw error
     }
-
-    return updated
   }
 }
 
@@ -439,7 +585,14 @@ export class CancelMonoHiloProduccionUseCase {
 }
 
 export class UpdateProduccionUseCase {
-  constructor(private readonly repository: ProduccionRepositoryPort) {}
+  constructor(
+    private readonly repository: ProduccionRepositoryPort,
+    private readonly productoRepository: ProductoRepositoryPort,
+    private readonly monoHiloRepository: MonoHiloMasaRepositoryPort,
+    private readonly produccionTrabajadorRepository: ProduccionTrabajadorRepositoryPort,
+    private readonly trabajadorRepository: TrabajadorRepositoryPort,
+    private readonly configuracionPort: ConfiguracionPort,
+  ) {}
 
   async execute(id: string, dto: UpdateProduccionDto): Promise<ProduccionResponseDto | null> {
     const current = await this.repository.findById(id)
@@ -463,33 +616,117 @@ export class UpdateProduccionUseCase {
       )
     }
 
-    if (current.cantidadPicar > 0) {
-      throw new DomainError(
-        'No se puede editar una produccion de picado porque ya consumio masas de mono hilo.',
-        409,
-        'PRODUCCION_EDIT_PICADO_LOCKED',
-      )
-    }
+    await assertProduccionTrabajadoresEditable(id, this.produccionTrabajadorRepository)
 
-    if (
-      current.cantidadEscuadrar > 0 ||
-      current.cantidadDevastar > 0 ||
-      current.cantidadResinar > 0 ||
-      current.cantidadPulir > 0
-    ) {
-      throw new DomainError(
-        'No se puede editar una produccion de escuadrado/devastado/resinado/pulido porque consume stock fuera de almacen.',
-        409,
-        'PRODUCCION_EDIT_PROCESO_LOCKED',
-      )
-    }
+    const nextDraft = normalizeProduccionDto({
+      ...toCreateProduccionDto(current),
+      ...dto,
+    })
+    validateDetalleAcciones(nextDraft)
+    validateResinaConsumo(nextDraft)
+    let trabajadoresEliminados = false
+    let stockActualRevertido = false
+    let nuevoStockAplicado = false
+    let registroActualizado = false
+    const stockActualActivo = current.aprobacionTallerEstado !== 'rechazado'
 
-    return this.repository.update(id, dto)
+    try {
+      trabajadoresEliminados =
+        (await deleteProduccionTrabajadoresForRegistro(
+        id,
+        this.produccionTrabajadorRepository,
+        this.trabajadorRepository,
+      )) > 0
+      if (stockActualActivo) {
+        await revertRegularProduccionSideEffects(
+          current,
+          this.productoRepository,
+          this.monoHiloRepository,
+        )
+        stockActualRevertido = true
+      }
+
+      await applyRegularProduccionSideEffects(
+        nextDraft,
+        this.productoRepository,
+        this.monoHiloRepository,
+      )
+      nuevoStockAplicado = true
+
+      const updated = await this.repository.update(id, {
+        ...nextDraft,
+        estadoRegistro: 'activo',
+        aprobacionTallerEstado: 'pendiente',
+        aprobacionTallerPorId: undefined,
+        aprobacionTallerPorNombre: undefined,
+        aprobacionTallerFecha: undefined,
+        aprobacionTallerMotivoRechazo: undefined,
+        aprobacionAlmacenEstado: 'pendiente',
+        aprobacionAlmacenPorId: undefined,
+        aprobacionAlmacenPorNombre: undefined,
+        aprobacionAlmacenFecha: undefined,
+        aprobacionAlmacenMotivo: undefined,
+        inventarioAplicado: false,
+        movimientoInventarioIds: [],
+      })
+
+      if (!updated) {
+        throw new DomainError(
+          `No se pudo actualizar produccion ${id}`,
+          500,
+          'PRODUCCION_UPDATE_FAILED',
+        )
+      }
+      registroActualizado = true
+
+      await createProduccionTrabajadoresForRegistro(
+        updated,
+        this.produccionTrabajadorRepository,
+        this.trabajadorRepository,
+        this.configuracionPort,
+      )
+
+      return updated
+    } catch (error) {
+      if (nuevoStockAplicado) {
+        await revertRegularProduccionSideEffects(
+          nextDraft,
+          this.productoRepository,
+          this.monoHiloRepository,
+        ).catch(() => undefined)
+      }
+      if (registroActualizado) {
+        await this.repository.update(id, current).catch(() => undefined)
+      }
+      if (stockActualRevertido && stockActualActivo) {
+        await applyRegularProduccionSideEffects(
+          current,
+          this.productoRepository,
+          this.monoHiloRepository,
+        ).catch(() => undefined)
+      }
+      if (trabajadoresEliminados) {
+        await createProduccionTrabajadoresForRegistro(
+          current,
+          this.produccionTrabajadorRepository,
+          this.trabajadorRepository,
+          this.configuracionPort,
+        ).catch(() => undefined)
+      }
+      throw error
+    }
   }
 }
 
 export class DeleteProduccionUseCase {
-  constructor(private readonly repository: ProduccionRepositoryPort) {}
+  constructor(
+    private readonly repository: ProduccionRepositoryPort,
+    private readonly productoRepository: ProductoRepositoryPort,
+    private readonly monoHiloRepository: MonoHiloMasaRepositoryPort,
+    private readonly produccionTrabajadorRepository: ProduccionTrabajadorRepositoryPort,
+    private readonly trabajadorRepository: TrabajadorRepositoryPort,
+    private readonly configuracionPort: ConfiguracionPort,
+  ) {}
 
   async execute(id: string): Promise<boolean> {
     const current = await this.repository.findById(id)
@@ -513,28 +750,55 @@ export class DeleteProduccionUseCase {
       )
     }
 
-    if (!isMonoHiloWorkflow(current) && current.cantidadPicar > 0) {
-      throw new DomainError(
-        'No se puede eliminar una produccion de picado porque ya consumio masas de mono hilo.',
-        409,
-        'PRODUCCION_DELETE_PICADO_LOCKED',
-      )
-    }
+    await assertProduccionTrabajadoresEditable(id, this.produccionTrabajadorRepository)
+    let trabajadoresEliminados = false
+    let stockRevertido = false
+    const stockActualActivo = current.aprobacionTallerEstado !== 'rechazado'
 
-    if (
-      current.cantidadEscuadrar > 0 ||
-      current.cantidadDevastar > 0 ||
-      current.cantidadResinar > 0 ||
-      current.cantidadPulir > 0
-    ) {
-      throw new DomainError(
-        'No se puede eliminar una produccion de escuadrado/devastado/resinado/pulido porque consume stock fuera de almacen.',
-        409,
-        'PRODUCCION_DELETE_PROCESO_LOCKED',
-      )
-    }
+    try {
+      trabajadoresEliminados =
+        (await deleteProduccionTrabajadoresForRegistro(
+        id,
+        this.produccionTrabajadorRepository,
+        this.trabajadorRepository,
+      )) > 0
+      if (stockActualActivo) {
+        await revertRegularProduccionSideEffects(
+          current,
+          this.productoRepository,
+          this.monoHiloRepository,
+        )
+        stockRevertido = true
+      }
 
-    return this.repository.delete(id)
+      const deleted = await this.repository.delete(id)
+      if (!deleted) {
+        throw new DomainError(
+          `No se pudo eliminar produccion ${id}`,
+          500,
+          'PRODUCCION_DELETE_FAILED',
+        )
+      }
+
+      return true
+    } catch (error) {
+      if (stockRevertido && stockActualActivo) {
+        await applyRegularProduccionSideEffects(
+          current,
+          this.productoRepository,
+          this.monoHiloRepository,
+        ).catch(() => undefined)
+      }
+      if (trabajadoresEliminados) {
+        await createProduccionTrabajadoresForRegistro(
+          current,
+          this.produccionTrabajadorRepository,
+          this.trabajadorRepository,
+          this.configuracionPort,
+        ).catch(() => undefined)
+      }
+      throw error
+    }
   }
 }
 
@@ -612,7 +876,7 @@ function buildDetallesEntradaDesdeProduccion(
     }
 
     const estado = mapaEstado[accion]
-    const metros = round2(efectivas * dimensionToArea(registro.dimension))
+      const metros = round2(efectivas * dimensionToAreaM2(registro.dimension))
 
     detalles.push({
       id: `imd-${accion}-${registro.id}`,
@@ -652,7 +916,7 @@ async function actualizarBloquePorProduccion(
       if (item.metrosMermaTotal != null) {
         return sum + item.metrosMermaTotal
       }
-      return sum + (item.losasMermaTotal ?? 0) * dimensionToArea(dto.dimension)
+      return sum + (item.losasMermaTotal ?? 0) * dimensionToAreaM2(dto.dimension)
     }, 0) ?? 0
 
   const metrosVendibles = round2(Math.max(0, bloque.metrosVendibles + dto.totalM2 - totalM2Perdidos))
@@ -684,18 +948,103 @@ function buildPerdidasPorAccion(
   return acc
 }
 
+function toCreateProduccionDto(produccion: ProduccionDiaria): CreateProduccionDto {
+  return {
+    fecha: produccion.fecha,
+    origenId: produccion.origenId,
+    origenNombre: produccion.origenNombre,
+    workflowTipo: produccion.workflowTipo,
+    tipo: produccion.tipo,
+    dimension: produccion.dimension,
+    cantidadPicar: produccion.cantidadPicar,
+    cantidadEscuadrar: produccion.cantidadEscuadrar,
+    cantidadDevastar: produccion.cantidadDevastar,
+    cantidadResinar: produccion.cantidadResinar,
+    cantidadPulir: produccion.cantidadPulir,
+    totalLosas: produccion.totalLosas,
+    totalM2: produccion.totalM2,
+    detallesAcciones: produccion.detallesAcciones,
+    monoHiloDetalle: produccion.monoHiloDetalle,
+  }
+}
+
+async function applyRegularProduccionSideEffects(
+  dto:
+    | CreateProduccionDto
+    | Pick<
+        ProduccionDiaria,
+        | 'workflowTipo'
+        | 'origenId'
+        | 'origenNombre'
+        | 'tipo'
+        | 'dimension'
+        | 'cantidadPicar'
+        | 'cantidadEscuadrar'
+        | 'cantidadDevastar'
+        | 'cantidadResinar'
+        | 'cantidadPulir'
+      >,
+  productoRepository: ProductoRepositoryPort,
+  monoHiloRepository: MonoHiloMasaRepositoryPort,
+): Promise<void> {
+  if (isMonoHiloWorkflow(dto)) {
+    return
+  }
+
+  for (const consumo of buildMonoHiloConsumptions(dto)) {
+    await consumeMonoHiloMasasParaPicado(consumo, monoHiloRepository)
+  }
+  await consumeProcesoStockParaProduccion(dto, productoRepository)
+}
+
+async function revertRegularProduccionSideEffects(
+  dto:
+    | CreateProduccionDto
+    | Pick<
+        ProduccionDiaria,
+        | 'workflowTipo'
+        | 'origenId'
+        | 'origenNombre'
+        | 'tipo'
+        | 'dimension'
+        | 'cantidadPicar'
+        | 'cantidadEscuadrar'
+        | 'cantidadDevastar'
+        | 'cantidadResinar'
+        | 'cantidadPulir'
+      >,
+  productoRepository: ProductoRepositoryPort,
+  monoHiloRepository: MonoHiloMasaRepositoryPort,
+): Promise<void> {
+  if (isMonoHiloWorkflow(dto)) {
+    return
+  }
+
+  for (const consumo of buildMonoHiloConsumptions(dto)) {
+    await restoreMonoHiloMasasParaPicado(consumo, monoHiloRepository)
+  }
+  await restoreProcesoStockParaProduccion(dto, productoRepository)
+}
+
 function normalizeProduccionDto(dto: CreateProduccionDto): CreateProduccionDto {
-  const dimension = dto.tipo === 'Plancha' ? normalizePlanchaDimension(dto.dimension) : dto.dimension
-  const area = dimensionToArea(dimension)
+  const dimension = normalizeDimension(dto.dimension)
+  validateProduccionDimension(dto.tipo, dimension)
+  const area = dimensionToAreaM2(dimension)
   const detallesAcciones = dto.detallesAcciones?.map((detalle) => {
     const cantidadLosas = normalizeNonNegativeInteger(detalle.cantidadLosas)
     const losasMermaTotal = normalizeNonNegativeInteger(detalle.losasMermaTotal ?? 0)
     const losasReutilizables = normalizeNonNegativeInteger(detalle.losasReutilizables ?? 0)
     const cantidadResina =
       detalle.cantidadResina == null ? undefined : round2(Math.max(0, detalle.cantidadResina))
+    const masaId = detalle.masaId?.trim() || undefined
+    const masaCodigo = detalle.masaCodigo?.trim() || undefined
+    const observacion = detalle.observacion?.trim() || undefined
 
     return {
       ...detalle,
+      masaId,
+      masaCodigo,
+      observacion,
       cantidadLosas,
       metrosCuadrados: round2(cantidadLosas * area),
       losasMermaTotal,
@@ -754,21 +1103,27 @@ function buildActionTotalsFromDetalles(
   return totals
 }
 
-function dimensionToArea(dimension: ProduccionDiaria['dimension']): number {
-  if (dimension === '40x40') return 1 / 6
-  if (dimension === '60x40') return 1 / 4
-  if (dimension === '80x40') return 1 / 3
-  if (dimension === '160x60') return 0.96
-  if (dimension === '160x65') return 1.04
-  return 1 / 3
-}
-
-function normalizePlanchaDimension(
+function validateProduccionDimension(
+  tipo: ProduccionDiaria['tipo'],
   dimension: ProduccionDiaria['dimension'],
-): ProduccionDiaria['dimension'] {
-  return PLANCHA_DIMENSIONS.includes(dimension as (typeof PLANCHA_DIMENSIONS)[number])
-    ? dimension
-    : DEFAULT_PLANCHA_DIMENSION
+): void {
+  if (tipo === 'Piso' && !isPisoDimension(dimension)) {
+    throw new DomainError(
+      `La dimension ${dimension} no corresponde a un piso.`,
+      409,
+      'PRODUCCION_DIMENSION_PISO_INVALIDA',
+      { tipo, dimension },
+    )
+  }
+
+  if (tipo === 'Plancha' && !isPlanchaDimension(dimension)) {
+    throw new DomainError(
+      `La dimension ${dimension} no corresponde a una plancha.`,
+      409,
+      'PRODUCCION_DIMENSION_PLANCHA_INVALIDA',
+      { tipo, dimension },
+    )
+  }
 }
 
 function round2(value: number): number {
@@ -805,6 +1160,40 @@ function validateDetalleAcciones(dto: CreateProduccionDto): void {
       )
     }
   }
+}
+
+function buildMonoHiloConsumptions(
+  dto:
+    | CreateProduccionDto
+    | Pick<
+        ProduccionDiaria,
+        'origenId' | 'dimension' | 'cantidadPicar' | 'detallesAcciones'
+      >,
+): Array<{ bloqueId: string; masaId?: string; dimension: string; cantidadLosas: number }> {
+  const detallesPicar = (dto.detallesAcciones ?? [])
+    .filter((detalle) => detalle.accion === 'picar' && detalle.cantidadLosas > 0)
+    .map((detalle) => ({
+      bloqueId: dto.origenId,
+      masaId: detalle.masaId?.trim() || undefined,
+      dimension: dto.dimension,
+      cantidadLosas: detalle.cantidadLosas,
+    }))
+
+  if (detallesPicar.length > 0) {
+    return detallesPicar
+  }
+
+  if (dto.cantidadPicar <= 0) {
+    return []
+  }
+
+  return [
+    {
+      bloqueId: dto.origenId,
+      dimension: dto.dimension,
+      cantidadLosas: dto.cantidadPicar,
+    },
+  ]
 }
 
 function validateResinaConsumo(dto: CreateProduccionDto): void {
@@ -881,33 +1270,126 @@ async function createProduccionTrabajadoresForRegistro(
     return
   }
 
-  const impactos = new Map<string, { losas: number; pago: number }>()
+  const creados: string[] = []
+  const trabajadorIds = [...new Set(registros.map((registro) => registro.trabajadorId))]
 
-  for (const registro of registros) {
-    await produccionTrabajadorRepository.create(registro)
-    const impacto = impactos.get(registro.trabajadorId) ?? { losas: 0, pago: 0 }
-    impacto.losas += registro.cantidadLosas
-    impacto.pago += registro.pagoFinal
-    impactos.set(registro.trabajadorId, impacto)
+  try {
+    for (const registro of registros) {
+      const created = await produccionTrabajadorRepository.create(registro)
+      creados.push(created.id)
+    }
+    await recalculateProduccionTrabajadores(trabajadorIds, produccionTrabajadorRepository, trabajadorRepository)
+  } catch (error) {
+    await Promise.all(
+      creados.map(async (registroId) => {
+        try {
+          await produccionTrabajadorRepository.delete(registroId)
+        } catch {
+          // Best effort rollback.
+        }
+      }),
+    )
+    await recalculateProduccionTrabajadores(
+      trabajadorIds,
+      produccionTrabajadorRepository,
+      trabajadorRepository,
+    ).catch(() => undefined)
+    throw error
+  }
+}
+
+async function deleteProduccionTrabajadoresForRegistro(
+  produccionId: string,
+  produccionTrabajadorRepository: ProduccionTrabajadorRepositoryPort,
+  trabajadorRepository: TrabajadorRepositoryPort,
+): Promise<number> {
+  const registros = (await produccionTrabajadorRepository.findAll()).filter(
+    (registro) => registro.produccionId === produccionId,
+  )
+  if (registros.length === 0) {
+    return 0
   }
 
-  const trabajadores = await trabajadorRepository.findAll()
+  const trabajadorIds = [...new Set(registros.map((registro) => registro.trabajadorId))]
+  for (const registro of registros) {
+    const deleted = await produccionTrabajadorRepository.delete(registro.id)
+    if (!deleted) {
+      throw new DomainError(
+        `No se pudo eliminar la distribucion ${registro.id} asociada a la produccion ${produccionId}.`,
+        500,
+        'PRODUCCION_TRABAJADOR_DELETE_FAILED',
+      )
+    }
+  }
+
+  await recalculateProduccionTrabajadores(
+    trabajadorIds,
+    produccionTrabajadorRepository,
+    trabajadorRepository,
+  )
+  return registros.length
+}
+
+async function assertProduccionTrabajadoresEditable(
+  produccionId: string,
+  produccionTrabajadorRepository: ProduccionTrabajadorRepositoryPort,
+): Promise<void> {
+  const pagado = (await produccionTrabajadorRepository.findAll()).find(
+    (registro) => registro.produccionId === produccionId && registro.pagado,
+  )
+  if (pagado) {
+    throw new DomainError(
+      'La produccion ya tiene pagos liquidados y no puede modificarse ni revertirse.',
+      409,
+      'PRODUCCION_PAGO_LIQUIDADO_LOCKED',
+      {
+        produccionId,
+        produccionTrabajadorId: pagado.id,
+      },
+    )
+  }
+}
+
+async function recalculateProduccionTrabajadores(
+  trabajadorIds: string[],
+  produccionTrabajadorRepository: ProduccionTrabajadorRepositoryPort,
+  trabajadorRepository: TrabajadorRepositoryPort,
+): Promise<void> {
+  const normalizedIds = [...new Set(trabajadorIds.filter(Boolean))]
+  if (normalizedIds.length === 0) {
+    return
+  }
+
+  const [registros, trabajadores] = await Promise.all([
+    produccionTrabajadorRepository.findAll(),
+    trabajadorRepository.findAll(),
+  ])
   const trabajadoresById = new Map(trabajadores.map((trabajador) => [trabajador.id, trabajador]))
 
-  for (const [trabajadorId, impacto] of impactos.entries()) {
+  for (const trabajadorId of normalizedIds) {
     const trabajador = trabajadoresById.get(trabajadorId)
-    if (!trabajador) continue
+    if (!trabajador) {
+      continue
+    }
+
+    const registrosTrabajador = registros.filter((registro) => registro.trabajadorId === trabajadorId)
+    const losasProducidas = registrosTrabajador.reduce((sum, registro) => sum + registro.cantidadLosas, 0)
+    const acumuladoPendiente = round2(
+      registrosTrabajador
+        .filter((registro) => !registro.pagado)
+        .reduce((sum, registro) => sum + registro.pagoFinal, 0),
+    )
 
     const updated = await trabajadorRepository.update(trabajadorId, {
-      losasProducidas: trabajador.losasProducidas + impacto.losas,
-      acumuladoPendiente: round2(trabajador.acumuladoPendiente + impacto.pago),
+      losasProducidas,
+      acumuladoPendiente,
     })
 
     if (!updated) {
       throw new DomainError(
-        `No se pudo actualizar trabajador ${trabajadorId} tras registrar produccion.`,
+        `No se pudo recalcular el trabajador ${trabajadorId} tras conciliar produccion.`,
         500,
-        'PRODUCCION_TRABAJADOR_UPDATE_FAILED',
+        'PRODUCCION_TRABAJADOR_RECALC_FAILED',
       )
     }
   }
@@ -1018,7 +1500,19 @@ const estadoRequeridoProcesoPorAccion: Record<
 }
 
 async function consumeProcesoStockParaProduccion(
-  dto: CreateProduccionDto,
+  dto:
+    | CreateProduccionDto
+    | Pick<
+        ProduccionDiaria,
+        | 'origenId'
+        | 'origenNombre'
+        | 'tipo'
+        | 'dimension'
+        | 'cantidadEscuadrar'
+        | 'cantidadDevastar'
+        | 'cantidadResinar'
+        | 'cantidadPulir'
+      >,
   productoRepository: ProductoRepositoryPort,
 ): Promise<void> {
   const consumos: Array<{ accion: 'escuadrar' | 'devastar' | 'resinar' | 'pulir'; cantidad: number }> = [
@@ -1028,58 +1522,145 @@ async function consumeProcesoStockParaProduccion(
     { accion: 'pulir', cantidad: dto.cantidadPulir },
   ]
 
-  for (const consumo of consumos) {
-    if (consumo.cantidad <= 0) continue
+  const rollbackDetalles: InventarioMovimientoDetalle[] = []
 
-    const estadoRequerido = estadoRequeridoProcesoPorAccion[consumo.accion]
-    const inventario = await productoRepository.findAll()
-    const candidatos = inventario
-      .filter((producto) => producto.ubicacion === 'proceso')
-      .filter((producto) => producto.origenId === dto.origenId)
-      .filter((producto) => producto.tipo === dto.tipo)
-      .filter((producto) => producto.dimension === dto.dimension)
-      .filter((producto) => producto.estado === estadoRequerido)
-      .filter((producto) => producto.cantidadLosas > 0)
-      .sort((a, b) => b.cantidadLosas - a.cantidadLosas)
+  try {
+    for (const consumo of consumos) {
+      if (consumo.cantidad <= 0) continue
 
-    const disponible = candidatos.reduce((sum, producto) => sum + producto.cantidadLosas, 0)
-    if (disponible < consumo.cantidad) {
-      throw new DomainError(
-        `Stock insuficiente fuera de almacen para ${consumo.accion}. Requiere estado ${estadoRequerido}.`,
-        409,
-        'PRODUCCION_PROCESO_STOCK_INSUFICIENTE',
-        {
-          accion: consumo.accion,
-          estadoRequerido,
-          origenId: dto.origenId,
-          tipo: dto.tipo,
-          dimension: dto.dimension,
-          disponibleLosas: disponible,
-          solicitadoLosas: consumo.cantidad,
-        },
-      )
-    }
+      const estadoRequerido = estadoRequeridoProcesoPorAccion[consumo.accion]
+      const inventario = await productoRepository.findAll()
+      const candidatos = inventario
+        .filter((producto) => producto.ubicacion === 'proceso')
+        .filter((producto) => producto.origenId === dto.origenId)
+        .filter((producto) => producto.tipo === dto.tipo)
+        .filter((producto) => producto.dimension === dto.dimension)
+        .filter((producto) => producto.estado === estadoRequerido)
+        .filter((producto) => producto.cantidadLosas > 0)
+        .sort((a, b) => b.cantidadLosas - a.cantidadLosas)
 
-    let restante = consumo.cantidad
-    for (const producto of candidatos) {
-      if (restante <= 0) break
-      const retirar = Math.min(restante, producto.cantidadLosas)
-      const metrosRetiro = round2(retirar * dimensionToArea(dto.dimension))
-
-      const updated = await productoRepository.update(producto.id, {
-        cantidadLosas: Math.max(0, producto.cantidadLosas - retirar),
-        metrosCuadrados: round2(Math.max(0, producto.metrosCuadrados - metrosRetiro)),
-      })
-
-      if (!updated) {
+      const disponible = candidatos.reduce((sum, producto) => sum + producto.cantidadLosas, 0)
+      if (disponible < consumo.cantidad) {
         throw new DomainError(
-          `No se pudo actualizar producto ${producto.id} para salida a proceso`,
-          500,
-          'PRODUCCION_PROCESO_STOCK_UPDATE_FAILED',
+          `Stock insuficiente fuera de almacen para ${consumo.accion}. Requiere estado ${estadoRequerido}.`,
+          409,
+          'PRODUCCION_PROCESO_STOCK_INSUFICIENTE',
+          {
+            accion: consumo.accion,
+            estadoRequerido,
+            origenId: dto.origenId,
+            tipo: dto.tipo,
+            dimension: dto.dimension,
+            disponibleLosas: disponible,
+            solicitadoLosas: consumo.cantidad,
+          },
         )
       }
 
-      restante -= retirar
+      let restante = consumo.cantidad
+      for (const producto of candidatos) {
+        if (restante <= 0) break
+        const retirar = Math.min(restante, producto.cantidadLosas)
+        const metrosRetiro = round2(retirar * dimensionToAreaM2(dto.dimension))
+
+        const updated = await productoRepository.update(producto.id, {
+          cantidadLosas: Math.max(0, producto.cantidadLosas - retirar),
+          metrosCuadrados: round2(Math.max(0, producto.metrosCuadrados - metrosRetiro)),
+        })
+
+        if (!updated) {
+          throw new DomainError(
+            `No se pudo actualizar producto ${producto.id} para salida a proceso`,
+            500,
+            'PRODUCCION_PROCESO_STOCK_UPDATE_FAILED',
+          )
+        }
+
+        rollbackDetalles.push({
+          id: `prod-rollback-${consumo.accion}-${producto.id}-${rollbackDetalles.length + 1}`,
+          productoId: producto.id,
+          productoNombre: producto.nombre,
+          tipo: producto.tipo,
+          estado: producto.estado,
+          dimension: producto.dimension,
+          origenId: producto.origenId,
+          origenNombre: producto.origenNombre,
+          cantidadLosas: retirar,
+          metrosCuadrados: metrosRetiro,
+          ubicacionDestino: 'proceso',
+        })
+
+        restante -= retirar
+      }
     }
+  } catch (error) {
+    if (rollbackDetalles.length > 0) {
+      await applyInventarioEntrada(rollbackDetalles, productoRepository).catch(() => undefined)
+    }
+    throw error
   }
+}
+
+async function restoreProcesoStockParaProduccion(
+  dto:
+    | CreateProduccionDto
+    | Pick<
+        ProduccionDiaria,
+        | 'origenId'
+        | 'origenNombre'
+        | 'tipo'
+        | 'dimension'
+        | 'cantidadEscuadrar'
+        | 'cantidadDevastar'
+        | 'cantidadResinar'
+        | 'cantidadPulir'
+      >,
+  productoRepository: ProductoRepositoryPort,
+): Promise<void> {
+  const detalles = buildProcesoStockRestoreDetalles(dto)
+  if (detalles.length === 0) {
+    return
+  }
+  await applyInventarioEntrada(detalles, productoRepository)
+}
+
+function buildProcesoStockRestoreDetalles(
+  dto:
+    | CreateProduccionDto
+    | Pick<
+        ProduccionDiaria,
+        | 'origenId'
+        | 'origenNombre'
+        | 'tipo'
+        | 'dimension'
+        | 'cantidadEscuadrar'
+        | 'cantidadDevastar'
+        | 'cantidadResinar'
+        | 'cantidadPulir'
+      >,
+): InventarioMovimientoDetalle[] {
+  const consumos: Array<{ accion: 'escuadrar' | 'devastar' | 'resinar' | 'pulir'; cantidad: number }> = [
+    { accion: 'escuadrar', cantidad: dto.cantidadEscuadrar },
+    { accion: 'devastar', cantidad: dto.cantidadDevastar },
+    { accion: 'resinar', cantidad: dto.cantidadResinar },
+    { accion: 'pulir', cantidad: dto.cantidadPulir },
+  ]
+
+  return consumos
+    .filter((consumo) => consumo.cantidad > 0)
+    .map((consumo, index) => {
+      const estado = estadoRequeridoProcesoPorAccion[consumo.accion]
+      return {
+        id: `prod-proceso-restore-${consumo.accion}-${index + 1}`,
+        productoNombre: `${dto.tipo} ${dto.origenNombre} ${dto.dimension} ${estado}`,
+        tipo: dto.tipo,
+        estado,
+        dimension: dto.dimension,
+        origenId: dto.origenId,
+        origenNombre: dto.origenNombre,
+        cantidadLosas: consumo.cantidad,
+        metrosCuadrados: round2(consumo.cantidad * dimensionToAreaM2(dto.dimension)),
+        ubicacionDestino: 'proceso',
+      }
+    })
 }

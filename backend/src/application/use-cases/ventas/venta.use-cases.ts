@@ -1,5 +1,12 @@
 ﻿import { DomainError } from '../../errors/domain.error.js'
-import type { Producto, VentaDetalleProducto } from '../../../domain/entities/index.js'
+import {
+  buildEmptyMetrosPorDimension,
+  dimensionToAreaM2,
+  VENTA_FONDO_DESGASTE_EQUIPOS_RATE,
+  VENTA_FONDO_TRABAJADORES_RATE,
+  type Producto,
+  type VentaDetalleProducto,
+} from '../../../domain/entities/index.js'
 import type {
   InventarioMovimientoRepositoryPort,
   ProductoRepositoryPort,
@@ -42,20 +49,17 @@ export class CreateVentaUseCase {
     const subtotal = round2(detalles.reduce((sum, item) => sum + item.subtotal, 0))
     const descuento = Math.max(0, Math.min(100, dto.descuento))
     const descuentoAplicado = round2(subtotal * (descuento / 100))
-    const fondoOperativo = dto.fondoOperativo
-    const total = round2(subtotal - descuentoAplicado + fondoOperativo)
+    const total = round2(subtotal - descuentoAplicado)
+    const fondoDesgasteEquipos = round2(total * VENTA_FONDO_DESGASTE_EQUIPOS_RATE)
+    const fondoTrabajadores = round2(total * VENTA_FONDO_TRABAJADORES_RATE)
+    const fondoOperativo = round2(fondoDesgasteEquipos + fondoTrabajadores)
     const metrosPorDimension = detalles.reduce(
       (acc, item) => {
-        acc[item.dimension] = round2(acc[item.dimension] + item.metrosCuadrados)
+        const current = acc[item.dimension] ?? 0
+        acc[item.dimension] = round2(current + item.metrosCuadrados)
         return acc
       },
-      {
-        '40x40': 0,
-        '60x40': 0,
-        '80x40': 0,
-        '160x60': 0,
-        '160x65': 0,
-      } as CreateVentaDto['metrosPorDimension'],
+      buildEmptyMetrosPorDimension(detalles.map((detalle) => detalle.dimension)) as CreateVentaDto['metrosPorDimension'],
     )
 
     const motivoMovimientoAlmacen = dto.motivoMovimientoAlmacen?.trim()
@@ -69,6 +73,51 @@ export class CreateVentaUseCase {
 
     const productos = await this.productoRepository.findAll()
     const productosPorId = new Map(productos.map((producto) => [producto.id, producto]))
+    const primerDetalle = detalles[0]
+    if (!primerDetalle) {
+      throw new DomainError(
+        'La venta requiere al menos un detalle de producto.',
+        400,
+        'VENTA_DETALLES_REQUERIDOS',
+      )
+    }
+
+    const origenBloqueId = primerDetalle.origenId
+    const origenBloqueCodigo = primerDetalle.origenNombre
+    const origenMixto = detalles.some((detalle) => detalle.origenId !== origenBloqueId)
+    if (origenMixto) {
+      throw new DomainError(
+        'La venta debe registrarse contra un unico bloque.',
+        409,
+        'VENTA_BLOQUE_UNICO_REQUERIDO',
+      )
+    }
+
+    const combinaciones = new Set<string>()
+    for (const detalle of detalles) {
+      const producto = productosPorId.get(detalle.productoId)
+      if (!producto) {
+        throw new DomainError(
+          `Producto ${detalle.productoNombre} no existe`,
+          404,
+          'PRODUCTO_NOT_FOUND',
+        )
+      }
+      const combinationKey = buildVentaCombinationKey(producto, detalle)
+      if (combinaciones.has(combinationKey)) {
+        throw new DomainError(
+          `No se puede repetir la combinacion ${producto.tipo} ${detalle.dimension} ${detalle.estado} para el mismo bloque.`,
+          409,
+          'VENTA_COMBINACION_DUPLICADA',
+          {
+            bloqueId: origenBloqueId,
+            combinationKey,
+          },
+        )
+      }
+      combinaciones.add(combinationKey)
+    }
+
     const detallesMovimiento = detalles.map((detalle, index) => {
       const producto = productosPorId.get(detalle.productoId)
       if (!producto) {
@@ -90,8 +139,8 @@ export class CreateVentaUseCase {
         origenNombre: detalle.origenNombre,
         cantidadLosas:
           producto.tipo === 'Plancha'
-            ? detalle.cantidadUnidades ?? Math.ceil(detalle.metrosCuadrados / dimensionToArea(detalle.dimension))
-            : Math.ceil(detalle.metrosCuadrados / dimensionToArea(detalle.dimension)),
+            ? detalle.cantidadUnidades ?? Math.ceil(detalle.metrosCuadrados / dimensionToAreaM2(detalle.dimension))
+            : Math.ceil(detalle.metrosCuadrados / dimensionToAreaM2(detalle.dimension)),
         metrosCuadrados: round2(detalle.metrosCuadrados),
       }
     })
@@ -102,27 +151,42 @@ export class CreateVentaUseCase {
       this.movimientoRepository,
     )
 
-    const primerDetalle = detalles[0]
     const productoNombre =
       detalles.length > 1
         ? `${primerDetalle.productoNombre} +${detalles.length - 1}`
         : primerDetalle.productoNombre
+    const fechaLiquidacion = dto.fechaLiquidacion?.trim() || undefined
+    const responsableValidacionId = fechaLiquidacion
+      ? dto.responsableValidacionId?.trim() || actor.userId
+      : dto.responsableValidacionId?.trim() || undefined
+    const responsableValidacionNombre = fechaLiquidacion
+      ? dto.responsableValidacionNombre?.trim() || actor.userName
+      : dto.responsableValidacionNombre?.trim() || undefined
 
-      const ventaCreada = await this.repository.create({
-        ...dto,
-        creadoPorId: actor.userId,
-        creadoPorNombre: actor.userName,
-        estado: 'pendiente_aprobacion_almacen',
-        motivoMovimientoAlmacen,
-        productoId: primerDetalle.productoId,
+    const ventaCreada = await this.repository.create({
+      ...dto,
+      creadoPorId: actor.userId,
+      creadoPorNombre: actor.userName,
+      bloqueId: origenBloqueId,
+      bloqueCodigo: dto.bloqueCodigo?.trim() || origenBloqueCodigo,
+      estado: 'pendiente_aprobacion_almacen',
+      motivoMovimientoAlmacen,
+      productoId: primerDetalle.productoId,
       productoNombre,
       detallesProductos: detalles,
       cantidadM2,
       metrosPorDimension,
       precioM2: cantidadM2 > 0 ? round2(subtotal / cantidadM2) : dto.precioM2,
       descuento,
+      fondoDesgasteEquipos,
+      fondoTrabajadores,
+      fondoOperativo,
       subtotal,
       total,
+      observaciones: dto.observaciones?.trim() || undefined,
+      responsableValidacionId,
+      responsableValidacionNombre,
+      fechaLiquidacion,
       movimientoInventarioId: undefined,
     })
 
@@ -183,7 +247,7 @@ async function resolveVentaDetalles(
       }
 
       if (producto.tipo === 'Plancha') {
-        const area = dimensionToArea(producto.dimension)
+        const area = dimensionToAreaM2(producto.dimension)
         const cantidadUnidades = Math.trunc(
           item.cantidadUnidades && item.cantidadUnidades > 0
             ? item.cantidadUnidades
@@ -233,7 +297,7 @@ async function resolveVentaDetalles(
   }
 
   if (producto.tipo === 'Plancha') {
-    const area = dimensionToArea(producto.dimension)
+    const area = dimensionToAreaM2(producto.dimension)
     const cantidadUnidades = Math.max(1, Math.ceil(dto.cantidadM2 / area))
     const metrosCuadrados = round2(cantidadUnidades * area)
 
@@ -283,13 +347,11 @@ function validateDetalles(detalles: VentaDetalleProducto[]): void {
   }
 }
 
-function dimensionToArea(dimension: Producto['dimension']): number {
-  if (dimension === '40x40') return 1 / 6
-  if (dimension === '60x40') return 1 / 4
-  if (dimension === '80x40') return 1 / 3
-  if (dimension === '160x60') return 0.96
-  if (dimension === '160x65') return 1.04
-  return 1 / 3
+function buildVentaCombinationKey(
+  producto: Pick<Producto, 'tipo'>,
+  detalle: Pick<VentaDetalleProducto, 'dimension' | 'estado'>,
+): string {
+  return [producto.tipo, detalle.dimension, detalle.estado].join('::')
 }
 
 function round2(value: number): number {

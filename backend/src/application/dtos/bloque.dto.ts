@@ -1,12 +1,28 @@
 import type { BloqueOLote } from '../../domain/entities/index.js'
 
-/** DTO para crear un bloque/lote (sin id, generado por el sistema) */
-export type CreateBloqueDto = Omit<BloqueOLote, 'id' | 'nombre'> & {
-  nombre?: string
+export type CreateBloqueDto = {
+  tipo: BloqueOLote['tipo']
+  dimensionBase?: BloqueOLote['dimensionBase']
+  costo: number
+  costoTransporte: number
+  metrosComprados: number
+  fechaIngreso: string
+  proveedor: string
+  canteraOrigen: string
 }
 
-/** DTO para actualización parcial */
-export type UpdateBloqueDto = Partial<Omit<BloqueOLote, 'id'>>
+export type UpdateBloqueDto = Partial<{
+  dimensionBase: BloqueOLote['dimensionBase']
+  costo: number
+  costoTransporte: number
+  metrosComprados: number
+  fechaIngreso: string
+  proveedor: string
+  canteraOrigen: string
+}>
 
-/** DTO de respuesta: entidad tal cual (o se puede omitir campos sensibles si hubiera) */
-export type BloqueResponseDto = BloqueOLote
+export type BloqueResponseDto = BloqueOLote & {
+  canEdit: boolean
+  canDelete: boolean
+  lockReason?: string
+}

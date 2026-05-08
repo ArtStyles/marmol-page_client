@@ -18,6 +18,7 @@ function rowToBloque(r: Record<string, unknown>): BloqueOLote {
     metrosComprados: Number(r.metros_comprados),
     fechaIngreso: toDateOnly(r.fecha_ingreso),
     proveedor: r.proveedor as string,
+    canteraOrigen: (r.cantera_origen as string | null) ?? '',
     losasProducidas: Number(r.losas_producidas),
     losasPerdidas: Number(r.losas_perdidas),
     metrosVendibles: Number(r.metros_vendibles),
@@ -71,8 +72,8 @@ export class PostgresBloqueRepository implements BloqueRepositoryPort {
     const workshopId = getCurrentWorkshopId()
     const id = await nextId(pool, 'BL', 'bloques')
     await pool.query(
-      `INSERT INTO bloques (id, workshop_id, nombre, tipo, dimension_base, costo, costo_transporte, metros_comprados, fecha_ingreso, proveedor, losas_producidas, losas_perdidas, metros_vendibles, ganancia_real, estado)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      `INSERT INTO bloques (id, workshop_id, nombre, tipo, dimension_base, costo, costo_transporte, metros_comprados, fecha_ingreso, proveedor, cantera_origen, losas_producidas, losas_perdidas, metros_vendibles, ganancia_real, estado)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
       [
         id,
         workshopId,
@@ -84,6 +85,7 @@ export class PostgresBloqueRepository implements BloqueRepositoryPort {
         data.metrosComprados,
         data.fechaIngreso,
         data.proveedor,
+        data.canteraOrigen,
         data.losasProducidas,
         data.losasPerdidas,
         data.metrosVendibles,
@@ -101,7 +103,7 @@ export class PostgresBloqueRepository implements BloqueRepositoryPort {
     const pool = getPool()
     const workshopId = getCurrentWorkshopId()
     await pool.query(
-      `UPDATE bloques SET nombre=$2, tipo=$3, dimension_base=$4, costo=$5, costo_transporte=$6, metros_comprados=$7, fecha_ingreso=$8, proveedor=$9, losas_producidas=$10, losas_perdidas=$11, metros_vendibles=$12, ganancia_real=$13, estado=$14 WHERE id=$1 AND workshop_id=$15`,
+      `UPDATE bloques SET nombre=$2, tipo=$3, dimension_base=$4, costo=$5, costo_transporte=$6, metros_comprados=$7, fecha_ingreso=$8, proveedor=$9, cantera_origen=$10, losas_producidas=$11, losas_perdidas=$12, metros_vendibles=$13, ganancia_real=$14, estado=$15 WHERE id=$1 AND workshop_id=$16`,
       [
         id,
         merged.nombre,
@@ -112,6 +114,7 @@ export class PostgresBloqueRepository implements BloqueRepositoryPort {
         merged.metrosComprados,
         merged.fechaIngreso,
         merged.proveedor,
+        merged.canteraOrigen,
         merged.losasProducidas,
         merged.losasPerdidas,
         merged.metrosVendibles,

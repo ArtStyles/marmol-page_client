@@ -48,6 +48,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     metrosComprados: 32.0,
     fechaIngreso: '2026-01-10',
     proveedor: 'Mármoles Italia S.A.',
+    canteraOrigen: 'Cantera Carrara Norte',
     losasProducidas: 120,
     losasPerdidas: 8,
     metrosVendibles: 28.8,
@@ -64,6 +65,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     metrosComprados: 26.5,
     fechaIngreso: '2026-01-05',
     proveedor: 'Canteras España',
+    canteraOrigen: 'Cantera Toledo Beta',
     losasProducidas: 95,
     losasPerdidas: 12,
     metrosVendibles: 22.8,
@@ -80,6 +82,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     metrosComprados: 52.0,
     fechaIngreso: '2026-01-15',
     proveedor: 'Distribuidora Nacional',
+    canteraOrigen: 'Importacion nacional de lotes',
     losasProducidas: 200,
     losasPerdidas: 5,
     metrosVendibles: 48.0,
@@ -96,6 +99,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     metrosComprados: 21.0,
     fechaIngreso: '2025-12-20',
     proveedor: 'Mármoles Italia S.A.',
+    canteraOrigen: 'Cantera Verona Sur',
     losasProducidas: 85,
     losasPerdidas: 3,
     metrosVendibles: 20.4,
@@ -415,10 +419,10 @@ export const mermas: Merma[] = [
 ]
 
 export const ventas: Venta[] = [
-  { id: 'V001', productoId: 'P001', productoNombre: 'Piso Carrara 60x40 Pulido', cantidadM2: 5.5, metrosPorDimension: { '40x40': 0, '60x40': 5.5, '80x40': 0, '160x60': 0, '160x65': 0 }, precioM2: 200, descuento: 5, fondoOperativo: 50, subtotal: 1100, total: 1095, clienteNombre: 'Constructora Moderna S.A.', clienteEmail: 'compras@constructoramoderna.com', clienteTelefono: '+52 555 111 2222', fecha: '2026-01-28', estado: 'completada' },
-  { id: 'V002', productoId: 'P005', productoNombre: 'Plancha Calacatta 160x65 Pulido', cantidadM2: 3.12, metrosPorDimension: { '40x40': 0, '60x40': 0, '80x40': 0, '160x60': 0, '160x65': 3.12 }, precioM2: 320, descuento: 0, fondoOperativo: 100, subtotal: 998.4, total: 1098.4, clienteNombre: 'Diseños Interiores Premium', clienteEmail: 'pedidos@disenospremium.com', clienteTelefono: '+52 555 333 4444', fecha: '2026-01-27', estado: 'completada' },
-  { id: 'V003', productoId: 'P004', productoNombre: 'Piso Crema Marfil 60x40 Pulido', cantidadM2: 12.0, metrosPorDimension: { '40x40': 0, '60x40': 12.0, '80x40': 0, '160x60': 0, '160x65': 0 }, precioM2: 200, descuento: 10, fondoOperativo: 75, subtotal: 2400, total: 2235, clienteNombre: 'Residencial Los Pinos', clienteEmail: 'admin@lospinos.com', clienteTelefono: '+52 555 555 6666', fecha: '2026-01-26', estado: 'pendiente' },
-  { id: 'V004', productoId: 'P003', productoNombre: 'Piso Emperador 40x40 Pulido', cantidadM2: 8.0, metrosPorDimension: { '40x40': 8.0, '60x40': 0, '80x40': 0, '160x60': 0, '160x65': 0 }, precioM2: 180, descuento: 0, fondoOperativo: 60, subtotal: 1440, total: 1500, clienteNombre: 'Hotel Grand Palace', clienteEmail: 'mantenimiento@grandpalace.com', clienteTelefono: '+52 555 777 8888', fecha: '2026-01-25', estado: 'completada' },
+  { id: 'V001', productoId: 'P001', productoNombre: 'Piso Carrara 60x40 Pulido', cantidadM2: 5.5, metrosPorDimension: { '40x40': 0, '60x40': 5.5, '80x40': 0, '160x60': 0, '160x65': 0 }, precioM2: 200, descuento: 5, fondoDesgasteEquipos: 104.5, fondoTrabajadores: 52.25, fondoOperativo: 156.75, subtotal: 1100, total: 1045, clienteNombre: 'Constructora Moderna S.A.', clienteEmail: 'compras@constructoramoderna.com', clienteTelefono: '+52 555 111 2222', fecha: '2026-01-28', estado: 'completada' },
+  { id: 'V002', productoId: 'P005', productoNombre: 'Plancha Calacatta 160x65 Pulido', cantidadM2: 3.12, metrosPorDimension: { '40x40': 0, '60x40': 0, '80x40': 0, '160x60': 0, '160x65': 3.12 }, precioM2: 320, descuento: 0, fondoDesgasteEquipos: 99.84, fondoTrabajadores: 49.92, fondoOperativo: 149.76, subtotal: 998.4, total: 998.4, clienteNombre: 'Diseños Interiores Premium', clienteEmail: 'pedidos@disenospremium.com', clienteTelefono: '+52 555 333 4444', fecha: '2026-01-27', estado: 'completada' },
+  { id: 'V003', productoId: 'P004', productoNombre: 'Piso Crema Marfil 60x40 Pulido', cantidadM2: 12.0, metrosPorDimension: { '40x40': 0, '60x40': 12.0, '80x40': 0, '160x60': 0, '160x65': 0 }, precioM2: 200, descuento: 10, fondoDesgasteEquipos: 216, fondoTrabajadores: 108, fondoOperativo: 324, subtotal: 2400, total: 2160, clienteNombre: 'Residencial Los Pinos', clienteEmail: 'admin@lospinos.com', clienteTelefono: '+52 555 555 6666', fecha: '2026-01-26', estado: 'pendiente' },
+  { id: 'V004', productoId: 'P003', productoNombre: 'Piso Emperador 40x40 Pulido', cantidadM2: 8.0, metrosPorDimension: { '40x40': 8.0, '60x40': 0, '80x40': 0, '160x60': 0, '160x65': 0 }, precioM2: 180, descuento: 0, fondoDesgasteEquipos: 144, fondoTrabajadores: 72, fondoOperativo: 216, subtotal: 1440, total: 1440, clienteNombre: 'Hotel Grand Palace', clienteEmail: 'mantenimiento@grandpalace.com', clienteTelefono: '+52 555 777 8888', fecha: '2026-01-25', estado: 'completada' },
 ]
 
 export const historialPagos: HistorialPago[] = [

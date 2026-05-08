@@ -134,7 +134,9 @@ export function buildGastosCompraMateriaPrima(
   const responsable = normalizeOptionalText(bloque.proveedor) ?? normalizeOptionalText(actor?.userName) ?? 'Sistema'
   const etiqueta = `${bloque.tipo.toLowerCase()} ${bloque.nombre}`
   const proveedor = normalizeOptionalText(bloque.proveedor)
+  const canteraOrigen = normalizeOptionalText(bloque.canteraOrigen)
   const referenciaProveedor = proveedor ? `proveedor ${proveedor}` : 'proveedor no especificado'
+  const referenciaOrigen = canteraOrigen ? ` / origen ${canteraOrigen}` : ''
   const createdAt = new Date().toISOString()
 
   const gastos: Array<Omit<Gasto, 'id'>> = []
@@ -146,7 +148,7 @@ export function buildGastosCompraMateriaPrima(
       costo: normalizeCurrency(bloque.costo, 'El costo del bloque debe ser mayor que 0.'),
       tipo: 'Materia prima',
       flujo: 'Inventario',
-      descripcion: `Compra de ${etiqueta} (${referenciaProveedor}).`,
+      descripcion: `Compra de ${etiqueta} (${referenciaProveedor}${referenciaOrigen}).`,
       encargado: responsable,
       origen: 'sistema',
       origenModulo: 'bloques',
@@ -168,7 +170,7 @@ export function buildGastosCompraMateriaPrima(
       costo: normalizeCurrency(bloque.costoTransporte, 'El transporte del bloque debe ser mayor que 0.'),
       tipo: 'Transporte',
       flujo: 'Inventario',
-      descripcion: `Transporte de ${etiqueta} (${referenciaProveedor}).`,
+      descripcion: `Transporte de ${etiqueta} (${referenciaProveedor}${referenciaOrigen}).`,
       encargado: responsable,
       origen: 'sistema',
       origenModulo: 'bloques',

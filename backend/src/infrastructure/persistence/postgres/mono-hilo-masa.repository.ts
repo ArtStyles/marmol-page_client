@@ -26,44 +26,22 @@ function normalizeEstimadoItem(value: unknown): MonoHiloEstimadoDimension {
 
 function normalizeEstimados(value: unknown): MonoHiloEstimados {
   const raw = (value ?? {}) as Record<string, unknown>
-
-  return {
-    '40x40': normalizeEstimadoItem(raw['40x40']),
-    '60x40': normalizeEstimadoItem(raw['60x40']),
-    '80x40': normalizeEstimadoItem(raw['80x40']),
-    '160x60': normalizeEstimadoItem(raw['160x60']),
-    '160x65': normalizeEstimadoItem(raw['160x65']),
-  }
+  return Object.fromEntries(
+    Object.entries(raw).map(([dimension, estimado]) => [dimension, normalizeEstimadoItem(estimado)]),
+  ) as MonoHiloEstimados
 }
 
 function sanitizeEstimados(estimados: MonoHiloEstimados): MonoHiloEstimados {
-  return {
-    '40x40': {
-      ...estimados['40x40'],
-      losasEstimadas: Math.max(0, Math.trunc(estimados['40x40'].losasEstimadas)),
-      losasConsumidas: Math.max(0, Math.trunc(estimados['40x40'].losasConsumidas)),
-    },
-    '60x40': {
-      ...estimados['60x40'],
-      losasEstimadas: Math.max(0, Math.trunc(estimados['60x40'].losasEstimadas)),
-      losasConsumidas: Math.max(0, Math.trunc(estimados['60x40'].losasConsumidas)),
-    },
-    '80x40': {
-      ...estimados['80x40'],
-      losasEstimadas: Math.max(0, Math.trunc(estimados['80x40'].losasEstimadas)),
-      losasConsumidas: Math.max(0, Math.trunc(estimados['80x40'].losasConsumidas)),
-    },
-    '160x60': {
-      ...estimados['160x60'],
-      losasEstimadas: Math.max(0, Math.trunc(estimados['160x60'].losasEstimadas)),
-      losasConsumidas: Math.max(0, Math.trunc(estimados['160x60'].losasConsumidas)),
-    },
-    '160x65': {
-      ...estimados['160x65'],
-      losasEstimadas: Math.max(0, Math.trunc(estimados['160x65'].losasEstimadas)),
-      losasConsumidas: Math.max(0, Math.trunc(estimados['160x65'].losasConsumidas)),
-    },
-  }
+  return Object.fromEntries(
+    Object.entries(estimados).map(([dimension, estimado]) => [
+      dimension,
+      {
+        ...estimado,
+        losasEstimadas: Math.max(0, Math.trunc(estimado.losasEstimadas)),
+        losasConsumidas: Math.max(0, Math.trunc(estimado.losasConsumidas)),
+      },
+    ]),
+  ) as MonoHiloEstimados
 }
 
 function rowToMonoHiloMasa(row: Record<string, unknown>): MonoHiloMasa {

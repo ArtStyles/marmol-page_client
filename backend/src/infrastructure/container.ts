@@ -182,16 +182,48 @@ const permissionRepo = usePostgres
 export const getConfiguracionUseCase = new GetConfiguracionUseCase(configuracionPort)
 export const updateConfiguracionUseCase = new UpdateConfiguracionUseCase(configuracionPort)
 
-export const getBloquesUseCase = new GetBloquesUseCase(bloqueRepo)
-export const getBloqueByIdUseCase = new GetBloqueByIdUseCase(bloqueRepo)
+export const getBloquesUseCase = new GetBloquesUseCase(bloqueRepo, {
+  productoRepository: productoRepo,
+  monoHiloMasaRepository: monoHiloMasaRepo,
+  produccionRepository: produccionRepo,
+  mermaRepository: mermaRepo,
+  ventaRepository: ventaRepo,
+  gastoRepository: gastoRepo,
+})
+export const getBloqueByIdUseCase = new GetBloqueByIdUseCase(bloqueRepo, {
+  productoRepository: productoRepo,
+  monoHiloMasaRepository: monoHiloMasaRepo,
+  produccionRepository: produccionRepo,
+  mermaRepository: mermaRepo,
+  ventaRepository: ventaRepo,
+  gastoRepository: gastoRepo,
+})
 export const createBloqueUseCase = new CreateBloqueUseCase(
   bloqueRepo,
   productoRepo,
   inventarioMovimientoRepo,
   gastoRepo,
+  monoHiloMasaRepo,
+  produccionRepo,
+  mermaRepo,
+  ventaRepo,
 )
-export const updateBloqueUseCase = new UpdateBloqueUseCase(bloqueRepo)
-export const deleteBloqueUseCase = new DeleteBloqueUseCase(bloqueRepo)
+export const updateBloqueUseCase = new UpdateBloqueUseCase(bloqueRepo, {
+  productoRepository: productoRepo,
+  monoHiloMasaRepository: monoHiloMasaRepo,
+  produccionRepository: produccionRepo,
+  mermaRepository: mermaRepo,
+  ventaRepository: ventaRepo,
+  gastoRepository: gastoRepo,
+})
+export const deleteBloqueUseCase = new DeleteBloqueUseCase(bloqueRepo, {
+  productoRepository: productoRepo,
+  monoHiloMasaRepository: monoHiloMasaRepo,
+  produccionRepository: produccionRepo,
+  mermaRepository: mermaRepo,
+  ventaRepository: ventaRepo,
+  gastoRepository: gastoRepo,
+})
 
 export const getProductosUseCase = new GetProductosUseCase(productoRepo)
 export const getProductoByIdUseCase = new GetProductoByIdUseCase(productoRepo)
@@ -227,7 +259,14 @@ export const createProduccionUseCase = new CreateProduccionUseCase(
   trabajadorRepo,
   configuracionPort,
 )
-export const approveProduccionTallerUseCase = new ApproveProduccionTallerUseCase(produccionRepo)
+export const approveProduccionTallerUseCase = new ApproveProduccionTallerUseCase(
+  produccionRepo,
+  productoRepo,
+  monoHiloMasaRepo,
+  produccionTrabajadorRepo,
+  trabajadorRepo,
+  configuracionPort,
+)
 export const approveEntradaProduccionAlmacenUseCase = new ApproveEntradaProduccionAlmacenUseCase(
   produccionRepo,
   bloqueRepo,
@@ -238,8 +277,22 @@ export const cancelMonoHiloProduccionUseCase = new CancelMonoHiloProduccionUseCa
   produccionRepo,
   monoHiloMasaRepo,
 )
-export const updateProduccionUseCase = new UpdateProduccionUseCase(produccionRepo)
-export const deleteProduccionUseCase = new DeleteProduccionUseCase(produccionRepo)
+export const updateProduccionUseCase = new UpdateProduccionUseCase(
+  produccionRepo,
+  productoRepo,
+  monoHiloMasaRepo,
+  produccionTrabajadorRepo,
+  trabajadorRepo,
+  configuracionPort,
+)
+export const deleteProduccionUseCase = new DeleteProduccionUseCase(
+  produccionRepo,
+  productoRepo,
+  monoHiloMasaRepo,
+  produccionTrabajadorRepo,
+  trabajadorRepo,
+  configuracionPort,
+)
 
 export const getProduccionTrabajadoresUseCase = new GetProduccionTrabajadoresUseCase(produccionTrabajadorRepo)
 export const getProduccionTrabajadorByIdUseCase = new GetProduccionTrabajadorByIdUseCase(produccionTrabajadorRepo)

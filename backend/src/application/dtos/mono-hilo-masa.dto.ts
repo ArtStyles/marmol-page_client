@@ -25,6 +25,7 @@ export interface UpdateMonoHiloMasaUbicacionDto {
 
 export interface ConsumeMonoHiloParaPicadoDto {
   bloqueId: string
+  masaId?: string
   dimension: Dimension
   cantidadLosas: number
 }
