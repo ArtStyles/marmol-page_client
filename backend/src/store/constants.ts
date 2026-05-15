@@ -22,3 +22,11 @@ export const PRECIOS_M2_DEFAULT: Record<Dimension, { crudo: number; pulido: numb
   '160x60': { crudo: 160, pulido: 220 },
   '160x65': { crudo: 160, pulido: 220 },
 }
+
+export const COSTOS_ANALISIS_ESTADO_DEFAULT = {
+  crudo: 0,
+  escuadrado: 0,
+  pulido: 0,
+} as const
+
+export const COSTO_RESINA_LITRO_DEFAULT = 0
