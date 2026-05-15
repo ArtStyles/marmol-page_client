@@ -7,11 +7,11 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { AdminShell, AdminPanelCard } from '@/components/admin/admin-shell'
 import { Card, CardContent } from '@/components/ui/card'
-import { dimensiones } from '@/lib/data'
 import {
-  DIMENSIONES_PLANCHA,
   DIMENSIONES_PISO,
   losasAMetros,
+  normalizeDimension,
+  parseDimension,
   type BloqueOLote,
   type Dimension,
 } from '@/lib/types'
@@ -50,8 +50,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
+import { BloquesTrazabilidadSection } from './feature/components/bloques-trazabilidad-section'
 
-type LoteSeleccionKey = Dimension
+const LOTE_SELECCION_PLANCHA_KEY = 'plancha' as const
+
+type LoteSeleccionPisoKey = (typeof DIMENSIONES_PISO)[number]
+type LoteSeleccionKey = LoteSeleccionPisoKey | typeof LOTE_SELECCION_PLANCHA_KEY
 
 type LoteSeleccionValores = {
   metrosComprados: number
@@ -63,34 +67,30 @@ type LoteSeleccionTouched = {
   costo: boolean
 }
 
-const LOTE_SELECCION_OPCIONES: LoteSeleccionKey[] = [...DIMENSIONES_PISO, ...DIMENSIONES_PLANCHA]
+type LotePlanchaDraft = {
+  largo: string
+  ancho: string
+}
+
+const LOTE_SELECCION_OPCIONES: LoteSeleccionKey[] = [...DIMENSIONES_PISO, LOTE_SELECCION_PLANCHA_KEY]
 
 const LOTE_SELECCION_CONFIG: Record<
   LoteSeleccionKey,
   {
     label: string
-    dimensionBase: Dimension
   }
 > = {
   '40x40': {
     label: '40x40',
-    dimensionBase: '40x40',
   },
   '60x40': {
     label: '60x40',
-    dimensionBase: '60x40',
   },
   '80x40': {
     label: '80x40',
-    dimensionBase: '80x40',
   },
-  '160x60': {
-    label: 'Plancha (160x60)',
-    dimensionBase: '160x60',
-  },
-  '160x65': {
-    label: 'Plancha (160x65)',
-    dimensionBase: '160x65',
+  plancha: {
+    label: 'Plancha',
   },
 }
 
@@ -98,17 +98,72 @@ const createLoteValoresIniciales = (): Record<LoteSeleccionKey, LoteSeleccionVal
   '40x40': { metrosComprados: 0, costo: 0 },
   '60x40': { metrosComprados: 0, costo: 0 },
   '80x40': { metrosComprados: 0, costo: 0 },
-  '160x60': { metrosComprados: 0, costo: 0 },
-  '160x65': { metrosComprados: 0, costo: 0 },
+  plancha: { metrosComprados: 0, costo: 0 },
 })
 
 const createLoteTouchedInicial = (): Record<LoteSeleccionKey, LoteSeleccionTouched> => ({
   '40x40': { metrosComprados: false, costo: false },
   '60x40': { metrosComprados: false, costo: false },
   '80x40': { metrosComprados: false, costo: false },
-  '160x60': { metrosComprados: false, costo: false },
-  '160x65': { metrosComprados: false, costo: false },
+  plancha: { metrosComprados: false, costo: false },
 })
+
+const createPlanchaDraftInicial = (): LotePlanchaDraft => ({
+  largo: '',
+  ancho: '',
+})
+
+const splitPlanchaDimension = (dimension: string): LotePlanchaDraft => {
+  const normalized = dimension.trim().toLowerCase().replace(/\s+/g, '')
+  const separatorIndex = normalized.indexOf('x')
+
+  if (separatorIndex < 0) {
+    return { largo: normalized, ancho: '' }
+  }
+
+  return {
+    largo: normalized.slice(0, separatorIndex),
+    ancho: normalized.slice(separatorIndex + 1),
+  }
+}
+
+const buildPlanchaDimension = (largoRaw: string, anchoRaw: string): Dimension => {
+  const largo = largoRaw.trim().replace(',', '.')
+  const ancho = anchoRaw.trim().replace(',', '.')
+
+  if (!largo && !ancho) return ''
+  if (!largo) return `x${ancho}`
+  if (!ancho) return `${largo}x`
+
+  return normalizeDimension(`${largo}x${ancho}`)
+}
+
+const isLoteSeleccionPisoKey = (
+  dimension: Dimension | null | undefined,
+): dimension is LoteSeleccionPisoKey => {
+  if (!dimension) return false
+  return DIMENSIONES_PISO.includes(normalizeDimension(dimension) as LoteSeleccionPisoKey)
+}
+
+const resolveLoteDimensionBase = (
+  option: LoteSeleccionKey,
+  planchaDimension: Dimension,
+): Dimension => (option === LOTE_SELECCION_PLANCHA_KEY ? planchaDimension : option)
+
+const resolveLoteSeleccionKey = (dimension: Dimension | null | undefined): LoteSeleccionKey => {
+  if (!dimension) return '60x40'
+  return isLoteSeleccionPisoKey(dimension)
+    ? (normalizeDimension(dimension) as LoteSeleccionPisoKey)
+    : LOTE_SELECCION_PLANCHA_KEY
+}
+
+const resolveLoteOptionLabel = (option: LoteSeleccionKey, planchaDimension: Dimension): string => {
+  if (option !== LOTE_SELECCION_PLANCHA_KEY) {
+    return LOTE_SELECCION_CONFIG[option].label
+  }
+
+  return parseDimension(planchaDimension) ? `Plancha (${planchaDimension})` : 'Plancha'
+}
 
 const roundCurrency = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100
 
@@ -116,13 +171,15 @@ const distribuirTransporteLote = (
   opciones: LoteSeleccionKey[],
   valores: Record<LoteSeleccionKey, LoteSeleccionValores>,
   transporteTotal: number,
+  planchaDimension: Dimension,
 ): Record<LoteSeleccionKey, number> => {
   const cantidades = opciones.map((option) => {
     const cantidadLosas = Math.max(0, Math.trunc(valores[option].metrosComprados))
+    const dimensionBase = resolveLoteDimensionBase(option, planchaDimension)
     return {
       option,
       cantidadLosas,
-      metrosCuadrados: losasAMetros(cantidadLosas, LOTE_SELECCION_CONFIG[option].dimensionBase),
+      metrosCuadrados: losasAMetros(cantidadLosas, dimensionBase),
     }
   })
 
@@ -194,8 +251,13 @@ export default function BloquesPage() {
   const [loteTouched, setLoteTouched] = useState<Record<LoteSeleccionKey, LoteSeleccionTouched>>(
     createLoteTouchedInicial,
   )
+  const [lotePlanchaDraft, setLotePlanchaDraft] = useState<LotePlanchaDraft>(
+    createPlanchaDraftInicial,
+  )
 
   const isCreatingLoteMulti = formData.tipo === 'Lote' && !editingBloque
+  const lotePlanchaDimension = buildPlanchaDimension(lotePlanchaDraft.largo, lotePlanchaDraft.ancho)
+  const loteDimensionKind = isLoteSeleccionPisoKey(formData.dimensionBase) ? 'Piso' : 'Plancha'
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -234,6 +296,7 @@ export default function BloquesPage() {
   }, [])
 
   const canWriteBloques = currentUser ? hasPermission(currentUser, 'bloques:write') : false
+  const canReadVentas = currentUser ? hasPermission(currentUser, 'ventas:read') : false
   const today = new Date().toISOString().split('T')[0]
 
   const filteredBloques = useMemo(
@@ -286,7 +349,7 @@ export default function BloquesPage() {
 
   const rightPanel = (
     <div className="space-y-4">
-      <AdminPanelCard title="Resumen materia prima" meta={`${bloques.length} registros`}>
+      <AdminPanelCard title="Resumen bloques y lotes" meta={`${bloques.length} registros`}>
         <div className="space-y-3 text-sm text-slate-700">
           <div className="flex items-center justify-between">
             <span>Activos</span>
@@ -384,6 +447,12 @@ export default function BloquesPage() {
     setActionError(null)
     setIsSaving(true)
 
+    if (formData.tipo === 'Lote' && parseDimension(formData.dimensionBase) === null) {
+      setActionError('Debes indicar una medida valida para el lote.')
+      setIsSaving(false)
+      return
+    }
+
     if (editingBloque) {
       if (!canModify(editingBloque.fechaIngreso)) {
         setIsSaving(false)
@@ -427,9 +496,17 @@ export default function BloquesPage() {
 
         if (opcionesSinCantidad.length > 0) {
           const etiquetas = opcionesSinCantidad
-            .map((option) => LOTE_SELECCION_CONFIG[option].label)
+            .map((option) => resolveLoteOptionLabel(option, lotePlanchaDimension))
             .join(', ')
           setActionError(`Completa la cantidad de losas para: ${etiquetas}.`)
+          return
+        }
+
+        if (
+          loteSeleccionado.includes(LOTE_SELECCION_PLANCHA_KEY) &&
+          parseDimension(lotePlanchaDimension) === null
+        ) {
+          setActionError('Completa largo y ancho validos para la plancha.')
           return
         }
 
@@ -437,17 +514,18 @@ export default function BloquesPage() {
           loteSeleccionado,
           loteValores,
           formData.costoTransporte,
+          lotePlanchaDimension,
         )
         const nuevosLotes: BloqueOLote[] = []
 
         for (const option of loteSeleccionado) {
-          const optionConfig = LOTE_SELECCION_CONFIG[option]
           const optionValores = loteValores[option]
           const cantidadLosas = Math.max(0, Math.trunc(optionValores.metrosComprados))
+          const dimensionBase = resolveLoteDimensionBase(option, lotePlanchaDimension)
 
           const newBloque = await createBloque({
             tipo: 'Lote',
-            dimensionBase: optionConfig.dimensionBase,
+            dimensionBase,
             costo: optionValores.costo,
             costoTransporte: transporteDistribuido[option] ?? 0,
             metrosComprados: cantidadLosas,
@@ -487,13 +565,14 @@ export default function BloquesPage() {
   const handleEdit = (bloque: BloqueOLote) => {
     if (!canModify(bloque.fechaIngreso) || bloque.canEdit === false || isBloqueVendido(bloque)) return
     setEditingBloque(bloque)
-    const dimensionEditable =
-      bloque.dimensionBase && bloque.dimensionBase in LOTE_SELECCION_CONFIG
-        ? (bloque.dimensionBase as LoteSeleccionKey)
-        : '60x40'
+    const dimensionEditable = resolveLoteSeleccionKey(bloque.dimensionBase)
+    const planchaDraftInicial =
+      bloque.tipo === 'Lote' && bloque.dimensionBase && !isLoteSeleccionPisoKey(bloque.dimensionBase)
+        ? splitPlanchaDimension(bloque.dimensionBase)
+        : createPlanchaDraftInicial()
     setFormData({
       tipo: bloque.tipo,
-      dimensionBase: bloque.dimensionBase ?? dimensionEditable,
+      dimensionBase: bloque.dimensionBase ?? '60x40',
       metrosComprados: bloque.metrosComprados,
       costo: bloque.costo,
       costoTransporte: bloque.costoTransporte,
@@ -526,6 +605,7 @@ export default function BloquesPage() {
 
     setLoteValores(loteValoresIniciales)
     setLoteTouched(loteTouchedInicial)
+    setLotePlanchaDraft(planchaDraftInicial)
     setIsDialogOpen(true)
   }
 
@@ -567,6 +647,7 @@ export default function BloquesPage() {
     setLoteSeleccionado(['60x40'])
     setLoteValores(createLoteValoresIniciales())
     setLoteTouched(createLoteTouchedInicial())
+    setLotePlanchaDraft(createPlanchaDraftInicial())
     setIsDialogOpen(false)
   }
 
@@ -619,7 +700,10 @@ export default function BloquesPage() {
       <div className="space-y-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground font-sans">Materia prima</h1>
+            <h1 className="text-3xl font-bold text-foreground font-sans">Bloques y lotes</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Entrada de bloques/lotes y trazabilidad del flujo de mono hilo desde cada origen.
+            </p>
             {actionError ? <p className="mt-2 text-sm text-destructive">{actionError}</p> : null}
           </div>
 
@@ -669,7 +753,6 @@ export default function BloquesPage() {
                     <div className="grid gap-2 sm:grid-cols-2">
                       {LOTE_SELECCION_OPCIONES.map((option) => {
                         const checked = loteSeleccionado.includes(option)
-                        const optionConfig = LOTE_SELECCION_CONFIG[option]
                         return (
                           <label
                             key={option}
@@ -679,32 +762,119 @@ export default function BloquesPage() {
                               checked={checked}
                               onCheckedChange={(state) => toggleLoteSeleccion(option, state === true)}
                             />
-                            <span className="text-sm text-slate-700">{optionConfig.label}</span>
+                            <span className="text-sm text-slate-700">
+                              {resolveLoteOptionLabel(option, lotePlanchaDimension)}
+                            </span>
                           </label>
                         )
                       })}
                     </div>
                   </div>
                 ) : formData.tipo === 'Lote' ? (
-                  <div className="space-y-2">
-                    <Label>Medida base</Label>
-                    <Select
-                      value={formData.dimensionBase}
-                      onValueChange={(value: Dimension) =>
-                        setFormData({ ...formData, dimensionBase: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {dimensiones.map((dimensionValue) => (
-                          <SelectItem key={dimensionValue} value={dimensionValue}>
-                            {dimensionValue}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Tipo de medida</Label>
+                      <Select
+                        value={loteDimensionKind}
+                        onValueChange={(value: 'Piso' | 'Plancha') => {
+                          if (value === 'Piso') {
+                            setFormData((prev) => ({
+                              ...prev,
+                              dimensionBase: isLoteSeleccionPisoKey(prev.dimensionBase)
+                                ? normalizeDimension(prev.dimensionBase)
+                                : DIMENSIONES_PISO[0],
+                            }))
+                            return
+                          }
+
+                          setFormData((prev) => ({
+                            ...prev,
+                            dimensionBase: buildPlanchaDimension(
+                              lotePlanchaDraft.largo,
+                              lotePlanchaDraft.ancho,
+                            ),
+                          }))
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Piso">Piso</SelectItem>
+                          <SelectItem value="Plancha">Plancha</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {loteDimensionKind === 'Plancha' ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Largo (cm)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="160"
+                            value={lotePlanchaDraft.largo}
+                            onChange={(event) => {
+                              const nextDraft = {
+                                ...lotePlanchaDraft,
+                                largo: event.target.value,
+                              }
+                              setLotePlanchaDraft(nextDraft)
+                              setFormData((prev) => ({
+                                ...prev,
+                                dimensionBase: buildPlanchaDimension(nextDraft.largo, nextDraft.ancho),
+                              }))
+                            }}
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Ancho (cm)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="60"
+                            value={lotePlanchaDraft.ancho}
+                            onChange={(event) => {
+                              const nextDraft = {
+                                ...lotePlanchaDraft,
+                                ancho: event.target.value,
+                              }
+                              setLotePlanchaDraft(nextDraft)
+                              setFormData((prev) => ({
+                                ...prev,
+                                dimensionBase: buildPlanchaDimension(nextDraft.largo, nextDraft.ancho),
+                              }))
+                            }}
+                            required
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label>Medida base</Label>
+                        <Select
+                          value={isLoteSeleccionPisoKey(formData.dimensionBase) ? formData.dimensionBase : '60x40'}
+                          onValueChange={(value: Dimension) =>
+                            setFormData({ ...formData, dimensionBase: value })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DIMENSIONES_PISO.map((dimensionValue) => (
+                              <SelectItem key={dimensionValue} value={dimensionValue}>
+                                {dimensionValue}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                 ) : null}
 
@@ -759,16 +929,53 @@ export default function BloquesPage() {
                     ) : (
                       <div className="space-y-3">
                         {loteSeleccionado.map((option) => {
-                          const optionConfig = LOTE_SELECCION_CONFIG[option]
                           const optionValues = loteValores[option]
                           const optionTouched = loteTouched[option]
 
                           return (
                             <div key={option} className="space-y-3 rounded-xl border border-slate-200 p-3">
                               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                                {optionConfig.label}
+                                {resolveLoteOptionLabel(option, lotePlanchaDimension)}
                               </p>
                               <div className="grid gap-3 sm:grid-cols-2">
+                                {option === LOTE_SELECCION_PLANCHA_KEY ? (
+                                  <>
+                                    <div className="space-y-2">
+                                      <Label>Largo (cm)</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="160"
+                                        value={lotePlanchaDraft.largo}
+                                        onChange={(event) =>
+                                          setLotePlanchaDraft((prev) => ({
+                                            ...prev,
+                                            largo: event.target.value,
+                                          }))
+                                        }
+                                        required
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Ancho (cm)</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="60"
+                                        value={lotePlanchaDraft.ancho}
+                                        onChange={(event) =>
+                                          setLotePlanchaDraft((prev) => ({
+                                            ...prev,
+                                            ancho: event.target.value,
+                                          }))
+                                        }
+                                        required
+                                      />
+                                    </div>
+                                  </>
+                                ) : null}
                                 <div className="space-y-2">
                                   <Label>Cantidad losas</Label>
                                   <Input
@@ -984,6 +1191,12 @@ export default function BloquesPage() {
             )}
           </CardContent>
         </Card>
+
+        <BloquesTrazabilidadSection
+          blocks={bloques}
+          canReadVentas={canReadVentas}
+          searchTerm={searchTerm}
+        />
 
         <AlertDialog
           open={!!deleteTarget}
