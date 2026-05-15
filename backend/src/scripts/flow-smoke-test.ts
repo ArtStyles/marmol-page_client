@@ -88,6 +88,7 @@ async function main(): Promise<void> {
     const approveInventarioMovimientoUseCase = new ApproveInventarioMovimientoUseCase(
       inventarioMovimientoRepo,
       productoRepo,
+      monoHiloMasaRepo,
       bloqueRepo,
       ventaRepo,
       mermaRepo,
