@@ -18,7 +18,16 @@ type ConfigTab = 'empresa' | 'notificaciones' | 'tarifas' | 'seguridad'
 
 type EmpresaDraft = Pick<ConfiguracionSistema, 'nombreEmpresa' | 'email' | 'telefono' | 'direccion'>
 type NotificacionesDraft = Pick<ConfiguracionSistema, 'notificacionesEmail' | 'alertasStockBajo' | 'reportesVentas'>
-type TarifasDraft = Pick<ConfiguracionSistema, 'tarifasGlobales' | 'salariosFijosPorRol' | 'preciosM2' | 'monoHiloGrosorDiscoMm' | 'monoHiloEspesorLosaCm'>
+type TarifasDraft = Pick<
+  ConfiguracionSistema,
+  | 'tarifasGlobales'
+  | 'salariosFijosPorRol'
+  | 'preciosM2'
+  | 'costosAnalisisEstado'
+  | 'costoResinaLitro'
+  | 'monoHiloGrosorDiscoMm'
+  | 'monoHiloEspesorLosaCm'
+>
 
 type SecuritySettings = {
   twoFactorAuth: boolean
@@ -66,6 +75,8 @@ const createTarifasDraft = (value: ConfiguracionSistema): TarifasDraft => ({
     '160x60': { ...value.preciosM2['160x60'] },
     '160x65': { ...value.preciosM2['160x65'] },
   },
+  costosAnalisisEstado: { ...value.costosAnalisisEstado },
+  costoResinaLitro: value.costoResinaLitro,
   monoHiloGrosorDiscoMm: value.monoHiloGrosorDiscoMm,
   monoHiloEspesorLosaCm: value.monoHiloEspesorLosaCm,
 })
@@ -174,6 +185,19 @@ export default function ConfiguracionPage() {
     }))
   }
 
+  const updateCostoAnalisisEstado = (
+    estado: keyof ConfiguracionSistema['costosAnalisisEstado'],
+    value: number,
+  ) => {
+    setTarifasDraft((prev) => ({
+      ...prev,
+      costosAnalisisEstado: {
+        ...prev.costosAnalisisEstado,
+        [estado]: value,
+      },
+    }))
+  }
+
   const updateSalarioFijo = (rol: RolConSalarioFijo, value: number) => {
     setTarifasDraft((prev) => {
       const etiquetaObjetivo = getRoleLabel(rol)
@@ -250,6 +274,33 @@ export default function ConfiguracionPage() {
           <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
             <span>Espesor losa</span>
             <span className="font-semibold">{config.monoHiloEspesorLosaCm} cm</span>
+          </div>
+        </div>
+      </AdminPanelCard>
+
+      <AdminPanelCard title="Analisis por estado" meta="Estrategico">
+        <div className="space-y-2 text-sm text-slate-700">
+          <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
+            <span>Costo crudo / m2</span>
+            <span className="font-semibold">
+              ${config.costosAnalisisEstado.crudo.toLocaleString()}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
+            <span>Costo escuadrado / m2</span>
+            <span className="font-semibold">
+              ${config.costosAnalisisEstado.escuadrado.toLocaleString()}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
+            <span>Costo pulido / m2</span>
+            <span className="font-semibold">
+              ${config.costosAnalisisEstado.pulido.toLocaleString()}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
+            <span>Costo resina / L</span>
+            <span className="font-semibold">${config.costoResinaLitro.toLocaleString()}</span>
           </div>
         </div>
       </AdminPanelCard>
@@ -467,6 +518,63 @@ export default function ConfiguracionPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-medium">Analisis por estado y resina</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Se usa en la ficha del bloque para estimar costos, rentabilidad por estado y
+                    costo directo de resina.
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Costo crudo por m2</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={tarifasDraft.costosAnalisisEstado.crudo}
+                        onChange={(e) => updateCostoAnalisisEstado('crudo', Number(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Costo escuadrado por m2</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={tarifasDraft.costosAnalisisEstado.escuadrado}
+                        onChange={(e) =>
+                          updateCostoAnalisisEstado('escuadrado', Number(e.target.value))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Costo pulido por m2</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={tarifasDraft.costosAnalisisEstado.pulido}
+                        onChange={(e) => updateCostoAnalisisEstado('pulido', Number(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Costo de resina por litro</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={tarifasDraft.costoResinaLitro}
+                        onChange={(e) =>
+                          setTarifasDraft((prev) => ({
+                            ...prev,
+                            costoResinaLitro: Number(e.target.value),
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
 
