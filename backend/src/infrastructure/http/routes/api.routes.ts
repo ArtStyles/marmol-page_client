@@ -30,7 +30,9 @@ import {
   approveInventarioMovimientoSchema,
   rejectInventarioMovimientoSchema,
   createSalidaProcesoInventarioSchema,
+  createSalidaAjusteInventarioSchema,
   createRetornoProcesoInventarioSchema,
+  createRetornoProcesoMasaInventarioSchema,
   createMonoHiloMasasSchema,
   registerMonoHiloProduccionSchema,
   updateMonoHiloMasaUbicacionSchema,
@@ -133,10 +135,22 @@ api.post(
   asyncHandler(inventarioMovimientoCtrl.createSalidaProcesoInventario),
 )
 api.post(
+  '/inventario-movimientos/ajuste-salida',
+  requirePermission('inventario:approve'),
+  validateBody(createSalidaAjusteInventarioSchema),
+  asyncHandler(inventarioMovimientoCtrl.createSalidaAjusteInventario),
+)
+api.post(
   '/inventario-movimientos/proceso-retorno',
   requirePermission('inventario:write'),
   validateBody(createRetornoProcesoInventarioSchema),
   asyncHandler(inventarioMovimientoCtrl.createRetornoProcesoInventario),
+)
+api.post(
+  '/inventario-movimientos/proceso-retorno-masa',
+  requirePermission('inventario:write'),
+  validateBody(createRetornoProcesoMasaInventarioSchema),
+  asyncHandler(inventarioMovimientoCtrl.createRetornoProcesoMasaInventario),
 )
 api.patch(
   '/inventario-movimientos/:id/aprobar',

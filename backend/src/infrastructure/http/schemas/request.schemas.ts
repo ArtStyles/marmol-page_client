@@ -17,7 +17,16 @@ const dimensionSchema = z
 const bloqueDimensionSchema = z.union([dimensionSchema, z.null()])
 const tipoProductoSchema = z.enum(['Piso', 'Plancha'])
 const estadoCatalogoSchema = z.enum(['Crudo', 'Pulido'])
-const estadoInventarioSchema = z.enum(['Picado', 'Escuadrado', 'Devastado', 'Resinado', 'Pulido'])
+const estadoInventarioSchema = z.enum([
+  'Picado',
+  'Escuadrado',
+  'Devastado',
+  'Resinado',
+  'Pulido',
+  'Recuperado',
+  'Pendiente',
+  'Redimensionado',
+])
 const ubicacionInventarioSchema = z.enum(['almacen', 'proceso'])
 const ubicacionMasaMonoHiloSchema = z.enum(['almacen', 'proceso'])
 const tipoEquipoSchema = z.enum(['Pulidora', 'Cortadora', 'Escuadradora'])
@@ -291,6 +300,14 @@ export const updateConfiguracionSchema = z.object({
   tarifasGlobales: z.record(accionLosaSchema, z.number()).optional(),
   salariosFijosPorRol: z.record(z.string(), z.number()).optional(),
   preciosM2: z.record(z.string(), z.object({ crudo: z.number(), pulido: z.number() })).optional(),
+  costosAnalisisEstado: z
+    .object({
+      crudo: z.number().nonnegative(),
+      escuadrado: z.number().nonnegative(),
+      pulido: z.number().nonnegative(),
+    })
+    .optional(),
+  costoResinaLitro: z.number().nonnegative().optional(),
   monoHiloGrosorDiscoMm: z.number().positive().optional(),
   monoHiloEspesorLosaCm: z.number().positive().optional(),
   nombreEmpresa: z.string().optional(),
@@ -473,6 +490,28 @@ export const createRetornoProcesoInventarioSchema = z.object({
   motivo: z.string().min(5),
   estadoObjetivo: estadoInventarioSchema.optional(),
 })
+
+export const createRetornoProcesoMasaInventarioSchema = z.object({
+  masaId: z.string().min(1),
+  motivo: z.string().min(5),
+})
+
+export const createSalidaAjusteInventarioSchema = z
+  .object({
+    productoId: z.string().min(1),
+    cantidadLosas: z.number().int().positive(),
+    destino: z.enum(['Redimensión', 'Otro']),
+    motivo: z.string().trim(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.motivo.length < 5) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'La observación es obligatoria y debe tener al menos 5 caracteres para este tipo de salida.',
+        path: ['motivo'],
+      })
+    }
+  })
 
 // ----- Historial de pagos -----
 export const createHistorialPagoSchema = z.object({

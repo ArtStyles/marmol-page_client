@@ -100,7 +100,9 @@ import {
   GetInventarioMovimientosUseCase,
   GetInventarioMovimientoByIdUseCase,
   CreateSalidaProcesoInventarioUseCase,
+  CreateSalidaAjusteInventarioUseCase,
   CreateRetornoProcesoInventarioUseCase,
+  CreateRetornoProcesoMasaInventarioUseCase,
   ApproveInventarioMovimientoUseCase,
   RejectInventarioMovimientoUseCase,
 } from '../application/use-cases/inventario-movimientos/inventario-movimiento.use-cases.js'
@@ -300,7 +302,10 @@ export const createProduccionTrabajadorUseCase = new CreateProduccionTrabajadorU
 export const updateProduccionTrabajadorUseCase = new UpdateProduccionTrabajadorUseCase(produccionTrabajadorRepo)
 export const deleteProduccionTrabajadorUseCase = new DeleteProduccionTrabajadorUseCase(produccionTrabajadorRepo)
 
-export const getMonoHiloMasasUseCase = new GetMonoHiloMasasUseCase(monoHiloMasaRepo)
+export const getMonoHiloMasasUseCase = new GetMonoHiloMasasUseCase(
+  monoHiloMasaRepo,
+  produccionRepo,
+)
 export const createMonoHiloMasasUseCase = new CreateMonoHiloMasasUseCase(
   monoHiloMasaRepo,
   bloqueRepo,
@@ -390,13 +395,20 @@ export const createSalidaProcesoInventarioUseCase = new CreateSalidaProcesoInven
   inventarioMovimientoRepo,
   productoRepo,
 )
+export const createSalidaAjusteInventarioUseCase = new CreateSalidaAjusteInventarioUseCase(
+  inventarioMovimientoRepo,
+  productoRepo,
+)
 export const createRetornoProcesoInventarioUseCase = new CreateRetornoProcesoInventarioUseCase(
   inventarioMovimientoRepo,
   productoRepo,
 )
+export const createRetornoProcesoMasaInventarioUseCase =
+  new CreateRetornoProcesoMasaInventarioUseCase(inventarioMovimientoRepo, monoHiloMasaRepo)
 export const approveInventarioMovimientoUseCase = new ApproveInventarioMovimientoUseCase(
   inventarioMovimientoRepo,
   productoRepo,
+  monoHiloMasaRepo,
   bloqueRepo,
   ventaRepo,
   mermaRepo,
