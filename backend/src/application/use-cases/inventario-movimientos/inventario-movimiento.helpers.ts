@@ -16,6 +16,10 @@ interface ResolvedSalidaDetalle {
   cantidadLosas: number
 }
 
+function isProductoInventarioDetalle(detalle: InventarioMovimientoDetalle): boolean {
+  return detalle.detalleTipo !== 'masa' && !detalle.masaId
+}
+
 function round2(value: number): number {
   return Number(value.toFixed(2))
 }
@@ -342,7 +346,13 @@ async function resolvePendingSalidaConsumption(
     return new Map()
   }
 
-  const detallesPendientes = movimientosPendientes.flatMap((movimiento) => movimiento.detalles)
+  const detallesPendientes = movimientosPendientes.flatMap((movimiento) =>
+    movimiento.detalles.filter(isProductoInventarioDetalle),
+  )
+  if (detallesPendientes.length === 0) {
+    return new Map()
+  }
+
   const resolved = await resolveSalidaDetalles(detallesPendientes, productoRepository)
   const consumoPendiente = new Map<string, { losas: number; metros: number }>()
 
