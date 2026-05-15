@@ -30,9 +30,11 @@ export type PicarUsageOption = {
   masaCodigo: string
   origenId: string
   origenCodigo: string
-  tipo: TipoProducto
-  dimension: Dimension
-  disponibleLosas: number
+  largoCm: number
+  anchoCm: number
+  profundidadCm: number
+  pisoDimensions: Dimension[]
+  defaultPlanchaDimension: Dimension
 }
 
 export type ActionUsageComboOption = {

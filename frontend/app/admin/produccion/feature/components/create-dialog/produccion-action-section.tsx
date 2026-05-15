@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import {
   TIPO_EQUIPO_POR_ACCION,
+  normalizeDimension,
   type AccionLosa,
   type Dimension,
   type Equipo,
@@ -53,6 +54,31 @@ const triggerSurfaceClasses =
 
 const compactFieldTriggerClasses = `h-8 w-full ${triggerSurfaceClasses}`
 const regularFieldTriggerClasses = `h-9 w-full ${triggerSurfaceClasses}`
+
+const splitPlanchaDimension = (dimension: string): { largo: string; ancho: string } => {
+  const normalized = dimension.trim().toLowerCase().replace(/\s+/g, '')
+  const separatorIndex = normalized.indexOf('x')
+
+  if (separatorIndex < 0) {
+    return { largo: normalized, ancho: '' }
+  }
+
+  return {
+    largo: normalized.slice(0, separatorIndex),
+    ancho: normalized.slice(separatorIndex + 1),
+  }
+}
+
+const buildPlanchaDimension = (largoRaw: string, anchoRaw: string): Dimension => {
+  const largo = largoRaw.trim().replace(',', '.')
+  const ancho = anchoRaw.trim().replace(',', '.')
+
+  if (!largo && !ancho) return ''
+  if (!largo) return `x${ancho}`
+  if (!ancho) return `${largo}x`
+
+  return normalizeDimension(`${largo}x${ancho}`)
+}
 
 type ProduccionActionSectionProps = {
   accion: AccionLosa
@@ -133,20 +159,14 @@ export function ProduccionActionSection({
           const picarSelectedDimension = uso.dimensiones[0]?.dimension
           const selectedPicarOption = isPicar
             ? picarUsageOptions.find(
-                (option) =>
-                  option.masaId === uso.masaId &&
-                  option.tipo === uso.tipo &&
-                  option.dimension === picarSelectedDimension,
-              ) ??
-              picarUsageOptions.find(
-                (option) =>
-                  !uso.masaId &&
-                  option.origenId === uso.origenId &&
-                  option.tipo === uso.tipo &&
-                  option.dimension === picarSelectedDimension,
-              )
+                (option) => option.masaId === uso.masaId && option.origenId === uso.origenId,
+              ) ?? picarUsageOptions.find((option) => option.masaId === uso.masaId)
             : null
           const picarSelectValue = selectedPicarOption?.value ?? ''
+          const picarTipoValue: TipoProducto | '' = isPicar
+            ? uso.tipo || (selectedPicarOption?.pisoDimensions.length ? 'Piso' : 'Plancha')
+            : ''
+          const picarPisoDimensions = selectedPicarOption?.pisoDimensions ?? []
           const selectedProcessOption = !isPicar
             ? usageComboOptions.find(
                 (option) =>
@@ -178,7 +198,9 @@ export function ProduccionActionSection({
               <div
                 className={cn(
                   'mt-3 grid gap-3 md:grid-cols-2',
-                  isResinar
+                  isPicar
+                    ? 'xl:grid-cols-[minmax(280px,1.4fr)_150px_170px_280px] xl:items-end'
+                    : isResinar
                     ? 'lg:grid-cols-[minmax(260px,1.4fr)_280px] lg:items-end'
                     : 'lg:grid-cols-[minmax(260px,1.4fr)_170px_280px] lg:items-end',
                 )}
@@ -186,7 +208,7 @@ export function ProduccionActionSection({
                 {isPicar ? (
                   <div className="space-y-1">
                     <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
-                      Masa / Bloque / Tipo / Dimension
+                      Masa / Bloque
                     </p>
                     <Select
                       value={picarSelectValue}
@@ -194,25 +216,35 @@ export function ProduccionActionSection({
                         const option = picarUsageOptions.find((item) => item.value === value)
                         if (!option) return
 
-                        const dimensionActual =
-                          uso.dimensiones.find(
-                            (dimensionUso) => dimensionUso.dimension === option.dimension,
-                          ) ?? uso.dimensiones[0]
+                        const dimensionActual = uso.dimensiones[0]
+                        const tipoSiguiente: TipoProducto =
+                          uso.tipo === 'Plancha' || option.pisoDimensions.length === 0
+                            ? 'Plancha'
+                            : 'Piso'
+                        const dimensionSiguiente =
+                          tipoSiguiente === 'Plancha'
+                            ? dimensionActual?.dimension &&
+                              !option.pisoDimensions.includes(dimensionActual.dimension)
+                              ? dimensionActual.dimension
+                              : option.defaultPlanchaDimension
+                            : option.pisoDimensions.includes(dimensionActual?.dimension ?? '')
+                              ? (dimensionActual?.dimension ?? option.pisoDimensions[0])
+                              : option.pisoDimensions[0]
 
                         updateUsage(accion, uso.id, {
                           masaId: option.masaId,
                           origenId: option.origenId,
-                          tipo: option.tipo,
+                          tipo: tipoSiguiente,
                           dimensiones: [
                             dimensionActual
-                              ? { ...dimensionActual, dimension: option.dimension }
-                              : createUsageDimensionRow(option.dimension),
+                              ? { ...dimensionActual, dimension: dimensionSiguiente }
+                              : createUsageDimensionRow(dimensionSiguiente),
                           ],
                         })
                       }}
                     >
                       <SelectTrigger size="sm" className={compactFieldTriggerClasses}>
-                        <SelectValue placeholder="Seleccionar masa y detalle" />
+                        <SelectValue placeholder="Seleccionar masa" />
                       </SelectTrigger>
                       <SelectContent>
                         {picarUsageOptions.length === 0 ? (
@@ -222,7 +254,7 @@ export function ProduccionActionSection({
                         ) : (
                           picarUsageOptions.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
-                              {`${option.origenCodigo} - Masa ${option.masaCodigo} - ${option.tipo} - ${option.dimension}`}
+                              {`${option.origenCodigo} - Masa ${option.masaCodigo}`}
                             </SelectItem>
                           ))
                         )}
@@ -276,6 +308,49 @@ export function ProduccionActionSection({
                     </Select>
                   </div>
                 )}
+
+                {isPicar ? (
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Tipo</p>
+                    <Select
+                      value={picarTipoValue}
+                      onValueChange={(value) => {
+                        if (!selectedPicarOption) return
+
+                        const tipoSiguiente = value as TipoProducto
+                        const dimensionActual = uso.dimensiones[0]
+                        const dimensionSiguiente =
+                          tipoSiguiente === 'Plancha'
+                            ? dimensionActual?.dimension &&
+                              !selectedPicarOption.pisoDimensions.includes(dimensionActual.dimension)
+                              ? dimensionActual.dimension
+                              : selectedPicarOption.defaultPlanchaDimension
+                            : selectedPicarOption.pisoDimensions.includes(dimensionActual?.dimension ?? '')
+                              ? (dimensionActual?.dimension ?? selectedPicarOption.pisoDimensions[0])
+                              : selectedPicarOption.pisoDimensions[0]
+
+                        updateUsage(accion, uso.id, {
+                          tipo: tipoSiguiente,
+                          dimensiones: [
+                            dimensionActual
+                              ? { ...dimensionActual, dimension: dimensionSiguiente }
+                              : createUsageDimensionRow(dimensionSiguiente),
+                          ],
+                        })
+                      }}
+                    >
+                      <SelectTrigger size="sm" className={compactFieldTriggerClasses}>
+                        <SelectValue placeholder="Seleccionar tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {picarPisoDimensions.length > 0 ? (
+                          <SelectItem value="Piso">Piso</SelectItem>
+                        ) : null}
+                        <SelectItem value="Plancha">Plancha</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
 
                 {!isResinar ? (
                   <div className="space-y-1">
@@ -360,6 +435,12 @@ export function ProduccionActionSection({
 
               {isPicar ? (
                 <div className="mt-3 space-y-1">
+                  {selectedPicarOption ? (
+                    <p className="text-[10px] text-slate-500">
+                      Cara util de la masa: {selectedPicarOption.largoCm}x{selectedPicarOption.anchoCm} cm,
+                      profundidad {selectedPicarOption.profundidadCm} cm.
+                    </p>
+                  ) : null}
                   <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
                     Observacion del registro
                   </p>
@@ -385,10 +466,100 @@ export function ProduccionActionSection({
                           dimensionIndex > 0 && 'border-t border-slate-200/70',
                         )}
                       >
+                        {(() => {
+                          const planchaDraft = splitPlanchaDimension(dimensionUso.dimension)
+
+                          return (
                         <div className="mb-2 flex items-center justify-between gap-2">
-                          <Badge variant="outline" className="bg-slate-50 text-slate-700">
-                            {dimensionUso.dimension}
-                          </Badge>
+                          <div className="min-w-0 flex-1">
+                            <p className="mb-1 text-[10px] uppercase tracking-[0.14em] text-slate-500">
+                              Dimension
+                            </p>
+                            {isPicar ? (
+                              uso.tipo === 'Plancha' ? (
+                                <div className="space-y-1">
+                                  <div className="grid max-w-[280px] grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                      <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
+                                        Largo
+                                      </p>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={planchaDraft.largo}
+                                        onChange={(event) =>
+                                          updateUsageDimension(accion, uso.id, dimensionUso.id, {
+                                            dimension: buildPlanchaDimension(
+                                              event.target.value,
+                                              planchaDraft.ancho,
+                                            ),
+                                          })
+                                        }
+                                        placeholder="160"
+                                        className="h-8"
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
+                                        Ancho
+                                      </p>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={planchaDraft.ancho}
+                                        onChange={(event) =>
+                                          updateUsageDimension(accion, uso.id, dimensionUso.id, {
+                                            dimension: buildPlanchaDimension(
+                                              planchaDraft.largo,
+                                              event.target.value,
+                                            ),
+                                          })
+                                        }
+                                        placeholder="60"
+                                        className="h-8"
+                                      />
+                                    </div>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500">
+                                    Para plancha puedes definir la medida. Debe caber en la masa y generar
+                                    disponibilidad estimada.
+                                  </p>
+                                </div>
+                              ) : (
+                                <Select
+                                  value={dimensionUso.dimension}
+                                  onValueChange={(value) =>
+                                    updateUsageDimension(accion, uso.id, dimensionUso.id, {
+                                      dimension: value,
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger size="sm" className="h-8 max-w-[220px]">
+                                    <SelectValue placeholder="Seleccionar dimension" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {picarPisoDimensions.length === 0 ? (
+                                      <p className="px-2 py-1.5 text-xs text-slate-500">
+                                        No hay formatos de piso disponibles.
+                                      </p>
+                                    ) : (
+                                      picarPisoDimensions.map((dimension) => (
+                                        <SelectItem key={dimension} value={dimension}>
+                                          {dimension}
+                                        </SelectItem>
+                                      ))
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              )
+                            ) : (
+                              <Badge variant="outline" className="bg-slate-50 text-slate-700">
+                                {dimensionUso.dimension}
+                              </Badge>
+                            )}
+                          </div>
                           <AdminButton
                             type="button"
                             variant="ghost"
@@ -401,6 +572,8 @@ export function ProduccionActionSection({
                             <X className="h-4 w-4" />
                           </AdminButton>
                         </div>
+                          )
+                        })()}
 
                         <div
                           className={cn(

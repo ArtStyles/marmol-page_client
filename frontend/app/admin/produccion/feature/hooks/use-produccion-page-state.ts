@@ -19,9 +19,12 @@ import { useProduccionStore } from '@/hooks/use-produccion'
 import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import {
   DIMENSIONES_PISO,
+  getMonoHiloLosasDisponibles,
   isPlanchaDimension,
+  isPisoDimension,
   isValidDimension,
   losasAMetros,
+  parseDimension,
   normalizeDimension,
   PLANCHA_DIMENSION,
   PLANCHA_DIMENSIONES,
@@ -74,11 +77,9 @@ const BASE_DIMENSION_OPTIONS: Dimension[] = [...DIMENSIONES_PISO, ...PLANCHA_DIM
 const isPlanchaDimensionAllowed = (dimension: Dimension): boolean =>
   isPlanchaDimension(dimension)
 
-const getMonoHiloLosasDisponibles = (masa: MonoHiloMasa, dimension: Dimension): number => {
-  const estimado = masa.estimados[dimension]
-  if (!estimado) return 0
-  return Math.max(0, estimado.losasEstimadas - estimado.losasConsumidas)
-}
+const buildDefaultPlanchaDimension = (masa: MonoHiloMasa): Dimension =>
+  PLANCHA_DIMENSIONES.find((dimension) => getMonoHiloLosasDisponibles(masa, dimension) > 0) ??
+  normalizeDimension(`${masa.largoCm}x${masa.anchoCm}`)
 
 const isProcessAction = (
   accion: AccionLosa,
@@ -268,50 +269,15 @@ export const useProduccionPageState = () => {
     [produccion],
   )
 
-  const stockMonoHiloPorClave = useMemo(() => {
-    const map = new Map<string, number>()
-
-    for (const masa of monoHiloMasasActivas) {
-      if (masa.ubicacion !== 'proceso') continue
-
-    for (const dimension of monoHiloDimensions) {
-        const disponibles = getMonoHiloLosasDisponibles(masa, dimension)
-        if (disponibles <= 0) continue
-
-        const key = `${masa.bloqueId}::${dimension}`
-        map.set(key, (map.get(key) ?? 0) + disponibles)
-      }
-    }
-
-    return map
-  }, [monoHiloMasasActivas])
-
-  const stockMonoHiloPorMasaDimension = useMemo(() => {
-    const map = new Map<string, number>()
-
-    for (const masa of monoHiloMasasActivas) {
-      if (masa.ubicacion !== 'proceso') continue
-
-      for (const dimension of monoHiloDimensions) {
-        const disponibles = getMonoHiloLosasDisponibles(masa, dimension)
-        if (disponibles <= 0) continue
-        map.set(`${masa.id}::${dimension}`, disponibles)
-      }
-    }
-
-    return map
-  }, [monoHiloMasasActivas])
-
   const origenesActivosParaPicar = useMemo(() => {
-    const idsConStock = new Set<string>()
-
-    for (const key of stockMonoHiloPorClave.keys()) {
-      const [bloqueId] = key.split('::')
-      if (bloqueId) idsConStock.add(bloqueId)
-    }
+    const idsConStock = new Set(
+      monoHiloMasasActivas
+        .filter((masa) => masa.ubicacion === 'proceso')
+        .map((masa) => masa.bloqueId),
+    )
 
     return bloquesActivosMonoHilo.filter((bloque) => idsConStock.has(bloque.id))
-  }, [bloquesActivosMonoHilo, stockMonoHiloPorClave])
+  }, [bloquesActivosMonoHilo, monoHiloMasasActivas])
 
   const stockProcesoDisponible = useMemo(
     () =>
@@ -375,8 +341,6 @@ export const useProduccionPageState = () => {
     const bloquesPorId = new Map(bloquesYLotes.map((bloque) => [bloque.id, bloque]))
     const origenesPermitidos = new Set(origenesActivosParaPicar.map((bloque) => bloque.id))
     const options: PicarUsageOption[] = []
-    const tiposPorDimension = (dimension: Dimension): TipoProducto[] =>
-      isPlanchaDimensionAllowed(dimension) ? ['Piso', 'Plancha'] : ['Piso']
 
     for (const masa of monoHiloMasasActivas) {
       if (masa.ubicacion !== 'proceso') continue
@@ -387,25 +351,23 @@ export const useProduccionPageState = () => {
         ? getBloqueCodigo(bloque)
         : masa.bloqueCodigo.trim() || masa.bloqueNombre.trim() || 'SIN-BLOQUE'
 
-    for (const dimension of monoHiloDimensions) {
-        const disponibleLosas = getMonoHiloLosasDisponibles(masa, dimension)
-        if (disponibleLosas <= 0) continue
+      const pisoDimensions = DIMENSIONES_PISO.filter(
+        (dimension) => getMonoHiloLosasDisponibles(masa, dimension) > 0,
+      )
+      const defaultPlanchaDimension = buildDefaultPlanchaDimension(masa)
 
-        const masaCodigo = masa.codigo.trim() || 'SIN-MASA'
-
-        for (const tipo of tiposPorDimension(dimension)) {
-          options.push({
-            value: `${masa.id}::${tipo}::${dimension}`,
-            masaId: masa.id,
-            masaCodigo,
-            origenId: masa.bloqueId,
-            origenCodigo,
-            tipo,
-            dimension,
-            disponibleLosas,
-          })
-        }
-      }
+      options.push({
+        value: masa.id,
+        masaId: masa.id,
+        masaCodigo: masa.codigo.trim() || 'SIN-MASA',
+        origenId: masa.bloqueId,
+        origenCodigo,
+        largoCm: masa.largoCm,
+        anchoCm: masa.anchoCm,
+        profundidadCm: masa.profundidadCm,
+        pisoDimensions,
+        defaultPlanchaDimension,
+      })
     }
 
     return options.sort((a, b) => {
@@ -415,10 +377,7 @@ export const useProduccionPageState = () => {
       const masaCompare = a.masaCodigo.localeCompare(b.masaCodigo)
       if (masaCompare !== 0) return masaCompare
 
-      const tipoCompare = a.tipo.localeCompare(b.tipo)
-      if (tipoCompare !== 0) return tipoCompare
-
-      return a.dimension.localeCompare(b.dimension)
+      return a.masaId.localeCompare(b.masaId)
     })
   }, [bloquesYLotes, monoHiloMasasActivas, origenesActivosParaPicar])
 
@@ -566,8 +525,7 @@ export const useProduccionPageState = () => {
   const normalizeUsageForPlancha = useCallback((uso: ActionUsageForm): ActionUsageForm => {
     if (uso.tipo !== 'Plancha') return uso
 
-    const baseDimension =
-      uso.dimensiones.find((item) => isPlanchaDimensionAllowed(item.dimension)) ?? uso.dimensiones[0]
+    const baseDimension = uso.dimensiones[0]
     if (!baseDimension) {
       return {
         ...uso,
@@ -575,17 +533,13 @@ export const useProduccionPageState = () => {
       }
     }
 
-    const normalizedDimension = isPlanchaDimensionAllowed(baseDimension.dimension)
-      ? baseDimension.dimension
-      : PLANCHA_DIMENSION
-
-    if (baseDimension.dimension === normalizedDimension && uso.dimensiones.length === 1) {
+    if (uso.dimensiones.length === 1) {
       return uso
     }
 
     return {
       ...uso,
-      dimensiones: [{ ...baseDimension, dimension: normalizedDimension }],
+      dimensiones: [baseDimension],
     }
   }, [])
 
@@ -601,23 +555,34 @@ export const useProduccionPageState = () => {
 
       if (accion === 'picar') {
         const resolveDisponibilidadMonoHilo = (dimensionItem: ProduccionDiaria['dimension']): number => {
+          if (!isValidDimension(dimensionItem)) return 0
           if (tipo === 'Plancha' && !isPlanchaDimensionAllowed(dimensionItem)) return 0
+          if (tipo === 'Piso' && !isPisoDimension(dimensionItem)) return 0
 
           if (masaId) {
-            return stockMonoHiloPorMasaDimension.get(`${masaId}::${dimensionItem}`) ?? 0
+            const masa = monoHiloMasasActivas.find((item) => item.id === masaId && item.ubicacion === 'proceso')
+            if (!masa) return 0
+            return getMonoHiloLosasDisponibles(masa, normalizeDimension(dimensionItem))
           }
 
-          return stockMonoHiloPorClave.get(`${origenId}::${dimensionItem}`) ?? 0
+          return monoHiloMasasActivas
+            .filter((masa) => masa.ubicacion === 'proceso' && masa.bloqueId === origenId)
+            .reduce(
+              (sum, masa) => sum + getMonoHiloLosasDisponibles(masa, normalizeDimension(dimensionItem)),
+              0,
+            )
         }
 
         if (!tipo) {
-      return monoHiloDimensions.reduce(
+          return monoHiloDimensions.reduce(
             (maxValue, dimensionItem) =>
               Math.max(maxValue, resolveDisponibilidadMonoHilo(dimensionItem)),
             0,
           )
         }
 
+        if (tipo === 'Plancha' && !isPlanchaDimensionAllowed(dimension)) return 0
+        if (tipo === 'Piso' && !isPisoDimension(dimension)) return 0
         const dimensionNormalizada = resolveDimensionByTipo(tipo, dimension)
         return resolveDisponibilidadMonoHilo(dimensionNormalizada)
       }
@@ -642,9 +607,11 @@ export const useProduccionPageState = () => {
         )
       }
 
+      if (tipo === 'Plancha' && !isPlanchaDimensionAllowed(dimension)) return 0
+      if (tipo === 'Piso' && !isPisoDimension(dimension)) return 0
       return resolveDisponibilidad(tipo, dimension)
     },
-    [stockMonoHiloPorClave, stockMonoHiloPorMasaDimension, stockProcesoPorClave],
+    [monoHiloDimensions, monoHiloMasasActivas, stockProcesoPorClave],
   )
 
   const filteredProduccion = produccionActiva.filter((registro) => {
@@ -744,6 +711,41 @@ export const useProduccionPageState = () => {
     [produccionActiva, formData.fecha],
   )
 
+  const buildPicarUsageFromOption = useCallback(
+    (
+      option: PicarUsageOption,
+      currentUsage?: ActionUsageForm,
+    ): ActionUsageForm => {
+      const tipoInicial: TipoProducto = currentUsage?.tipo === 'Plancha'
+        ? 'Plancha'
+        : option.pisoDimensions.length > 0
+          ? 'Piso'
+          : 'Plancha'
+      const dimensionActual = currentUsage?.dimensiones[0]
+      const dimensionInicial =
+        tipoInicial === 'Plancha'
+          ? dimensionActual && isPlanchaDimensionAllowed(dimensionActual.dimension)
+            ? normalizeDimension(dimensionActual.dimension)
+            : option.defaultPlanchaDimension
+          : option.pisoDimensions.includes(normalizeDimension(dimensionActual?.dimension ?? ''))
+            ? normalizeDimension(dimensionActual?.dimension ?? '')
+            : option.pisoDimensions[0] ?? '60x40'
+
+      return {
+        ...(currentUsage ?? createUsageRow()),
+        masaId: option.masaId,
+        origenId: option.origenId,
+        tipo: tipoInicial,
+        dimensiones: [
+          dimensionActual
+            ? { ...dimensionActual, dimension: dimensionInicial }
+            : createUsageDimensionRow(dimensionInicial),
+        ],
+      }
+    },
+    [],
+  )
+
   const groupedByDate = filteredProduccion.reduce<Record<string, ProduccionDiaria[]>>((acc, item) => {
     if (!acc[item.fecha]) {
       acc[item.fecha] = []
@@ -767,13 +769,7 @@ export const useProduccionPageState = () => {
       nextForm.accionActiva = accionInicial
       if (accionInicial === 'picar' && primeraOpcionPicar) {
         nextForm.acciones[accionInicial].usos = [
-          {
-            ...nextForm.acciones[accionInicial].usos[0],
-            masaId: primeraOpcionPicar.masaId,
-            origenId: primeraOpcionPicar.origenId,
-            tipo: primeraOpcionPicar.tipo,
-            dimensiones: [createUsageDimensionRow(primeraOpcionPicar.dimension)],
-          },
+          buildPicarUsageFromOption(primeraOpcionPicar, nextForm.acciones[accionInicial].usos[0]),
         ]
       } else if (primeraOpcionCombo) {
         nextForm.acciones[accionInicial].usos = [
@@ -818,7 +814,37 @@ export const useProduccionPageState = () => {
 
   const resolveAvailableDimensionsForUsage = useCallback(
     (accion: AccionLosa, uso: ActionUsageForm): Dimension[] => {
-      if (accion !== 'picar' && !PROCESS_ACTIONS.includes(accion)) return dimensionOptions
+      if (accion === 'picar') {
+        if (uso.tipo === 'Piso') {
+          if (!uso.origenId) return [...DIMENSIONES_PISO]
+
+          return DIMENSIONES_PISO.filter(
+            (dimension) =>
+              (getLosasDisponiblesParaAccion(accion, uso.origenId, 'Piso', dimension, uso.masaId) ?? 0) > 0,
+          )
+        }
+
+        if (uso.tipo === 'Plancha') {
+          const currentDimensions = uso.dimensiones
+            .map((dimensionUso) => normalizeDimension(dimensionUso.dimension))
+            .filter((dimension): dimension is Dimension => isPlanchaDimensionAllowed(dimension))
+          const masaOption = picarUsageOptions.find((item) => item.masaId === uso.masaId)
+          const candidates = [
+            ...currentDimensions,
+            ...(masaOption ? [masaOption.defaultPlanchaDimension] : []),
+            ...PLANCHA_DIMENSIONES,
+          ]
+
+          return [...new Set(candidates)].filter(
+            (dimension) =>
+              (getLosasDisponiblesParaAccion(accion, uso.origenId, 'Plancha', dimension, uso.masaId) ?? 0) > 0,
+          )
+        }
+
+        return dimensionOptions
+      }
+
+      if (!PROCESS_ACTIONS.includes(accion)) return dimensionOptions
       if (!uso.origenId) return dimensionOptions
 
       const disponibles = dimensionOptions.filter(
@@ -828,7 +854,7 @@ export const useProduccionPageState = () => {
 
       return disponibles
     },
-    [getLosasDisponiblesParaAccion],
+    [dimensionOptions, getLosasDisponiblesParaAccion, picarUsageOptions],
   )
 
   const updateUsage = (
@@ -987,13 +1013,7 @@ export const useProduccionPageState = () => {
     if (accion === 'picar') {
       const primeraOpcionPicar = picarUsageOptions[0]
       const usoPicar: ActionUsageForm = primeraOpcionPicar
-        ? {
-            ...createUsageRow(),
-            masaId: primeraOpcionPicar.masaId,
-            origenId: primeraOpcionPicar.origenId,
-            tipo: primeraOpcionPicar.tipo,
-            dimensiones: [createUsageDimensionRow(primeraOpcionPicar.dimension)],
-          }
+        ? buildPicarUsageFromOption(primeraOpcionPicar)
         : createUsageRow()
 
       setFormData((prev) => ({
@@ -1066,13 +1086,7 @@ export const useProduccionPageState = () => {
       const primeraOpcionCombo = usageComboOptionsByAccion[accion][0]
       const usoFallback: ActionUsageForm =
         accion === 'picar' && primeraOpcionPicar
-          ? {
-              ...createUsageRow(),
-              masaId: primeraOpcionPicar.masaId,
-              origenId: primeraOpcionPicar.origenId,
-              tipo: primeraOpcionPicar.tipo,
-              dimensiones: [createUsageDimensionRow(primeraOpcionPicar.dimension)],
-            }
+          ? buildPicarUsageFromOption(primeraOpcionPicar)
           : primeraOpcionCombo
             ? {
                 ...createUsageRow(),
@@ -1345,21 +1359,26 @@ export const useProduccionPageState = () => {
             return
           }
 
+          if (tipoUso === 'Piso' && !isPisoDimension(dimensionUso.dimension)) {
+            setFormError('Piso solo permite medidas registradas como piso.')
+            return
+          }
+
           if (tipoUso === 'Plancha' && !isPlanchaDimensionAllowed(dimensionUso.dimension)) {
-      setFormError('Plancha solo permite medidas validas distintas a los formatos de piso.')
+            setFormError(
+              'Plancha requiere una medida valida en formato largo x ancho, distinta a las medidas de piso.',
+            )
             return
           }
 
           const dimensionUsoReal = resolveDimensionByTipo(tipoUso, dimensionUso.dimension)
+          const masaBase =
+            accion === 'picar'
+              ? monoHiloMasasActivas.find((masa) => masa.id === usoNormalizado.masaId)
+              : undefined
           const masaSeleccionada =
             accion === 'picar'
-              ? picarUsageOptions.find(
-                  (option) =>
-                    option.masaId === usoNormalizado.masaId &&
-                    option.origenId === usoNormalizado.origenId &&
-                    option.tipo === tipoUso &&
-                    option.dimension === dimensionUsoReal,
-                ) ?? picarUsageOptions.find((option) => option.masaId === usoNormalizado.masaId)
+              ? picarUsageOptions.find((option) => option.masaId === usoNormalizado.masaId)
               : undefined
 
           if (accion === 'picar') {
@@ -1368,14 +1387,21 @@ export const useProduccionPageState = () => {
               return
             }
 
+            if (!masaBase || masaBase.ubicacion !== 'proceso') {
+              setFormError('La masa seleccionada ya no esta disponible en proceso.')
+              return
+            }
+
             const stockKeyMonoHilo = `${usoNormalizado.masaId}::${dimensionUsoReal}`
-            const disponibleMonoHilo = stockMonoHiloPorMasaDimension.get(stockKeyMonoHilo) ?? 0
+            const disponibleMonoHilo = getMonoHiloLosasDisponibles(masaBase, dimensionUsoReal)
             const reservadoMonoHilo = consumoMonoHiloReservado.get(stockKeyMonoHilo) ?? 0
             const restanteMonoHilo = disponibleMonoHilo - reservadoMonoHilo
 
             if (restanteMonoHilo < dimensionUso.cantidadLosas) {
               setFormError(
-                `Masas de mono hilo insuficientes para picar (${dimensionUsoReal}). Disponible en proceso: ${Math.max(0, restanteMonoHilo)} losas estimadas.`,
+                tipoUso === 'Plancha'
+                  ? `La masa ${masaBase.codigo} no soporta ${dimensionUsoReal} con disponibilidad suficiente. Disponible estimado: ${Math.max(0, restanteMonoHilo)} planchas.`
+                  : `Masas de mono hilo insuficientes para picar (${dimensionUsoReal}). Disponible en proceso: ${Math.max(0, restanteMonoHilo)} losas estimadas.`,
               )
               return
             }

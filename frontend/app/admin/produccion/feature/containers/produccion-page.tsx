@@ -27,10 +27,16 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
-import { createRetornoProcesoInventario } from '@/lib/resources-api'
+import {
+  createRetornoProcesoInventario,
+  createRetornoProcesoMasaInventario,
+} from '@/lib/resources-api'
 import { Search } from 'lucide-react'
 import {
+  getMonoHiloLosasDisponibles,
+  getMonoHiloTotalLosasDisponibles,
   losasAMetros,
+  type MonoHiloMasa,
   type ProduccionDetalleAccion,
   type ProduccionDiaria,
   type Producto,
@@ -56,6 +62,24 @@ function resolveEstadoRetornoObjetivo(estadoActual: Producto['estado']): Product
   return estadoSiguienteProceso[estadoActual] ?? estadoActual
 }
 
+function getMonoHiloRetornoDisponibleTotal(masa: MonoHiloMasa): number {
+  return getMonoHiloTotalLosasDisponibles(masa)
+}
+
+function buildMonoHiloRetornoResumen(masa: MonoHiloMasa): string {
+  return Object.entries(masa.estimados)
+    .map(([dimension, estimado]) => ({
+      dimension,
+      disponibles: getMonoHiloLosasDisponibles(masa, dimension),
+      estimadas: estimado.losasEstimadas,
+    }))
+    .filter((item) => item.estimadas > 0 || item.disponibles > 0)
+    .map((item) => `${item.dimension}: ${item.disponibles}`)
+    .join(' | ')
+}
+
+type RetornoProcesoTipo = 'producto' | 'masa'
+
 
 export default function ProduccionPage() {
   const {
@@ -79,6 +103,7 @@ export default function ProduccionPage() {
     isDialogOpen,
     loadingDependencies,
     bloquesActivosMonoHilo,
+    monoHiloMasas,
     origenesActivosByAccion,
     picarUsageOptions,
     registrarMonoHiloDesdeProduccion,
@@ -112,7 +137,9 @@ export default function ProduccionPage() {
 
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null)
   const [retornoDialogOpen, setRetornoDialogOpen] = useState(false)
+  const [retornoTipo, setRetornoTipo] = useState<RetornoProcesoTipo>('producto')
   const [retornoProductoId, setRetornoProductoId] = useState('')
+  const [retornoMasaId, setRetornoMasaId] = useState('')
   const [retornoCantidadLosas, setRetornoCantidadLosas] = useState(0)
   const [retornoCantidadTouched, setRetornoCantidadTouched] = useState(false)
   const [retornoMotivo, setRetornoMotivo] = useState('')
@@ -160,6 +187,38 @@ export default function ProduccionPage() {
       productosProcesoParaRetorno.find((producto) => producto.id === retornoProductoId) ?? null,
     [productosProcesoParaRetorno, retornoProductoId],
   )
+  const masasProcesoParaRetorno = useMemo(
+    () =>
+      monoHiloMasas
+        .filter((masa) => masa.estado !== 'anulada')
+        .filter((masa) => masa.ubicacion === 'proceso')
+        .filter((masa) => getMonoHiloRetornoDisponibleTotal(masa) > 0)
+        .sort(
+          (a, b) =>
+            b.fechaRegistro.localeCompare(a.fechaRegistro) || b.codigo.localeCompare(a.codigo),
+        ),
+    [monoHiloMasas],
+  )
+  const retornoMasaSeleccionada = useMemo(
+    () => masasProcesoParaRetorno.find((masa) => masa.id === retornoMasaId) ?? null,
+    [masasProcesoParaRetorno, retornoMasaId],
+  )
+  useEffect(() => {
+    if (!retornoDialogOpen || retornoTipo !== 'producto') return
+    if (retornoProductoId && productosProcesoParaRetorno.some((producto) => producto.id === retornoProductoId)) {
+      return
+    }
+    setRetornoProductoId(productosProcesoParaRetorno[0]?.id ?? '')
+  }, [productosProcesoParaRetorno, retornoDialogOpen, retornoProductoId, retornoTipo])
+
+  useEffect(() => {
+    if (!retornoDialogOpen || retornoTipo !== 'masa') return
+    if (retornoMasaId && masasProcesoParaRetorno.some((masa) => masa.id === retornoMasaId)) {
+      return
+    }
+    setRetornoMasaId(masasProcesoParaRetorno[0]?.id ?? '')
+  }, [masasProcesoParaRetorno, retornoDialogOpen, retornoMasaId, retornoTipo])
+
   const equiposPicarActivos = useMemo(
     () => equiposActivos.filter((equipo) => equipo.tipo === 'Cortadora'),
     [equiposActivos],
@@ -181,7 +240,9 @@ export default function ProduccionPage() {
   const openRetornoDialog = () => {
     if (!canSolicitarRetornoProceso) return
     setRetornoDialogError(null)
+    setRetornoTipo(productosProcesoParaRetorno.length > 0 ? 'producto' : 'masa')
     setRetornoProductoId('')
+    setRetornoMasaId('')
     setRetornoCantidadLosas(0)
     setRetornoCantidadTouched(false)
     setRetornoMotivo('')
@@ -195,6 +256,41 @@ export default function ProduccionPage() {
   }
 
   const confirmRetornoProceso = async () => {
+    if (retornoTipo === 'masa') {
+      if (!retornoMasaSeleccionada) {
+        setRetornoDialogError('Selecciona una masa en proceso para solicitar su entrada a almacen.')
+        return
+      }
+
+      const motivo = retornoMotivo.trim()
+      if (motivo.length < 5) {
+        setRetornoDialogError('El motivo debe tener al menos 5 caracteres.')
+        return
+      }
+
+      setRetornoDialogError(null)
+      setRetornoDialogSubmitting(true)
+      try {
+        const movimiento = await createRetornoProcesoMasaInventario({
+          masaId: retornoMasaSeleccionada.id,
+          motivo,
+        })
+        setRetornoNotice(
+          `Solicitud ${movimiento.id} enviada para la masa ${retornoMasaSeleccionada.codigo}.`,
+        )
+        setRetornoDialogOpen(false)
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'No se pudo registrar la solicitud de entrada para la masa.'
+        setRetornoDialogError(message)
+      } finally {
+        setRetornoDialogSubmitting(false)
+      }
+      return
+    }
+
     if (!retornoProductoSeleccionado) {
       setRetornoDialogError('Selecciona un producto de proceso para retornar a almacen.')
       return
@@ -522,7 +618,7 @@ export default function ProduccionPage() {
           <div className="flex flex-wrap items-center justify-end gap-2">
             {canSolicitarRetornoProceso ? (
               <Button type="button" variant="outline" onClick={openRetornoDialog}>
-                Retirar a almacen
+                Solicitar entrada a almacen
               </Button>
             ) : null}
             <ProduccionCreateDialog
@@ -601,13 +697,76 @@ export default function ProduccionPage() {
         >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Retornar losas de proceso a almacen</DialogTitle>
+              <DialogTitle>Solicitar entrada a almacen desde proceso</DialogTitle>
               <DialogDescription>
-                Esta solicitud queda pendiente hasta aprobacion de jefatura de almacen y aplica el siguiente estado del flujo.
+                La solicitud queda pendiente hasta aprobacion de jefatura de almacen. Para masas se retorna el remanente completo; para losas se mantiene el siguiente estado del flujo.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>Tipo de retorno</Label>
+                <Select
+                  value={retornoTipo}
+                  onValueChange={(value) => {
+                    setRetornoTipo(value === 'masa' ? 'masa' : 'producto')
+                    setRetornoDialogError(null)
+                  }}
+                  disabled={retornoDialogSubmitting}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="producto">Losas</SelectItem>
+                    <SelectItem value="masa">Masas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {retornoTipo === 'masa' ? (
+                <>
+                  <div className="space-y-1">
+                    <Label>Masa en proceso</Label>
+                    <Select
+                      value={retornoMasaId}
+                      onValueChange={(value) => {
+                        setRetornoMasaId(value)
+                        if (retornoDialogError) setRetornoDialogError(null)
+                      }}
+                      disabled={retornoDialogSubmitting}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar masa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {masasProcesoParaRetorno.length === 0 ? (
+                          <SelectItem value="__empty__" disabled>
+                            Sin masas disponibles en proceso
+                          </SelectItem>
+                        ) : (
+                          masasProcesoParaRetorno.map((masa) => (
+                            <SelectItem key={masa.id} value={masa.id}>
+                              {[masa.codigo, `${getMonoHiloRetornoDisponibleTotal(masa)} losas`, masa.bloqueNombre].join(
+                                ' - ',
+                              )}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {retornoMasaSeleccionada ? (
+                    <p className="text-xs text-slate-600">
+                      Remanente estimado: {getMonoHiloRetornoDisponibleTotal(retornoMasaSeleccionada)} losas
+                      {' - '}
+                      {buildMonoHiloRetornoResumen(retornoMasaSeleccionada) || 'Sin resumen por dimension'}
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <>
               <div className="space-y-1">
                 <Label>Producto en proceso</Label>
                 <Select
@@ -644,7 +803,7 @@ export default function ProduccionPage() {
               {retornoProductoSeleccionado ? (
                 <p className="text-xs text-slate-600">
                   Disponible en proceso: {retornoProductoSeleccionado.cantidadLosas} losas (
-                  {retornoProductoSeleccionado.metrosCuadrados.toFixed(2)} mÂ²)
+                  {retornoProductoSeleccionado.metrosCuadrados.toFixed(2)} m2)
                   {' - Estado al retornar: '}
                   <span className="font-semibold">
                     {`${retornoProductoSeleccionado.estado} -> ${resolveEstadoRetornoObjetivo(retornoProductoSeleccionado.estado)}`}
@@ -668,6 +827,8 @@ export default function ProduccionPage() {
                   disabled={retornoDialogSubmitting}
                 />
               </div>
+                </>
+              )}
 
               <div className="space-y-1">
                 <Label>Motivo</Label>
@@ -677,7 +838,7 @@ export default function ProduccionPage() {
                     setRetornoMotivo(event.target.value)
                     if (retornoDialogError) setRetornoDialogError(null)
                   }}
-                  placeholder="Motivo del retorno (minimo 5 caracteres)."
+                  placeholder="Motivo de la entrada (minimo 5 caracteres)."
                   rows={3}
                   disabled={retornoDialogSubmitting}
                 />
@@ -702,9 +863,14 @@ export default function ProduccionPage() {
                 onClick={() => {
                   void confirmRetornoProceso()
                 }}
-                disabled={retornoDialogSubmitting || !retornoProductoSeleccionado || retornoCantidadLosas <= 0}
+                disabled={
+                  retornoDialogSubmitting ||
+                  (retornoTipo === 'masa'
+                    ? !retornoMasaSeleccionada
+                    : !retornoProductoSeleccionado || retornoCantidadLosas <= 0)
+                }
               >
-                {retornoDialogSubmitting ? 'Guardando...' : 'Solicitar retorno'}
+                {retornoDialogSubmitting ? 'Guardando...' : 'Solicitar entrada'}
               </Button>
             </DialogFooter>
           </DialogContent>
