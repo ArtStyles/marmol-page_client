@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS configuracion (
   tarifas_globales JSONB NOT NULL DEFAULT '{"picar":400,"escuadrar":100,"devastar":250,"resinar":250,"pulir":250}',
   salarios_fijos_por_rol JSONB NOT NULL DEFAULT '{}',
   precios_m2 JSONB NOT NULL DEFAULT '{}',
+  costos_analisis_estado JSONB NOT NULL DEFAULT '{"crudo":0,"escuadrado":0,"pulido":0}',
+  costo_resina_litro NUMERIC(10,2) NOT NULL DEFAULT 0,
   mono_hilo_grosor_disco_mm NUMERIC(10,2) NOT NULL DEFAULT 8,
   mono_hilo_espesor_losa_cm NUMERIC(10,2) NOT NULL DEFAULT 3,
   nombre_empresa TEXT NOT NULL DEFAULT '',
@@ -81,6 +83,7 @@ CREATE TABLE IF NOT EXISTS mono_hilo_masas (
   observaciones TEXT NOT NULL DEFAULT '',
   fecha_registro TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   estimados JSONB NOT NULL DEFAULT '{}'::jsonb,
+  remanentes JSONB NOT NULL DEFAULT '[]'::jsonb,
   anulacion_motivo TEXT,
   anulado_por_id TEXT,
   anulado_por_nombre TEXT,
@@ -411,6 +414,8 @@ CREATE TABLE IF NOT EXISTS admin_user_permissions (
 ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS mono_hilo_grosor_disco_mm NUMERIC(10,2) NOT NULL DEFAULT 8;
 ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS mono_hilo_espesor_losa_cm NUMERIC(10,2) NOT NULL DEFAULT 3;
+ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS costos_analisis_estado JSONB NOT NULL DEFAULT '{"crudo":0,"escuadrado":0,"pulido":0}'::jsonb;
+ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS costo_resina_litro NUMERIC(10,2) NOT NULL DEFAULT 0;
 ALTER TABLE bloques ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS workshop_id TEXT NOT NULL DEFAULT 'TLR-001';
 ALTER TABLE productos ADD COLUMN IF NOT EXISTS ubicacion TEXT NOT NULL DEFAULT 'almacen';
@@ -451,6 +456,7 @@ ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAUL
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS observaciones TEXT NOT NULL DEFAULT '';
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS fecha_registro TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS estimados JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS remanentes JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS anulacion_motivo TEXT;
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS anulado_por_id TEXT;
 ALTER TABLE mono_hilo_masas ADD COLUMN IF NOT EXISTS anulado_por_nombre TEXT;
