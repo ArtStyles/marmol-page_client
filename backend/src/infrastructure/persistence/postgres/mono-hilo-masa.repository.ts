@@ -4,6 +4,7 @@ import type {
   MonoHiloEstimadoDimension,
   MonoHiloEstimados,
   MonoHiloMasa,
+  MonoHiloRemanente,
 } from '../../../domain/entities/index.js'
 import { getPool } from './connection.js'
 import { nextId } from './helpers.js'
@@ -44,6 +45,31 @@ function sanitizeEstimados(estimados: MonoHiloEstimados): MonoHiloEstimados {
   ) as MonoHiloEstimados
 }
 
+function normalizeRemanenteItem(value: unknown): MonoHiloRemanente | null {
+  const raw = (value ?? {}) as Partial<MonoHiloRemanente>
+  const largoCm = asNumber(raw.largoCm)
+  const anchoCm = asNumber(raw.anchoCm)
+
+  if (largoCm <= 0 || anchoCm <= 0) return null
+
+  return {
+    largoCm: Number(largoCm.toFixed(2)),
+    anchoCm: Number(anchoCm.toFixed(2)),
+  }
+}
+
+function normalizeRemanentes(value: unknown): MonoHiloRemanente[] {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((item) => normalizeRemanenteItem(item))
+    .filter((item): item is MonoHiloRemanente => Boolean(item))
+}
+
+function sanitizeRemanentes(remanentes: MonoHiloRemanente[] | undefined): MonoHiloRemanente[] {
+  return normalizeRemanentes(remanentes ?? [])
+}
+
 function rowToMonoHiloMasa(row: Record<string, unknown>): MonoHiloMasa {
   return {
     id: row.id as string,
@@ -68,6 +94,7 @@ function rowToMonoHiloMasa(row: Record<string, unknown>): MonoHiloMasa {
       (row.created_at as string | null) ??
       new Date().toISOString(),
     estimados: normalizeEstimados(row.estimados),
+    remanentes: normalizeRemanentes(row.remanentes),
     anulacionMotivo: (row.anulacion_motivo as string | null) ?? undefined,
     anuladoPorId: (row.anulado_por_id as string | null) ?? undefined,
     anuladoPorNombre: (row.anulado_por_nombre as string | null) ?? undefined,
@@ -131,12 +158,13 @@ export class PostgresMonoHiloMasaRepository implements MonoHiloMasaRepositoryPor
          creado_por_id,
          creado_por_nombre,
          estimados,
+         remanentes,
          anulacion_motivo,
          anulado_por_id,
          anulado_por_nombre,
          anulado_fecha
        ) VALUES (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25
        )`,
       [
         id,
@@ -159,6 +187,7 @@ export class PostgresMonoHiloMasaRepository implements MonoHiloMasaRepositoryPor
         data.creadoPorId ?? null,
         data.creadoPorNombre ?? null,
         JSON.stringify(sanitizeEstimados(data.estimados)),
+        JSON.stringify(sanitizeRemanentes(data.remanentes)),
         data.anulacionMotivo ?? null,
         data.anuladoPorId ?? null,
         data.anuladoPorNombre ?? null,
@@ -177,6 +206,7 @@ export class PostgresMonoHiloMasaRepository implements MonoHiloMasaRepositoryPor
       ...current,
       ...data,
       estimados: data.estimados ? sanitizeEstimados(data.estimados) : current.estimados,
+      remanentes: data.remanentes ? sanitizeRemanentes(data.remanentes) : current.remanentes,
     }
 
     const pool = getPool()
@@ -202,12 +232,13 @@ export class PostgresMonoHiloMasaRepository implements MonoHiloMasaRepositoryPor
            creado_por_id = $17,
            creado_por_nombre = $18,
            estimados = $19,
-           anulacion_motivo = $20,
-           anulado_por_id = $21,
-           anulado_por_nombre = $22,
-           anulado_fecha = $23,
+           remanentes = $20,
+           anulacion_motivo = $21,
+           anulado_por_id = $22,
+           anulado_por_nombre = $23,
+           anulado_fecha = $24,
            updated_at = NOW()
-       WHERE id = $1 AND workshop_id = $24`,
+       WHERE id = $1 AND workshop_id = $25`,
       [
         id,
         merged.bloqueId,
@@ -228,6 +259,7 @@ export class PostgresMonoHiloMasaRepository implements MonoHiloMasaRepositoryPor
         merged.creadoPorId ?? null,
         merged.creadoPorNombre ?? null,
         JSON.stringify(merged.estimados),
+        JSON.stringify(sanitizeRemanentes(merged.remanentes)),
         merged.anulacionMotivo ?? null,
         merged.anuladoPorId ?? null,
         merged.anuladoPorNombre ?? null,
