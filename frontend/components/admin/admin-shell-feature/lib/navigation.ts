@@ -32,13 +32,19 @@ export const buildDefaultNav = (
     },
     {
       href: routeWithWorkshop('/admin/bloques', workshopId),
-      label: 'Materia prima',
-      helper: 'Bloques y lotes',
+      label: 'Bloques y lotes',
+      helper: 'Mono hilo',
       icon: Boxes,
     },
     {
-      href: routeWithWorkshop('/admin/inventario', workshopId),
-      label: 'Inventario',
+      href: routeWithWorkshop('/admin/inventario/masas', workshopId),
+      label: 'Masas',
+      helper: 'Picado',
+      icon: Package,
+    },
+    {
+      href: routeWithWorkshop('/admin/inventario/losas', workshopId),
+      label: 'Losas',
       helper: 'Stock',
       icon: Package,
     },

@@ -8,6 +8,7 @@ import type {
   Gasto,
   HistorialPago,
   InventarioMovimiento,
+  InventarioMovimientoDetalle,
   InventarioMovimientoPage,
   Merma,
   MonoHiloMasa,
@@ -272,6 +273,7 @@ type GetInventarioMovimientosPageParams = {
   limit?: number
   cursor?: string
   estado?: InventarioMovimiento['estado']
+  detalleTipo?: InventarioMovimientoDetalle['detalleTipo']
 }
 
 function buildInventarioMovimientosPagePath(
@@ -283,6 +285,7 @@ function buildInventarioMovimientosPagePath(
   }
   if (params.cursor) query.set('cursor', params.cursor)
   if (params.estado) query.set('estado', params.estado)
+  if (params.detalleTipo) query.set('detalleTipo', params.detalleTipo)
   const queryString = query.toString()
   return queryString.length > 0
     ? `/inventario-movimientos?${queryString}`
@@ -327,6 +330,17 @@ export const createSalidaProcesoInventario = (input: {
     body: input,
   })
 
+export const createSalidaAjusteInventario = (input: {
+  productoId: string
+  cantidadLosas: number
+  destino: 'Redimensión' | 'Otro'
+  motivo: string
+}): Promise<InventarioMovimiento> =>
+  apiRequest<InventarioMovimiento>('/inventario-movimientos/ajuste-salida', {
+    method: 'POST',
+    body: input,
+  })
+
 export const createRetornoProcesoInventario = (input: {
   productoId: string
   cantidadLosas: number
@@ -334,6 +348,15 @@ export const createRetornoProcesoInventario = (input: {
   estadoObjetivo?: Producto['estado']
 }): Promise<InventarioMovimiento> =>
   apiRequest<InventarioMovimiento>('/inventario-movimientos/proceso-retorno', {
+    method: 'POST',
+    body: input,
+  })
+
+export const createRetornoProcesoMasaInventario = (input: {
+  masaId: string
+  motivo: string
+}): Promise<InventarioMovimiento> =>
+  apiRequest<InventarioMovimiento>('/inventario-movimientos/proceso-retorno-masa', {
     method: 'POST',
     body: input,
   })

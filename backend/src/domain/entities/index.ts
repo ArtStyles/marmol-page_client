@@ -15,7 +15,15 @@ export type PlanchaDimension = string
 export type Dimension = string
 export type TipoProducto = 'Piso' | 'Plancha'
 export type EstadoLosa = 'Crudo' | 'Pulido'
-export type EstadoInventario = 'Picado' | 'Escuadrado' | 'Devastado' | 'Resinado' | 'Pulido'
+export type EstadoInventario =
+  | 'Picado'
+  | 'Escuadrado'
+  | 'Devastado'
+  | 'Resinado'
+  | 'Pulido'
+  | 'Recuperado'
+  | 'Pendiente'
+  | 'Redimensionado'
 export type UbicacionInventario = 'almacen' | 'proceso'
 export type AccionLosa = 'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir'
 export type UbicacionMasaMonoHilo = 'almacen' | 'proceso' | 'consumida'
@@ -117,10 +125,18 @@ export type RolTrabajador =
 
 export type RolConSalarioFijo = Exclude<RolTrabajador, 'Obrero'>
 
+export interface CostosAnalisisEstado {
+  crudo: number
+  escuadrado: number
+  pulido: number
+}
+
 export interface ConfiguracionSistema {
   tarifasGlobales: Record<AccionLosa, number>
   salariosFijosPorRol: Record<RolConSalarioFijo, number>
   preciosM2: Record<string, { crudo: number; pulido: number }>
+  costosAnalisisEstado: CostosAnalisisEstado
+  costoResinaLitro: number
   monoHiloGrosorDiscoMm: number
   monoHiloEspesorLosaCm: number
   nombreEmpresa: string
@@ -174,6 +190,11 @@ export interface MonoHiloEstimadoDimension {
 
 export type MonoHiloEstimados = Record<string, MonoHiloEstimadoDimension>
 
+export interface MonoHiloRemanente {
+  largoCm: number
+  anchoCm: number
+}
+
 export interface MonoHiloMasa {
   id: string
   bloqueId: string
@@ -194,6 +215,7 @@ export interface MonoHiloMasa {
   observaciones: string
   fechaRegistro: string
   estimados: MonoHiloEstimados
+  remanentes?: MonoHiloRemanente[]
   anulacionMotivo?: string
   anuladoPorId?: string
   anuladoPorNombre?: string
@@ -560,9 +582,11 @@ export interface AdminUser {
 export type InventarioMovimientoTipo = 'entrada' | 'salida'
 export type InventarioMovimientoOrigen = 'produccion' | 'venta' | 'merma' | 'proceso' | 'ajuste'
 export type InventarioMovimientoEstado = EstadoAprobacion
+export type InventarioMovimientoDetalleTipo = 'producto' | 'masa'
 
 export interface InventarioMovimientoDetalle {
   id: string
+  detalleTipo?: InventarioMovimientoDetalleTipo
   productoId?: string
   productoNombre: string
   tipo: TipoProducto
@@ -575,6 +599,9 @@ export interface InventarioMovimientoDetalle {
   origenNombre: string
   cantidadLosas: number
   metrosCuadrados: number
+  masaId?: string
+  masaCodigo?: string
+  masaMedidas?: string
 }
 
 export interface InventarioMovimiento {

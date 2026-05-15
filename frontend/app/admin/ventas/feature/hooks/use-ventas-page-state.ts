@@ -44,6 +44,89 @@ function buildInitialForm(today: string): VentaFormState {
   }
 }
 
+function buildPlanchaDimensionsByState(productosBloque: Producto[]): Record<SlabDocumentState, string[]> {
+  const map: Record<SlabDocumentState, string[]> = {
+    Crudo: [],
+    Pulido: [],
+  }
+
+  slabStateOrder.forEach((estado) => {
+    const dimensions = Array.from(
+      new Set(
+        productosBloque
+          .filter(
+            (producto) =>
+              producto.tipo === 'Plancha' &&
+              producto.cantidadLosas > 0 &&
+              producto.metrosCuadrados > 0 &&
+              producto.estado === resolveInventoryStateFromDocument(estado),
+          )
+          .map((producto) => normalizeDimension(producto.dimension)),
+      ),
+    ).sort((left, right) => left.localeCompare(right))
+
+    map[estado] = dimensions
+  })
+
+  return map
+}
+
+function getFirstPlanchaOption(
+  dimensionsByState: Record<SlabDocumentState, string[]>,
+): { estado: SlabDocumentState; dimension: string } | null {
+  for (const estado of slabStateOrder) {
+    const dimension = dimensionsByState[estado][0]
+    if (dimension) {
+      return { estado, dimension }
+    }
+  }
+
+  return null
+}
+
+function buildInitialSlabRows(
+  dimensionsByState: Record<SlabDocumentState, string[]>,
+  seed = 1,
+): SlabSaleFormRow[] {
+  const firstOption = getFirstPlanchaOption(dimensionsByState)
+  if (!firstOption) return []
+
+  return [
+    {
+      ...createSlabRow(seed),
+      estado: firstOption.estado,
+      dimension: firstOption.dimension,
+    },
+  ]
+}
+
+function normalizeSlabRowWithStock(
+  row: SlabSaleFormRow,
+  dimensionsByState: Record<SlabDocumentState, string[]>,
+): SlabSaleFormRow {
+  const normalizedDimension = normalizeDimension(row.dimension)
+  const currentStateOptions = dimensionsByState[row.estado]
+
+  if (currentStateOptions.includes(normalizedDimension)) {
+    return { ...row, dimension: normalizedDimension }
+  }
+
+  if (currentStateOptions[0]) {
+    return { ...row, dimension: currentStateOptions[0] }
+  }
+
+  const firstOption = getFirstPlanchaOption(dimensionsByState)
+  if (!firstOption) {
+    return { ...row, dimension: normalizedDimension }
+  }
+
+  return {
+    ...row,
+    estado: firstOption.estado,
+    dimension: firstOption.dimension,
+  }
+}
+
 export const useVentasPageState = () => {
   const { productos: inventarioProductos } = useInventarioStore()
   const [ventas, setVentas] = useState<Venta[]>([])
@@ -130,34 +213,20 @@ export const useVentasPageState = () => {
     productosBloque.find(
       (producto) =>
         producto.tipo === 'Plancha' &&
+        producto.cantidadLosas > 0 &&
+        producto.metrosCuadrados > 0 &&
         normalizeDimension(producto.dimension) === normalizeDimension(row.dimension) &&
         producto.estado === resolveInventoryStateFromDocument(row.estado),
     )
 
   const planchaDimensionsByState = useMemo(() => {
-    const map: Record<SlabDocumentState, string[]> = {
-      Crudo: [],
-      Pulido: [],
-    }
-
-    slabStateOrder.forEach((estado) => {
-      const dimensions = Array.from(
-        new Set(
-          productosBloque
-            .filter(
-              (producto) =>
-                producto.tipo === 'Plancha' &&
-                producto.estado === resolveInventoryStateFromDocument(estado),
-            )
-            .map((producto) => normalizeDimension(producto.dimension)),
-        ),
-      ).sort((left, right) => left.localeCompare(right))
-
-      map[estado] = dimensions
-    })
-
-    return map
+    return buildPlanchaDimensionsByState(productosBloque)
   }, [productosBloque])
+
+  const hasSlabStockAvailable = useMemo(
+    () => slabStateOrder.some((estado) => planchaDimensionsByState[estado].length > 0),
+    [planchaDimensionsByState],
+  )
 
   const resolvedFloorRows = useMemo(
     () =>
@@ -266,11 +335,14 @@ export const useVentasPageState = () => {
 
   const handleBlockChange = (bloqueId: string) => {
     setFormError(null)
+    const nextPlanchaDimensions = buildPlanchaDimensionsByState(
+      productos.filter((producto) => producto.origenId === bloqueId),
+    )
     setFormData((prev) => ({
       ...prev,
       bloqueId,
       floorRows: createInitialFloorRows(),
-      slabRows: [createSlabRow(1)],
+      slabRows: buildInitialSlabRows(nextPlanchaDimensions, 1),
     }))
     setSlabCounter(2)
   }
@@ -285,17 +357,17 @@ export const useVentasPageState = () => {
 
   const addSlabRow = () => {
     setFormError(null)
-    const defaultDimension =
-      planchaDimensionsByState.Crudo[0] ??
-      planchaDimensionsByState.Pulido[0] ??
-      '160x60'
+    const firstOption = getFirstPlanchaOption(planchaDimensionsByState)
+    if (!firstOption) return
+
     setFormData((prev) => ({
       ...prev,
       slabRows: [
         ...prev.slabRows,
         {
           ...createSlabRow(slabCounter),
-          dimension: defaultDimension,
+          estado: firstOption.estado,
+          dimension: firstOption.dimension,
         },
       ],
     }))
@@ -318,14 +390,12 @@ export const useVentasPageState = () => {
       ...prev,
       slabRows: prev.slabRows.map((row) => {
         if (row.id !== rowId) return row
-        const next = { ...row, ...patch }
-        if (patch.estado && patch.estado !== row.estado) {
-          const nextDimension =
-            planchaDimensionsByState[patch.estado]?.[0] ??
-            next.dimension
-          next.dimension = nextDimension
+        const next = {
+          ...row,
+          ...patch,
+          dimension: patch.dimension ? normalizeDimension(patch.dimension) : row.dimension,
         }
-        return next
+        return normalizeSlabRowWithStock(next, planchaDimensionsByState)
       }),
     }))
   }
@@ -487,6 +557,7 @@ export const useVentasPageState = () => {
     resetForm,
     resolvedFloorRows,
     resolvedSlabRows,
+    hasSlabStockAvailable,
     responsableValidacionNombre,
     responsableVentasNombre,
     searchTerm,

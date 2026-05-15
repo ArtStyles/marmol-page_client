@@ -17,6 +17,7 @@ import {
   type MonoHiloEstimadoDimension,
   type MonoHiloEstimados,
   type MonoHiloMasa,
+  type MonoHiloRemanente,
   type ProduccionDiaria,
   type Trabajador,
   type UbicacionMasaMonoHilo,
@@ -41,9 +42,16 @@ interface MonoHiloActor {
 }
 
 export class GetMonoHiloMasasUseCase {
-  constructor(private readonly repository: MonoHiloMasaRepositoryPort) {}
+  constructor(
+    private readonly repository: MonoHiloMasaRepositoryPort,
+    private readonly produccionRepository: ProduccionRepositoryPort,
+  ) {}
 
   async execute(): Promise<MonoHiloMasaResponseDto[]> {
+    await syncMonoHiloMasasFromProduccionState(
+      this.produccionRepository,
+      this.repository,
+    ).catch(() => undefined)
     return this.repository.findAll()
   }
 }
@@ -173,6 +181,13 @@ export class CreateMonoHiloMasasUseCase {
         observaciones: masaInput.observaciones?.trim() ?? '',
         fechaRegistro: new Date().toISOString(),
         estimados,
+        remanentes: buildInitialMonoHiloRemanentes({
+          largoCm,
+          anchoCm,
+          profundidadCm,
+          grosorDiscoMm,
+          espesorLosaCm,
+        }),
       })
 
       created.push(createdItem)
@@ -270,21 +285,6 @@ export class RegisterMonoHiloProduccionUseCase {
     let produccion: ProduccionDiaria | null = null
 
     try {
-      const movedMasas = await Promise.all(
-        createdMasas.map(async (masa) => {
-          if (masa.ubicacion === 'proceso') return masa
-          const moved = await this.repository.update(masa.id, { ubicacion: 'proceso' })
-          if (!moved) {
-            throw new DomainError(
-              `No se pudo mover la masa ${masa.id} a proceso.`,
-              500,
-              'MONO_HILO_REGISTRO_MOVE_FAILED',
-            )
-          }
-          return moved
-        }),
-      )
-
       const tipoPlaceholder: ProduccionDiaria['tipo'] = bloque.dimensionBase
         ? resolveTipoProductoByDimension(bloque.dimensionBase)
         : 'Plancha'
@@ -316,7 +316,7 @@ export class RegisterMonoHiloProduccionUseCase {
             id: trabajador.id,
             nombre: trabajador.nombre,
           })),
-          masas: movedMasas.map((masa) => ({
+          masas: createdMasas.map((masa) => ({
             masaId: masa.id,
             masaCodigo: masa.codigo,
             largoCm: masa.largoCm,
@@ -333,7 +333,7 @@ export class RegisterMonoHiloProduccionUseCase {
       const produccionCreada = produccion
 
       const masasEnlazadas = await Promise.all(
-        movedMasas.map(async (masa) => {
+        createdMasas.map(async (masa) => {
           const updated = await this.repository.update(masa.id, {
             produccionId: produccionCreada.id,
           })
@@ -418,233 +418,101 @@ export async function consumeMonoHiloMasasParaPicado(
   dto: ConsumeMonoHiloParaPicadoDto,
   repository: MonoHiloMasaRepositoryPort,
 ): Promise<void> {
-  if (dto.cantidadLosas <= 0) return
-  const dimension = resolveMonoHiloDimension(dto.dimension)
+  await assertMonoHiloPicadoConsumptionsDisponibles([dto], repository)
+}
 
-  const bloqueId = dto.bloqueId.trim()
-  if (!bloqueId) {
-    throw new DomainError(
-      'La produccion de picado requiere bloque valido para consumir masas mono hilo.',
-      400,
-      'MONO_HILO_BLOQUE_CONSUMO_INVALIDO',
-    )
-  }
+export async function assertMonoHiloPicadoConsumptionsDisponibles(
+  consumptions: ConsumeMonoHiloParaPicadoDto[],
+  repository: MonoHiloMasaRepositoryPort,
+): Promise<void> {
+  const activeConsumptions = consumptions.filter((item) => item.cantidadLosas > 0)
+  if (activeConsumptions.length === 0) return
 
   const inventario = await repository.findAll()
+  const stateById = new Map(
+    inventario.map((masa) => [masa.id, buildCurrentMonoHiloSimulationState(masa)]),
+  )
 
-  const candidatas = inventario
-    .filter((masa) => masa.bloqueId === bloqueId)
-    .filter((masa) => !dto.masaId || masa.id === dto.masaId)
-    .filter((masa) => masa.estado !== 'anulada')
-    .filter((masa) => masa.ubicacion === 'proceso')
-    .map((masa) => ({
-      masa,
-      disponible: resolveLosasDisponibles(masa, dimension),
-    }))
-    .filter((item) => item.disponible > 0)
-    .sort((a, b) => b.disponible - a.disponible)
+  for (const consumo of activeConsumptions) {
+    applyMonoHiloPicadoConsumption(consumo, inventario, stateById, {
+      requireProcessLocation: true,
+    })
+  }
+}
 
-  if (dto.masaId) {
-    const masaSeleccionada = inventario.find((masa) => masa.id === dto.masaId)
-    if (!masaSeleccionada || masaSeleccionada.bloqueId !== bloqueId) {
-      throw new DomainError(
-        `La masa ${dto.masaId} no pertenece al bloque seleccionado.`,
-        404,
-        'MONO_HILO_MASA_PICADO_NOT_FOUND',
-        {
-          bloqueId,
-          masaId: dto.masaId,
-        },
-      )
-    }
-    if (masaSeleccionada.estado === 'anulada') {
-      throw new DomainError(
-        `La masa ${masaSeleccionada.codigo} fue anulada y no puede consumirse.`,
-        409,
-        'MONO_HILO_MASA_PICADO_ANULADA',
-        {
-          bloqueId,
-          masaId: dto.masaId,
-        },
-      )
-    }
-    if (masaSeleccionada.ubicacion !== 'proceso') {
-      throw new DomainError(
-        `La masa ${masaSeleccionada.codigo} no esta disponible en proceso para picado.`,
-        409,
-        'MONO_HILO_MASA_PICADO_UBICACION_INVALIDA',
-        {
-          bloqueId,
-          masaId: dto.masaId,
-          ubicacion: masaSeleccionada.ubicacion,
-        },
-      )
+export async function syncMonoHiloMasasFromProduccionState(
+  produccionRepository: ProduccionRepositoryPort,
+  repository: MonoHiloMasaRepositoryPort,
+): Promise<void> {
+  const [inventario, produccion] = await Promise.all([
+    repository.findAll(),
+    produccionRepository.findAll(),
+  ])
+
+  if (inventario.length === 0) return
+
+  const stateById = new Map(
+    inventario
+      .filter((masa) => masa.estado !== 'anulada')
+      .map((masa) => [masa.id, buildInitialMonoHiloSimulationState(masa)]),
+  )
+
+  const activos = produccion
+    .filter((registro) => isRegularProduccionActivaParaMonoHilo(registro))
+    .sort(compareMonoHiloReplayProduccion)
+
+  for (const registro of activos) {
+    const consumos = buildMonoHiloPicadoConsumptionsFromProduccion(registro)
+    for (const consumo of consumos) {
+      applyMonoHiloPicadoConsumption(consumo, inventario, stateById, {
+        requireProcessLocation: false,
+      })
     }
   }
 
-  const totalDisponible = candidatas.reduce((sum, item) => sum + item.disponible, 0)
-  if (totalDisponible < dto.cantidadLosas) {
-    throw new DomainError(
-      `Stock de masas en proceso insuficiente para picar ${dto.dimension}.`,
-      409,
-      'MONO_HILO_STOCK_PICADO_INSUFICIENTE',
-      {
-        bloqueId,
-        dimension: dto.dimension,
-        solicitadoLosas: dto.cantidadLosas,
-        disponibleLosas: totalDisponible,
-      },
-    )
-  }
-
-  let restante = dto.cantidadLosas
-  const snapshot = new Map<string, Pick<MonoHiloMasa, 'estimados' | 'ubicacion'>>()
+  const snapshot = new Map<
+    string,
+    Pick<MonoHiloMasa, 'estimados' | 'remanentes' | 'ubicacion'>
+  >()
 
   try {
-    for (const item of candidatas) {
-      if (restante <= 0) break
+    for (const masa of inventario) {
+      if (masa.estado === 'anulada') continue
 
-      snapshot.set(item.masa.id, {
-        estimados: structuredClone(item.masa.estimados),
-        ubicacion: item.masa.ubicacion,
-      })
+      const replay = stateById.get(masa.id)
+      if (!replay) continue
 
-      const retirar = Math.min(restante, item.disponible)
-      const estimadoActual = resolveEstimadoDimension(item.masa, dimension)
-      const estimadosActualizados: MonoHiloEstimados = {
-        ...item.masa.estimados,
-        [dimension]: {
-          ...estimadoActual,
-          losasConsumidas: estimadoActual.losasConsumidas + retirar,
-        },
+      const remanentes = sortMonoHiloRemanentes(replay.remanentes)
+      const ubicacion = resolveMonoHiloReplayUbicacion(masa, remanentes)
+      const estimados = replay.estimados
+
+      if (
+        areMonoHiloEstimadosEqual(masa.estimados, estimados) &&
+        areMonoHiloRemanentesEqual(masa.remanentes ?? [], remanentes) &&
+        masa.ubicacion === ubicacion
+      ) {
+        continue
       }
 
-      const ubicacion = hasDisponibilidad(estimadosActualizados) ? item.masa.ubicacion : 'consumida'
+      snapshot.set(masa.id, {
+        estimados: structuredClone(masa.estimados),
+        remanentes: structuredClone(masa.remanentes ?? []),
+        ubicacion: masa.ubicacion,
+      })
 
-      const updated = await repository.update(item.masa.id, {
-        estimados: estimadosActualizados,
+      const updated = await repository.update(masa.id, {
+        estimados,
+        remanentes,
         ubicacion,
       })
 
       if (!updated) {
         throw new DomainError(
-          `No se pudo actualizar masa ${item.masa.id} para consumo de picado.`,
+          `No se pudo sincronizar la masa ${masa.id} desde el estado de produccion.`,
           500,
-          'MONO_HILO_CONSUMO_UPDATE_FAILED',
+          'MONO_HILO_SYNC_UPDATE_FAILED',
         )
       }
-
-      restante -= retirar
-    }
-  } catch (error) {
-    await Promise.all(
-      Array.from(snapshot.entries()).map(async ([masaId, previous]) => {
-        try {
-          await repository.update(masaId, previous)
-        } catch {
-          // Best effort rollback.
-        }
-      }),
-    )
-    throw error
-  }
-}
-
-export async function restoreMonoHiloMasasParaPicado(
-  dto: ConsumeMonoHiloParaPicadoDto,
-  repository: MonoHiloMasaRepositoryPort,
-): Promise<void> {
-  if (dto.cantidadLosas <= 0) return
-  const dimension = resolveMonoHiloDimension(dto.dimension)
-
-  const bloqueId = dto.bloqueId.trim()
-  if (!bloqueId) {
-    throw new DomainError(
-      'Debe indicar el bloque asociado para revertir el consumo de mono hilo.',
-      400,
-      'MONO_HILO_RESTORE_BLOQUE_REQUERIDO',
-    )
-  }
-
-  const inventario = await repository.findAll()
-  const candidatas = inventario
-    .filter((masa) => masa.bloqueId === bloqueId)
-    .filter((masa) => !dto.masaId || masa.id === dto.masaId)
-    .filter((masa) => masa.estado !== 'anulada')
-    .filter((masa) => masa.ubicacion === 'proceso' || masa.ubicacion === 'consumida')
-    .map((masa) => ({
-      masa,
-      consumidas: resolveEstimadoDimension(masa, dimension).losasConsumidas,
-    }))
-    .filter((item) => item.consumidas > 0)
-    .sort((a, b) => b.consumidas - a.consumidas)
-
-  if (dto.masaId) {
-    const masaSeleccionada = inventario.find((masa) => masa.id === dto.masaId)
-    if (!masaSeleccionada || masaSeleccionada.bloqueId !== bloqueId) {
-      throw new DomainError(
-        `La masa ${dto.masaId} no pertenece al bloque seleccionado para revertir.`,
-        404,
-        'MONO_HILO_MASA_RESTORE_NOT_FOUND',
-        {
-          bloqueId,
-          masaId: dto.masaId,
-        },
-      )
-    }
-  }
-
-  const totalConsumido = candidatas.reduce((sum, item) => sum + item.consumidas, 0)
-  if (totalConsumido < dto.cantidadLosas) {
-    throw new DomainError(
-      'No existe consumo suficiente de mono hilo para revertir el registro de picado.',
-      409,
-      'MONO_HILO_RESTORE_STOCK_INSUFICIENTE',
-      {
-        bloqueId,
-        dimension: dto.dimension,
-        solicitadoLosas: dto.cantidadLosas,
-        consumidoLosas: totalConsumido,
-      },
-    )
-  }
-
-  let restante = dto.cantidadLosas
-  const snapshot = new Map<string, Pick<MonoHiloMasa, 'estimados' | 'ubicacion'>>()
-
-  try {
-    for (const item of candidatas) {
-      if (restante <= 0) break
-
-      snapshot.set(item.masa.id, {
-        estimados: structuredClone(item.masa.estimados),
-        ubicacion: item.masa.ubicacion,
-      })
-
-      const reintegrar = Math.min(restante, item.consumidas)
-      const estimadoActual = resolveEstimadoDimension(item.masa, dimension)
-      const estimadosActualizados: MonoHiloEstimados = {
-        ...item.masa.estimados,
-        [dimension]: {
-          ...estimadoActual,
-          losasConsumidas: Math.max(0, estimadoActual.losasConsumidas - reintegrar),
-        },
-      }
-
-      const updated = await repository.update(item.masa.id, {
-        estimados: estimadosActualizados,
-        ubicacion: hasDisponibilidad(estimadosActualizados) ? 'proceso' : item.masa.ubicacion,
-      })
-
-      if (!updated) {
-        throw new DomainError(
-          `No se pudo restaurar la masa ${item.masa.id} tras revertir el picado.`,
-          500,
-          'MONO_HILO_RESTORE_UPDATE_FAILED',
-        )
-      }
-
-      restante -= reintegrar
     }
   } catch (error) {
     await Promise.all(
@@ -810,6 +678,28 @@ function buildMonoHiloEstimados(params: {
   return estimados
 }
 
+function buildInitialMonoHiloRemanentes(params: {
+  largoCm: number
+  anchoCm: number
+  profundidadCm: number
+  grosorDiscoMm: number
+  espesorLosaCm: number
+}): MonoHiloRemanente[] {
+  const kerfCm = params.grosorDiscoMm / 10
+  const capasProfundidad = resolveCapasProfundidad(
+    params.profundidadCm,
+    params.espesorLosaCm,
+    kerfCm,
+  )
+
+  return sortMonoHiloRemanentes(
+    Array.from({ length: capasProfundidad }, () => ({
+      largoCm: round2(params.largoCm),
+      anchoCm: round2(params.anchoCm),
+    })),
+  )
+}
+
 function buildMonoHiloEstimadoForDimension(
   params: {
     largoCm: number
@@ -894,6 +784,253 @@ function resolveEstimadoDimension(
   )
 }
 
+type MonoHiloSimulationState = {
+  masa: MonoHiloMasa
+  estimados: MonoHiloEstimados
+  remanentes: MonoHiloRemanente[]
+}
+
+function buildCurrentMonoHiloSimulationState(masa: MonoHiloMasa): MonoHiloSimulationState {
+  return {
+    masa,
+    estimados: structuredClone(masa.estimados),
+    remanentes: resolveCurrentMonoHiloRemanentes(masa),
+  }
+}
+
+function buildInitialMonoHiloSimulationState(masa: MonoHiloMasa): MonoHiloSimulationState {
+  const estimadosBase = buildMonoHiloEstimados({
+    largoCm: masa.largoCm,
+    anchoCm: masa.anchoCm,
+    profundidadCm: masa.profundidadCm,
+    grosorDiscoMm: masa.grosorDiscoMm,
+    espesorLosaCm: masa.espesorLosaCm,
+  })
+
+  return {
+    masa,
+    estimados: estimadosBase,
+    remanentes: buildInitialMonoHiloRemanentes({
+      largoCm: masa.largoCm,
+      anchoCm: masa.anchoCm,
+      profundidadCm: masa.profundidadCm,
+      grosorDiscoMm: masa.grosorDiscoMm,
+      espesorLosaCm: masa.espesorLosaCm,
+    }),
+  }
+}
+
+function resolveCurrentMonoHiloRemanentes(masa: MonoHiloMasa): MonoHiloRemanente[] {
+  const remanentes = sortMonoHiloRemanentes(masa.remanentes ?? [])
+  if (remanentes.length > 0 || masa.ubicacion === 'consumida') {
+    return remanentes
+  }
+
+  return buildInitialMonoHiloRemanentes({
+    largoCm: masa.largoCm,
+    anchoCm: masa.anchoCm,
+    profundidadCm: masa.profundidadCm,
+    grosorDiscoMm: masa.grosorDiscoMm,
+    espesorLosaCm: masa.espesorLosaCm,
+  })
+}
+
+function applyMonoHiloPicadoConsumption(
+  dto: ConsumeMonoHiloParaPicadoDto,
+  inventario: MonoHiloMasa[],
+  stateById: Map<string, MonoHiloSimulationState>,
+  options: {
+    requireProcessLocation: boolean
+  },
+): void {
+  if (dto.cantidadLosas <= 0) return
+  const dimension = resolveMonoHiloDimension(dto.dimension)
+  const bloqueId = dto.bloqueId.trim()
+
+  if (!bloqueId) {
+    throw new DomainError(
+      'La produccion de picado requiere bloque valido para consumir masas mono hilo.',
+      400,
+      'MONO_HILO_BLOQUE_CONSUMO_INVALIDO',
+    )
+  }
+
+  const masaId = dto.masaId?.trim() || undefined
+  if (masaId) {
+    const masaSeleccionada = inventario.find((masa) => masa.id === masaId)
+    if (!masaSeleccionada || masaSeleccionada.bloqueId !== bloqueId) {
+      throw new DomainError(
+        `La masa ${masaId} no pertenece al bloque seleccionado.`,
+        404,
+        'MONO_HILO_MASA_PICADO_NOT_FOUND',
+        {
+          bloqueId,
+          masaId,
+        },
+      )
+    }
+    if (masaSeleccionada.estado === 'anulada') {
+      throw new DomainError(
+        `La masa ${masaSeleccionada.codigo} fue anulada y no puede consumirse.`,
+        409,
+        'MONO_HILO_MASA_PICADO_ANULADA',
+        {
+          bloqueId,
+          masaId,
+        },
+      )
+    }
+    if (options.requireProcessLocation && masaSeleccionada.ubicacion !== 'proceso') {
+      throw new DomainError(
+        `La masa ${masaSeleccionada.codigo} no esta disponible en proceso para picado.`,
+        409,
+        'MONO_HILO_MASA_PICADO_UBICACION_INVALIDA',
+        {
+          bloqueId,
+          masaId,
+          ubicacion: masaSeleccionada.ubicacion,
+        },
+      )
+    }
+  }
+
+  const candidatas = inventario
+    .filter((masa) => masa.bloqueId === bloqueId)
+    .filter((masa) => !masaId || masa.id === masaId)
+    .filter((masa) => masa.estado !== 'anulada')
+    .filter((masa) => !options.requireProcessLocation || masa.ubicacion === 'proceso')
+    .map((masa) => {
+      const state = stateById.get(masa.id)
+      return state
+        ? {
+            masa,
+            state,
+            disponible: resolveMonoHiloLosasDisponiblesDesdeRemanentes(state, dimension),
+          }
+        : null
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        masa: MonoHiloMasa
+        state: MonoHiloSimulationState
+        disponible: number
+      } => item !== null && item.disponible > 0,
+    )
+    .sort((a, b) => {
+      if (b.disponible !== a.disponible) return b.disponible - a.disponible
+      const fechaDelta = a.masa.fechaRegistro.localeCompare(b.masa.fechaRegistro)
+      if (fechaDelta !== 0) return fechaDelta
+      return a.masa.codigo.localeCompare(b.masa.codigo)
+    })
+
+  const totalDisponible = candidatas.reduce((sum, item) => sum + item.disponible, 0)
+  if (totalDisponible < dto.cantidadLosas) {
+    throw new DomainError(
+      `Stock de masas en proceso insuficiente para picar ${dto.dimension}.`,
+      409,
+      'MONO_HILO_STOCK_PICADO_INSUFICIENTE',
+      {
+        bloqueId,
+        dimension: dto.dimension,
+        solicitadoLosas: dto.cantidadLosas,
+        disponibleLosas: totalDisponible,
+      },
+    )
+  }
+
+  let restante = dto.cantidadLosas
+  for (const item of candidatas) {
+    if (restante <= 0) break
+
+    const disponible = resolveMonoHiloLosasDisponiblesDesdeRemanentes(item.state, dimension)
+    if (disponible <= 0) continue
+
+    const retirar = Math.min(restante, disponible)
+    item.state.remanentes = consumeMonoHiloRemanentes(
+      item.state.remanentes,
+      dimension,
+      retirar,
+      item.masa.grosorDiscoMm / 10,
+    )
+
+    const estimadoActual = resolveEstimadoDimension(item.state.masa, dimension)
+    item.state.estimados = {
+      ...item.state.estimados,
+      [dimension]: {
+        ...estimadoActual,
+        losasConsumidas:
+          (item.state.estimados[dimension]?.losasConsumidas ?? estimadoActual.losasConsumidas) +
+          retirar,
+      },
+    }
+
+    restante -= retirar
+  }
+}
+
+function buildMonoHiloPicadoConsumptionsFromProduccion(
+  registro: Pick<
+    ProduccionDiaria,
+    | 'origenId'
+    | 'dimension'
+    | 'cantidadPicar'
+    | 'detallesAcciones'
+    | 'workflowTipo'
+    | 'estadoRegistro'
+    | 'aprobacionTallerEstado'
+  >,
+): ConsumeMonoHiloParaPicadoDto[] {
+  const detallesPicar = (registro.detallesAcciones ?? [])
+    .filter((detalle) => detalle.accion === 'picar' && detalle.cantidadLosas > 0)
+    .map((detalle) => ({
+      bloqueId: registro.origenId,
+      masaId: detalle.masaId?.trim() || undefined,
+      dimension: registro.dimension,
+      cantidadLosas: detalle.cantidadLosas,
+    }))
+
+  if (detallesPicar.length > 0) {
+    return detallesPicar
+  }
+
+  if (registro.cantidadPicar <= 0) {
+    return []
+  }
+
+  return [
+    {
+      bloqueId: registro.origenId,
+      dimension: registro.dimension,
+      cantidadLosas: registro.cantidadPicar,
+    },
+  ]
+}
+
+function isRegularProduccionActivaParaMonoHilo(
+  registro: Pick<ProduccionDiaria, 'workflowTipo' | 'estadoRegistro' | 'aprobacionTallerEstado'>,
+): boolean {
+  return (
+    registro.workflowTipo !== 'mono_hilo' &&
+    registro.estadoRegistro !== 'anulado' &&
+    registro.aprobacionTallerEstado !== 'rechazado'
+  )
+}
+
+function compareMonoHiloReplayProduccion(
+  left: Pick<ProduccionDiaria, 'fecha' | 'createdAt' | 'id'>,
+  right: Pick<ProduccionDiaria, 'fecha' | 'createdAt' | 'id'>,
+): number {
+  const fechaDelta = left.fecha.localeCompare(right.fecha)
+  if (fechaDelta !== 0) return fechaDelta
+
+  const createdAtDelta = (left.createdAt ?? '').localeCompare(right.createdAt ?? '')
+  if (createdAtDelta !== 0) return createdAtDelta
+
+  return left.id.localeCompare(right.id)
+}
+
 function resolveCortesLineales(
   dimensionMasaCm: number,
   dimensionObjetivoCm: number,
@@ -954,15 +1091,222 @@ function resolveMargenLinealAutomaticoCm(
   return remanenteCm / 2
 }
 
-function resolveLosasDisponibles(masa: MonoHiloMasa, dimension: Dimension): number {
-  const estimado = resolveEstimadoDimension(masa, dimension)
-  return Math.max(0, estimado.losasEstimadas - estimado.losasConsumidas)
+function resolveMonoHiloLosasDisponiblesDesdeRemanentes(
+  state: Pick<MonoHiloSimulationState, 'masa' | 'remanentes'>,
+  dimension: Dimension,
+): number {
+  const spec = resolveDimensionObjetivoSpec(dimension)
+  const kerfCm = state.masa.grosorDiscoMm / 10
+
+  return state.remanentes.reduce(
+    (sum, remanente) =>
+      sum +
+      resolveCortesLineales(remanente.largoCm, spec.largoCm, kerfCm) *
+        resolveCortesLineales(remanente.anchoCm, spec.anchoCm, kerfCm),
+    0,
+  )
 }
 
-function hasDisponibilidad(estimados: MonoHiloEstimados): boolean {
-  return Object.values(estimados).some(
-    (item) => item.losasEstimadas - item.losasConsumidas > 0,
+function consumeMonoHiloRemanentes(
+  remanentes: MonoHiloRemanente[],
+  dimension: Dimension,
+  cantidadLosas: number,
+  kerfCm: number,
+): MonoHiloRemanente[] {
+  const spec = resolveDimensionObjetivoSpec(dimension)
+  const next = sortMonoHiloRemanentes(remanentes)
+
+  for (let index = 0; index < cantidadLosas; index += 1) {
+    const selection = selectBestMonoHiloCut(next, spec, kerfCm)
+    if (!selection) {
+      throw new DomainError(
+        `No hay remanente suficiente para recortar ${dimension}.`,
+        409,
+        'MONO_HILO_REMANENTE_INSUFICIENTE',
+        {
+          dimension,
+          cantidadLosas,
+        },
+      )
+    }
+
+    next.splice(selection.index, 1, ...selection.replacements)
+  }
+
+  return sortMonoHiloRemanentes(next)
+}
+
+function selectBestMonoHiloCut(
+  remanentes: MonoHiloRemanente[],
+  spec: { largoCm: number; anchoCm: number },
+  kerfCm: number,
+): { index: number; replacements: MonoHiloRemanente[] } | null {
+  let best:
+    | {
+        index: number
+        replacements: MonoHiloRemanente[]
+        slackArea: number
+        remainingArea: number
+        largestReplacementArea: number
+      }
+    | null = null
+
+  for (const [index, remanente] of remanentes.entries()) {
+    const split = resolveBestMonoHiloSplit(remanente, spec, kerfCm)
+    if (!split) continue
+
+    const slackArea = round4(remanente.largoCm * remanente.anchoCm - spec.largoCm * spec.anchoCm)
+    const largestReplacementArea = split.replacements.reduce(
+      (max, item) => Math.max(max, round4(item.largoCm * item.anchoCm)),
+      0,
+    )
+
+    if (
+      !best ||
+      slackArea < best.slackArea ||
+      (slackArea === best.slackArea && split.remainingArea > best.remainingArea) ||
+      (slackArea === best.slackArea &&
+        split.remainingArea === best.remainingArea &&
+        largestReplacementArea > best.largestReplacementArea)
+    ) {
+      best = {
+        index,
+        replacements: split.replacements,
+        slackArea,
+        remainingArea: split.remainingArea,
+        largestReplacementArea,
+      }
+    }
+  }
+
+  if (!best) {
+    return null
+  }
+
+  return {
+    index: best.index,
+    replacements: best.replacements,
+  }
+}
+
+function resolveBestMonoHiloSplit(
+  remanente: MonoHiloRemanente,
+  spec: { largoCm: number; anchoCm: number },
+  kerfCm: number,
+): { replacements: MonoHiloRemanente[]; remainingArea: number } | null {
+  if (remanente.largoCm < spec.largoCm || remanente.anchoCm < spec.anchoCm) {
+    return null
+  }
+
+  const verticalFirst = buildMonoHiloSplitOption(remanente, spec, kerfCm, 'vertical')
+  const horizontalFirst = buildMonoHiloSplitOption(remanente, spec, kerfCm, 'horizontal')
+
+  if (!verticalFirst) return horizontalFirst
+  if (!horizontalFirst) return verticalFirst
+
+  if (verticalFirst.remainingArea !== horizontalFirst.remainingArea) {
+    return verticalFirst.remainingArea > horizontalFirst.remainingArea
+      ? verticalFirst
+      : horizontalFirst
+  }
+
+  const verticalLargest = verticalFirst.replacements.reduce(
+    (max, item) => Math.max(max, round4(item.largoCm * item.anchoCm)),
+    0,
   )
+  const horizontalLargest = horizontalFirst.replacements.reduce(
+    (max, item) => Math.max(max, round4(item.largoCm * item.anchoCm)),
+    0,
+  )
+
+  return verticalLargest >= horizontalLargest ? verticalFirst : horizontalFirst
+}
+
+function buildMonoHiloSplitOption(
+  remanente: MonoHiloRemanente,
+  spec: { largoCm: number; anchoCm: number },
+  kerfCm: number,
+  mode: 'vertical' | 'horizontal',
+): { replacements: MonoHiloRemanente[]; remainingArea: number } | null {
+  const rightWidth = round2(remanente.largoCm - spec.largoCm - kerfCm)
+  const topHeight = round2(remanente.anchoCm - spec.anchoCm - kerfCm)
+  const replacements: MonoHiloRemanente[] = []
+
+  if (mode === 'vertical') {
+    if (rightWidth > 0) {
+      replacements.push({
+        largoCm: rightWidth,
+        anchoCm: remanente.anchoCm,
+      })
+    }
+    if (topHeight > 0) {
+      replacements.push({
+        largoCm: spec.largoCm,
+        anchoCm: topHeight,
+      })
+    }
+  } else {
+    if (topHeight > 0) {
+      replacements.push({
+        largoCm: remanente.largoCm,
+        anchoCm: topHeight,
+      })
+    }
+    if (rightWidth > 0) {
+      replacements.push({
+        largoCm: rightWidth,
+        anchoCm: spec.anchoCm,
+      })
+    }
+  }
+
+  const normalized = sortMonoHiloRemanentes(replacements)
+  return {
+    replacements: normalized,
+    remainingArea: round4(
+      normalized.reduce((sum, item) => sum + item.largoCm * item.anchoCm, 0),
+    ),
+  }
+}
+
+function sortMonoHiloRemanentes(remanentes: MonoHiloRemanente[]): MonoHiloRemanente[] {
+  return remanentes
+    .map((remanente) => ({
+      largoCm: round2(remanente.largoCm),
+      anchoCm: round2(remanente.anchoCm),
+    }))
+    .filter((remanente) => remanente.largoCm > 0 && remanente.anchoCm > 0)
+    .sort((a, b) => {
+      const areaDelta = b.largoCm * b.anchoCm - a.largoCm * a.anchoCm
+      if (areaDelta !== 0) return areaDelta
+      if (b.largoCm !== a.largoCm) return b.largoCm - a.largoCm
+      return b.anchoCm - a.anchoCm
+    })
+}
+
+function resolveMonoHiloReplayUbicacion(
+  masa: MonoHiloMasa,
+  remanentes: MonoHiloRemanente[],
+): UbicacionMasaMonoHilo {
+  if (remanentes.length === 0) {
+    return 'consumida'
+  }
+
+  return masa.ubicacion === 'consumida' ? 'proceso' : masa.ubicacion
+}
+
+function areMonoHiloEstimadosEqual(
+  left: MonoHiloEstimados,
+  right: MonoHiloEstimados,
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function areMonoHiloRemanentesEqual(
+  left: MonoHiloRemanente[],
+  right: MonoHiloRemanente[],
+): boolean {
+  return JSON.stringify(sortMonoHiloRemanentes(left)) === JSON.stringify(sortMonoHiloRemanentes(right))
 }
 
 function round2(value: number): number {

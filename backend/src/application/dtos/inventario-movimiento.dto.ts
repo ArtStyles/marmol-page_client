@@ -1,4 +1,8 @@
-import type { EstadoInventario, InventarioMovimiento } from '../../domain/entities/index.js'
+import type {
+  EstadoInventario,
+  InventarioMovimiento,
+  InventarioMovimientoDetalleTipo,
+} from '../../domain/entities/index.js'
 
 export type CreateInventarioMovimientoDto = Omit<InventarioMovimiento, 'id'>
 export type UpdateInventarioMovimientoDto = Partial<Omit<InventarioMovimiento, 'id'>>
@@ -8,6 +12,7 @@ export interface InventarioMovimientoListQueryDto {
   limit?: number
   cursor?: string
   estado?: InventarioMovimiento['estado']
+  detalleTipo?: InventarioMovimientoDetalleTipo
 }
 
 export interface InventarioMovimientoListResponseDto {
@@ -36,4 +41,16 @@ export interface CreateRetornoProcesoInventarioDto {
   cantidadLosas: number
   motivo: string
   estadoObjetivo?: EstadoInventario
+}
+
+export interface CreateRetornoProcesoMasaInventarioDto {
+  masaId: string
+  motivo: string
+}
+
+export interface CreateSalidaAjusteInventarioDto {
+  productoId: string
+  cantidadLosas: number
+  destino: 'Redimensión' | 'Otro'
+  motivo: string
 }

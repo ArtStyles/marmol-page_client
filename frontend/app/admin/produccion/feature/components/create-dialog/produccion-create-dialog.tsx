@@ -350,9 +350,15 @@ export function ProduccionCreateDialog({
                                       ? {
                                           masaId: primeraOpcionPicar.masaId,
                                           origenId: primeraOpcionPicar.origenId,
-                                          tipo: primeraOpcionPicar.tipo,
+                                          tipo:
+                                            primeraOpcionPicar.pisoDimensions.length > 0
+                                              ? 'Piso'
+                                              : 'Plancha',
                                           dimensiones: [
-                                            createUsageDimensionRow(primeraOpcionPicar.dimension),
+                                            createUsageDimensionRow(
+                                              primeraOpcionPicar.pisoDimensions[0] ??
+                                                primeraOpcionPicar.defaultPlanchaDimension,
+                                            ),
                                           ],
                                         }
                                       : primeraOpcionCombo
@@ -386,7 +392,7 @@ export function ProduccionCreateDialog({
                   disabled={!canWriteProduccion || bloquesActivosMonoHilo.length === 0}
                   onClick={selectMonoHiloMode}
                 >
-                  Masa mono hilo ({bloquesActivosMonoHilo.length})
+                  Mono hilo desde bloques ({bloquesActivosMonoHilo.length})
                 </Button>
               </div>
               {accionesDisponibles.length === 0 && bloquesActivosMonoHilo.length === 0 ? (
@@ -398,7 +404,7 @@ export function ProduccionCreateDialog({
           ) : isProductionMode && accionActiva ? (
             <div className="space-y-3">
               <p className="text-xs text-slate-500">
-                Captura guiada: selecciona bloque/tipo/dimension en un solo campo (en picado incluye masa).
+                Captura guiada: en picado primero eliges masa y tipo; si es plancha la medida se define de forma dinamica.
               </p>
               <ProduccionActionSection
                 accion={accionActiva}
@@ -579,7 +585,8 @@ export function ProduccionCreateDialog({
               </div>
 
               <p className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
-                La masa se registra, se envia automaticamente a proceso y deja un registro diario de mono hilo. El stock de losas sigue naciendo cuando esa masa se consume despues en picado.
+                La masa se registra en almacen y deja un registro diario de mono hilo. Para poder picarla
+                primero debes darle salida a proceso desde inventario de masas.
               </p>
             </div>
           )}

@@ -2,10 +2,14 @@ import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import {
   DIMENSIONES_PISO,
   PLANCHA_DIMENSIONES,
+  getMonoHiloLosasDisponibles,
+  hasMonoHiloRemainingRemanentes,
   losasAMetros,
   type AccionLosa,
   type BloqueOLote,
+  type ConfiguracionSistema,
   type Dimension,
+  type EstadoInventario,
   type Gasto,
   type Merma,
   type MonoHiloMasa,
@@ -14,6 +18,8 @@ import {
   type ProduccionDetalleAccion,
   type ProduccionDiaria,
   type ProduccionTrabajador,
+  type Venta,
+  type VentaDetalleProducto,
 } from '@/lib/types'
 
 const ACTION_ORDER: AccionLosa[] = ['picar', 'escuadrar', 'devastar', 'resinar', 'pulir']
@@ -36,6 +42,7 @@ export const INVENTORY_ORIGIN_DIMENSION_ORDER: Dimension[] = [
 
 const FLOOR_DIMENSION_ORDER: PisoDimension[] = ['80x40', '60x40', '40x40']
 const SLAB_DIMENSION_ORDER: Dimension[] = ['160x65', '160x60']
+const ANALYSIS_STATE_ORDER = ['Crudo', 'Escuadrado', 'Pulido'] as const
 
 const STATE_BY_ACTION: Record<AccionLosa, Producto['estado']> = {
   picar: 'Picado',
@@ -53,6 +60,14 @@ const FICHA_STATE_BY_ACTION = {
   pulir: 'Pulido',
 } as const satisfies Record<AccionLosa, 'Crudo' | 'Escuadrado' | 'Pulido'>
 
+const ANALYSIS_STATE_BY_INVENTORY_STATE: Partial<
+  Record<EstadoInventario, 'Crudo' | 'Escuadrado' | 'Pulido'>
+> = {
+  Picado: 'Crudo',
+  Escuadrado: 'Escuadrado',
+  Pulido: 'Pulido',
+}
+
 const round2 = (value: number): number => Number(value.toFixed(2))
 
 const resolveProductType = (dimension: Dimension): Producto['tipo'] =>
@@ -61,6 +76,7 @@ const resolveProductType = (dimension: Dimension): Producto['tipo'] =>
     : 'Piso'
 
 type SimplifiedFichaState = (typeof FICHA_STATE_BY_ACTION)[AccionLosa]
+type AnalysisState = (typeof ANALYSIS_STATE_ORDER)[number]
 
 type NormalizedProductionDetail = {
   action: AccionLosa
@@ -198,6 +214,25 @@ export type InventoryOriginDirectExpenseItem = {
   amount: number
 }
 
+export type InventoryOriginStateAnalysisRow = {
+  state: AnalysisState
+  soldM2: number
+  totalRevenue: number
+  appliedCostPerM2: number
+  estimatedCost: number
+  estimatedProfit: number
+  profitPerM2: number | null
+  isBestTotalProfit: boolean
+  isBestProfitPerM2: boolean
+}
+
+export type InventoryOriginStateAnalysis = {
+  available: boolean
+  reason: string | null
+  rows: InventoryOriginStateAnalysisRow[]
+  costInputs: ConfiguracionSistema['costosAnalisisEstado']
+}
+
 export type InventoryOriginProfile = {
   originId: string
   originName: string
@@ -244,6 +279,7 @@ export type InventoryOriginProfile = {
     wasteRows: InventoryOriginWasteRow[]
     massEvaluationRows: InventoryOriginMassEvaluationRow[]
     otherDirectExpenseItems: InventoryOriginDirectExpenseItem[]
+    stateAnalysis: InventoryOriginStateAnalysis
   }
   summary: {
     initialCost: number
@@ -253,7 +289,9 @@ export type InventoryOriginProfile = {
     laborEntries: number
     resinQty: number
     resinEntries: number
+    resinCost: number
     otherDirectCost: number
+    totalDirectCost: number
     totalOperationalRecorded: number
     totalInvestedRecorded: number
     estimatedM2: number
@@ -288,7 +326,158 @@ type BuildInventoryOriginProfilesInput = {
   monoHiloMasas: MonoHiloMasa[]
   mermas: Merma[]
   gastos: Gasto[]
+  ventas: Venta[]
+  config: Pick<ConfiguracionSistema, 'costosAnalisisEstado' | 'costoResinaLitro'>
+  salesAnalysisEnabled: boolean
   resolveOriginCode: (originId: string, originName: string) => string
+}
+
+function getVentaDetalles(venta: Venta): VentaDetalleProducto[] {
+  if (venta.detallesProductos && venta.detallesProductos.length > 0) {
+    return venta.detallesProductos
+  }
+
+  return []
+}
+
+function resolveVentaDetalleM2(detalle: VentaDetalleProducto): number {
+  if (detalle.metrosCuadrados > 0) {
+    return round2(detalle.metrosCuadrados)
+  }
+
+  if ((detalle.cantidadUnidades ?? 0) > 0) {
+    return round2(losasAMetros(detalle.cantidadUnidades ?? 0, detalle.dimension))
+  }
+
+  return 0
+}
+
+function buildStateAnalysis(params: {
+  enabled: boolean
+  originId: string
+  ventas: Venta[]
+  config: Pick<ConfiguracionSistema, 'costosAnalisisEstado'>
+}): InventoryOriginStateAnalysis {
+  const costInputs = {
+    crudo: round2(params.config.costosAnalisisEstado.crudo),
+    escuadrado: round2(params.config.costosAnalisisEstado.escuadrado),
+    pulido: round2(params.config.costosAnalisisEstado.pulido),
+  }
+
+  const appliedCostsByState: Record<AnalysisState, number> = {
+    Crudo: round2(costInputs.crudo),
+    Escuadrado: round2(costInputs.crudo + costInputs.escuadrado),
+    Pulido: round2(costInputs.crudo + costInputs.escuadrado + costInputs.pulido),
+  }
+
+  const requiredCostKeysByState: Record<
+    AnalysisState,
+    Array<keyof ConfiguracionSistema['costosAnalisisEstado']>
+  > = {
+    Crudo: ['crudo'],
+    Escuadrado: ['crudo', 'escuadrado'],
+    Pulido: ['crudo', 'escuadrado', 'pulido'],
+  }
+
+  const aggregated = new Map<AnalysisState, { soldM2: number; totalRevenue: number }>()
+  let matchedDetailCount = 0
+
+  params.ventas
+    .filter((venta) => venta.estado !== 'cancelada')
+    .forEach((venta) => {
+      getVentaDetalles(venta)
+        .filter((detalle) => detalle.origenId.trim() === params.originId)
+        .forEach((detalle) => {
+          const state = ANALYSIS_STATE_BY_INVENTORY_STATE[detalle.estado]
+          if (!state) return
+
+          const soldM2 = resolveVentaDetalleM2(detalle)
+          if (soldM2 <= 0) return
+
+          matchedDetailCount += 1
+          const totalRevenue =
+            detalle.subtotal > 0 ? round2(detalle.subtotal) : round2(soldM2 * detalle.precioM2)
+          const current = aggregated.get(state) ?? { soldM2: 0, totalRevenue: 0 }
+
+          aggregated.set(state, {
+            soldM2: round2(current.soldM2 + soldM2),
+            totalRevenue: round2(current.totalRevenue + totalRevenue),
+          })
+        })
+    })
+
+  const baseRows = ANALYSIS_STATE_ORDER.map((state) => {
+    const sold = aggregated.get(state) ?? { soldM2: 0, totalRevenue: 0 }
+    const appliedCostPerM2 = appliedCostsByState[state]
+    const estimatedCost = round2(sold.soldM2 * appliedCostPerM2)
+    const estimatedProfit = round2(sold.totalRevenue - estimatedCost)
+
+    return {
+      state,
+      soldM2: round2(sold.soldM2),
+      totalRevenue: round2(sold.totalRevenue),
+      appliedCostPerM2,
+      estimatedCost,
+      estimatedProfit,
+      profitPerM2: sold.soldM2 > 0 ? round2(estimatedProfit / sold.soldM2) : null,
+      isBestTotalProfit: false,
+      isBestProfitPerM2: false,
+    } satisfies InventoryOriginStateAnalysisRow
+  })
+
+  if (!params.enabled) {
+    return {
+      available: false,
+      reason: 'No tienes permisos de ventas para generar este analisis.',
+      rows: baseRows,
+      costInputs,
+    }
+  }
+
+  const rowsWithSales = baseRows.filter((row) => row.soldM2 > 0)
+  if (matchedDetailCount === 0 || rowsWithSales.length === 0) {
+    return {
+      available: false,
+      reason: 'No hay ventas registradas por estado para este origen.',
+      rows: baseRows,
+      costInputs,
+    }
+  }
+
+  const missingCosts = rowsWithSales.some((row) =>
+    requiredCostKeysByState[row.state].some((key) => costInputs[key] <= 0),
+  )
+  if (missingCosts) {
+    return {
+      available: false,
+      reason: 'Configura los costos por estado antes de analizar la rentabilidad del bloque.',
+      rows: baseRows,
+      costInputs,
+    }
+  }
+
+  const bestTotalProfit = rowsWithSales.reduce(
+    (max, row) => Math.max(max, row.estimatedProfit),
+    Number.NEGATIVE_INFINITY,
+  )
+  const bestProfitPerM2 = rowsWithSales.reduce(
+    (max, row) => Math.max(max, row.profitPerM2 ?? Number.NEGATIVE_INFINITY),
+    Number.NEGATIVE_INFINITY,
+  )
+
+  return {
+    available: true,
+    reason: null,
+    rows: baseRows.map((row) => ({
+      ...row,
+      isBestTotalProfit: row.soldM2 > 0 && row.estimatedProfit === bestTotalProfit,
+      isBestProfitPerM2:
+        row.soldM2 > 0 &&
+        row.profitPerM2 !== null &&
+        row.profitPerM2 === bestProfitPerM2,
+    })),
+    costInputs,
+  }
 }
 
 function normalizeProductionDetails(registro: ProduccionDiaria): NormalizedProductionDetail[] {
@@ -437,9 +626,7 @@ function resolveDetalleResponsables(
 }
 
 function hasMassRemainingAvailability(masa: MonoHiloMasa): boolean {
-  return Object.values(masa.estimados).some(
-    (estimado) => estimado.losasEstimadas - estimado.losasConsumidas > 0,
-  )
+  return hasMonoHiloRemainingRemanentes(masa)
 }
 
 function buildMassClosureObservation(params: {
@@ -478,6 +665,9 @@ export function buildInventoryOriginProfiles({
   monoHiloMasas,
   mermas,
   gastos,
+  ventas,
+  config,
+  salesAnalysisEnabled,
   resolveOriginCode,
 }: BuildInventoryOriginProfilesInput): InventoryOriginProfile[] {
   const blockById = new Map(blocks.map((block) => [block.id.trim(), block]))
@@ -616,10 +806,7 @@ export function buildInventoryOriginProfiles({
             return {
               dimension,
               estimatedSlabs: estimated?.losasEstimadas ?? 0,
-              availableSlabs: Math.max(
-                0,
-                (estimated?.losasEstimadas ?? 0) - (estimated?.losasConsumidas ?? 0),
-              ),
+              availableSlabs: getMonoHiloLosasDisponibles(masa, dimension),
               estimatedWastePercent: estimated?.mermaEstimadaPorcentaje ?? 0,
             }
           }).filter((item) => item.estimatedSlabs > 0 || item.availableSlabs > 0),
@@ -890,9 +1077,11 @@ export function buildInventoryOriginProfiles({
         0,
       )
       const laborCost = laborRecords.reduce((sum, record) => sum + record.pagoFinal, 0)
+      const resinCost = round2(resinQty * config.costoResinaLitro)
       const otherDirectCost = otherDirectExpenseItems.reduce((sum, item) => sum + item.amount, 0)
+      const totalDirectCost = laborCost + resinCost + otherDirectCost
       const totalInitialCost = (block?.costo ?? 0) + (block?.costoTransporte ?? 0)
-      const totalOperationalRecorded = laborCost + otherDirectCost
+      const totalOperationalRecorded = totalDirectCost
       const totalInvestedRecorded = totalInitialCost + totalOperationalRecorded
       const estimatedM2 = massRegisterRows.reduce((sum, row) => sum + row.estimatedM2, 0)
       const floorEstimatedM2 = massRegisterRows
@@ -940,6 +1129,12 @@ export function buildInventoryOriginProfiles({
         massRegisterRows,
         baseDimension: block?.dimensionBase ?? null,
         blockType: block?.tipo ?? null,
+      })
+      const stateAnalysis = buildStateAnalysis({
+        enabled: salesAnalysisEnabled,
+        originId,
+        ventas,
+        config,
       })
 
       const notes: string[] = []
@@ -997,6 +1192,7 @@ export function buildInventoryOriginProfiles({
           wasteRows,
           massEvaluationRows,
           otherDirectExpenseItems,
+          stateAnalysis,
         },
         summary: {
           initialCost: block?.costo ?? 0,
@@ -1006,7 +1202,9 @@ export function buildInventoryOriginProfiles({
           laborEntries: laborRecords.length,
           resinQty: round2(resinQty),
           resinEntries,
+          resinCost,
           otherDirectCost: round2(otherDirectCost),
+          totalDirectCost: round2(totalDirectCost),
           totalOperationalRecorded: round2(totalOperationalRecorded),
           totalInvestedRecorded: round2(totalInvestedRecorded),
           estimatedM2: round2(estimatedM2),

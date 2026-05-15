@@ -69,6 +69,18 @@ function formatInteger(value: number): string {
   return Math.trunc(value).toLocaleString()
 }
 
+function getProfitTextClass(value: number): string {
+  if (value > 0) return 'text-emerald-700'
+  if (value < 0) return 'text-rose-700'
+  return 'text-amber-700'
+}
+
+function getProfitBadgeClass(value: number): string {
+  if (value > 0) return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  if (value < 0) return 'border-rose-200 bg-rose-50 text-rose-700'
+  return 'border-amber-200 bg-amber-50 text-amber-700'
+}
+
 function SectionCard({
   title,
   description,
@@ -478,9 +490,14 @@ export function InventoryOriginDetailDialog({
                     <TableRow>
                       <TableCell>Resina</TableCell>
                       <TableCell className="text-right font-semibold text-slate-950">
-                        {profile.summary.resinQty > 0
-                          ? `${formatMetric(profile.summary.resinQty, ' L')}`
-                          : 'No registrado'}
+                        <div className="space-y-1">
+                          <p>{formatMoney(profile.summary.resinCost)}</p>
+                          <p className="text-xs font-normal text-slate-500">
+                            {profile.summary.resinQty > 0
+                              ? `${formatMetric(profile.summary.resinQty, ' L')} registrados`
+                              : 'Sin litros registrados'}
+                          </p>
+                        </div>
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -519,7 +536,19 @@ export function InventoryOriginDetailDialog({
                   </TableHeader>
                   <TableBody>
                     <TableRow>
-                      <TableCell>Total invertido (real)</TableCell>
+                      <TableCell>Total invertido inicial</TableCell>
+                      <TableCell className="text-right font-semibold text-slate-950">
+                        {formatMoney(profile.summary.totalInitialCost)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Total costos directos</TableCell>
+                      <TableCell className="text-right font-semibold text-slate-950">
+                        {formatMoney(profile.summary.totalDirectCost)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>TOTAL INVERTIDO REAL</TableCell>
                       <TableCell className="text-right font-semibold text-slate-950">
                         {formatMoney(profile.summary.totalInvestedRecorded)}
                       </TableCell>
@@ -544,7 +573,7 @@ export function InventoryOriginDetailDialog({
                     </TableRow>
                     <TableRow>
                       <TableCell className="font-semibold text-slate-950">
-                        TOTAL GENERAL REAL (m2)
+                        TOTAL REAL (m2)
                       </TableCell>
                       <TableCell className="text-right font-semibold text-slate-950">
                         {formatMetric(profile.summary.generalRealM2, ' m2')}
@@ -654,6 +683,102 @@ export function InventoryOriginDetailDialog({
                     </TableBody>
                   </Table>
                 </div>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="11. Analisis automatico por estado"
+              description="Modulo estrategico basado en ventas registradas y costos configurados del sistema."
+            >
+              {!profile.ficha.stateAnalysis.available ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-sm text-slate-500">
+                  {profile.ficha.stateAnalysis.reason ?? 'Analisis no disponible para este origen.'}
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-hidden rounded-xl border border-slate-200">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Estado</TableHead>
+                          <TableHead className="text-right">Cantidad vendida (m2)</TableHead>
+                          <TableHead className="text-right">Ingreso total</TableHead>
+                          <TableHead className="text-right">Costo estimado</TableHead>
+                          <TableHead className="text-right">Rentabilidad estimada</TableHead>
+                          <TableHead className="text-right">Rentabilidad por m2</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {profile.ficha.stateAnalysis.rows.map((row) => (
+                          <TableRow key={row.state}>
+                            <TableCell className="font-semibold text-slate-950">{row.state}</TableCell>
+                            <TableCell className="text-right">{formatMetric(row.soldM2, ' m2')}</TableCell>
+                            <TableCell className="text-right">{formatMoney(row.totalRevenue)}</TableCell>
+                            <TableCell className="text-right">{formatMoney(row.estimatedCost)}</TableCell>
+                            <TableCell
+                              className={cn('text-right font-semibold', getProfitTextClass(row.estimatedProfit))}
+                            >
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <span>{formatMoney(row.estimatedProfit)}</span>
+                                {row.isBestTotalProfit ? (
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      'border px-2 py-0.5 text-[10px] uppercase tracking-[0.18em]',
+                                      getProfitBadgeClass(row.estimatedProfit),
+                                    )}
+                                  >
+                                    Mejor total
+                                  </Badge>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                            <TableCell
+                              className={cn(
+                                'text-right font-semibold',
+                                getProfitTextClass(row.profitPerM2 ?? 0),
+                              )}
+                            >
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <span>
+                                  {row.profitPerM2 === null
+                                    ? '--'
+                                    : `${formatMoney(row.profitPerM2)} / m2`}
+                                </span>
+                                {row.isBestProfitPerM2 ? (
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      'border px-2 py-0.5 text-[10px] uppercase tracking-[0.18em]',
+                                      getProfitBadgeClass(row.profitPerM2 ?? 0),
+                                    )}
+                                  >
+                                    Mejor / m2
+                                  </Badge>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    <FieldItem
+                      label="Costo base crudo"
+                      value={formatMoney(profile.ficha.stateAnalysis.costInputs.crudo)}
+                    />
+                    <FieldItem
+                      label="Costo adicional escuadrado"
+                      value={formatMoney(profile.ficha.stateAnalysis.costInputs.escuadrado)}
+                    />
+                    <FieldItem
+                      label="Costo adicional pulido"
+                      value={formatMoney(profile.ficha.stateAnalysis.costInputs.pulido)}
+                    />
+                  </div>
+                </>
               )}
             </SectionCard>
           </div>

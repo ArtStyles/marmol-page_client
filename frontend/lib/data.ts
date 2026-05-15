@@ -16,6 +16,8 @@ import {
   TARIFAS_ACCION_DEFAULT,
   PRECIOS_M2_DEFAULT,
   SALARIOS_FIJOS_POR_ROL_DEFAULT,
+  COSTOS_ANALISIS_ESTADO_DEFAULT,
+  COSTO_RESINA_LITRO_DEFAULT,
 } from './types'
 
 // ==========================================
@@ -26,6 +28,8 @@ export const configuracionInicial: ConfiguracionSistema = {
   tarifasGlobales: { ...TARIFAS_ACCION_DEFAULT },
   salariosFijosPorRol: { ...SALARIOS_FIJOS_POR_ROL_DEFAULT },
   preciosM2: { ...PRECIOS_M2_DEFAULT },
+  costosAnalisisEstado: { ...COSTOS_ANALISIS_ESTADO_DEFAULT },
+  costoResinaLitro: COSTO_RESINA_LITRO_DEFAULT,
   monoHiloGrosorDiscoMm: 8,
   monoHiloEspesorLosaCm: 3,
   nombreEmpresa: 'MÃ¡rmoles Elegance',
@@ -787,7 +791,16 @@ export const tiposProducto = ['Piso', 'Plancha']
 // Estados de losa
 export const estadosLosa = ['Crudo', 'Pulido']
 // Estados operativos del inventario
-export const estadosInventario: EstadoInventario[] = ['Picado', 'Escuadrado', 'Devastado', 'Resinado', 'Pulido']
+export const estadosInventario: EstadoInventario[] = [
+  'Picado',
+  'Escuadrado',
+  'Devastado',
+  'Resinado',
+  'Pulido',
+  'Recuperado',
+  'Pendiente',
+  'Redimensionado',
+]
 
 // Acciones disponibles
 export const acciones = ['picar', 'escuadrar', 'devastar', 'resinar', 'pulir']

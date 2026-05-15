@@ -1,4 +1,7 @@
-import type { InventarioMovimiento } from '../entities/index.js'
+import type {
+  InventarioMovimiento,
+  InventarioMovimientoDetalleTipo,
+} from '../entities/index.js'
 
 export interface InventarioMovimientoPageCursor {
   fechaSolicitud: string
@@ -9,6 +12,7 @@ export interface InventarioMovimientoPageQuery {
   limit: number
   cursor?: InventarioMovimientoPageCursor
   estado?: InventarioMovimiento['estado']
+  detalleTipo?: InventarioMovimientoDetalleTipo
 }
 
 export interface InventarioMovimientoPageResult {

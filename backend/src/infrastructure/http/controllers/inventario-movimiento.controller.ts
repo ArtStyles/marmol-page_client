@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express'
 import * as container from '../../container.js'
 import type { InventarioMovimientoResponseDto } from '../../../application/dtos/index.js'
+import type { InventarioMovimientoDetalleTipo } from '../../../domain/entities/index.js'
 
 function resolveActor(req: Request): { userId: string; userName: string } {
   return {
@@ -23,6 +24,11 @@ function parseEstado(raw: unknown): InventarioMovimientoResponseDto['estado'] | 
   return undefined
 }
 
+function parseDetalleTipo(raw: unknown): InventarioMovimientoDetalleTipo | undefined {
+  if (raw === 'producto' || raw === 'masa') return raw
+  return undefined
+}
+
 function parseCursor(raw: unknown): string | undefined {
   if (typeof raw !== 'string') return undefined
   const trimmed = raw.trim()
@@ -34,6 +40,7 @@ export async function getInventarioMovimientos(req: Request, res: Response) {
     limit: parseLimit(req.query.limit),
     estado: parseEstado(req.query.estado),
     cursor: parseCursor(req.query.cursor),
+    detalleTipo: parseDetalleTipo(req.query.detalleTipo),
   })
   res.json(data)
 }
@@ -60,6 +67,14 @@ export async function createRetornoProcesoInventario(req: Request, res: Response
   res.status(201).json(data)
 }
 
+export async function createRetornoProcesoMasaInventario(req: Request, res: Response) {
+  const data = await container.createRetornoProcesoMasaInventarioUseCase.execute(
+    req.body,
+    resolveActor(req),
+  )
+  res.status(201).json(data)
+}
+
 export async function approveInventarioMovimiento(req: Request, res: Response) {
   const data = await container.approveInventarioMovimientoUseCase.execute(
     req.params.id,
@@ -76,4 +91,12 @@ export async function rejectInventarioMovimiento(req: Request, res: Response) {
     resolveActor(req),
   )
   res.json(data)
+}
+
+export async function createSalidaAjusteInventario(req: Request, res: Response) {
+  const data = await container.createSalidaAjusteInventarioUseCase.execute(
+    req.body,
+    resolveActor(req),
+  )
+  res.status(201).json(data)
 }

@@ -50,6 +50,15 @@ export class PostgresInventarioMovimientoRepository implements InventarioMovimie
       where.push(`estado = $${values.length}`)
     }
 
+    if (query.detalleTipo) {
+      values.push(query.detalleTipo)
+      where.push(`EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(detalles) AS detalle
+        WHERE COALESCE(detalle->>'detalleTipo', 'producto') = $${values.length}
+      )`)
+    }
+
     if (query.cursor) {
       values.push(query.cursor.fechaSolicitud)
       values.push(query.cursor.id)

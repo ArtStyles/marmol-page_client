@@ -1,7 +1,9 @@
 import { DomainError } from '../../errors/domain.error.js'
 import type {
   AprobarInventarioMovimientoDto,
+  CreateRetornoProcesoMasaInventarioDto,
   CreateRetornoProcesoInventarioDto,
+  CreateSalidaAjusteInventarioDto,
   CreateSalidaProcesoInventarioDto,
   InventarioMovimientoListQueryDto,
   InventarioMovimientoListResponseDto,
@@ -12,14 +14,16 @@ import type {
   Dimension,
   EstadoInventario,
   InventarioMovimientoDetalle,
+  MonoHiloMasa,
   Venta,
 } from '../../../domain/entities/index.js'
-import { dimensionToAreaM2 } from '../../../domain/entities/index.js'
+import { dimensionToAreaM2, resolveTipoProductoByDimension } from '../../../domain/entities/index.js'
 import type {
   BloqueRepositoryPort,
   InventarioMovimientoPageCursor,
   InventarioMovimientoRepositoryPort,
   MermaRepositoryPort,
+  MonoHiloMasaRepositoryPort,
   ProduccionRepositoryPort,
   ProductoRepositoryPort,
   VentaRepositoryPort,
@@ -82,6 +86,7 @@ export class GetInventarioMovimientosUseCase {
       limit,
       cursor,
       estado: query.estado,
+      detalleTipo: query.detalleTipo,
     })
 
     return {
@@ -117,12 +122,19 @@ const estadoSiguienteProceso: Partial<Record<EstadoInventario, EstadoInventario>
   Resinado: 'Pulido',
 }
 
+const ESTADOS_RETORNO_ESPECIALES: EstadoInventario[] = ['Recuperado', 'Pendiente', 'Redimensionado']
+
 function resolveEstadoRetornoProceso(
   estadoActual: EstadoInventario,
   estadoObjetivo?: EstadoInventario,
 ): EstadoInventario {
   if (!estadoObjetivo) {
     return estadoActual
+  }
+
+  // Estados especiales de almacén válidos desde cualquier estado de proceso
+  if (ESTADOS_RETORNO_ESPECIALES.includes(estadoObjetivo)) {
+    return estadoObjetivo
   }
 
   if (estadoObjetivo === estadoActual) {
@@ -159,6 +171,135 @@ function resolveMetrosParaMovimiento(
     return round2(proporcion * producto.metrosCuadrados)
   }
   return round2(cantidadLosas * dimensionToAreaM2(producto.dimension))
+}
+
+function isMasaMovimientoDetalle(detalle: InventarioMovimientoDetalle): boolean {
+  return detalle.detalleTipo === 'masa' || Boolean(detalle.masaId)
+}
+
+function assertMovimientoDetalleHomogeneo(detalles: InventarioMovimientoDetalle[]): void {
+  const hasMasa = detalles.some(isMasaMovimientoDetalle)
+  const hasProducto = detalles.some((detalle) => !isMasaMovimientoDetalle(detalle))
+  if (hasMasa && hasProducto) {
+    throw new DomainError(
+      'El movimiento no puede mezclar detalles de masas y productos.',
+      409,
+      'MOVIMIENTO_DETALLE_MIXTO_INVALIDO',
+    )
+  }
+}
+
+function resolveMasaDisponibilidad(masa: MonoHiloMasa): {
+  cantidadLosas: number
+  metrosCuadrados: number
+  dimension: Dimension
+  tipo: ReturnType<typeof resolveTipoProductoByDimension>
+} {
+  let dimensionObjetivo: Dimension | null = null
+  let cantidadDisponible = 0
+
+  for (const [dimension, estimado] of Object.entries(masa.estimados)) {
+    const disponible = Math.max(0, Math.trunc(estimado.losasEstimadas - estimado.losasConsumidas))
+    if (disponible <= cantidadDisponible) continue
+    cantidadDisponible = disponible
+    dimensionObjetivo = dimension
+  }
+
+  if (!dimensionObjetivo || cantidadDisponible <= 0) {
+    throw new DomainError(
+      `La masa ${masa.codigo} no tiene disponibilidad para retornar a almacen.`,
+      409,
+      'MONO_HILO_MASA_SIN_DISPONIBILIDAD',
+      {
+        masaId: masa.id,
+        codigo: masa.codigo,
+      },
+    )
+  }
+
+  return {
+    cantidadLosas: cantidadDisponible,
+    metrosCuadrados: round2(cantidadDisponible * dimensionToAreaM2(dimensionObjetivo)),
+    dimension: dimensionObjetivo,
+    tipo: resolveTipoProductoByDimension(dimensionObjetivo),
+  }
+}
+
+function formatMasaMedidas(masa: Pick<MonoHiloMasa, 'largoCm' | 'anchoCm' | 'profundidadCm'>): string {
+  return `${masa.largoCm.toFixed(2)} x ${masa.anchoCm.toFixed(2)} x ${masa.profundidadCm.toFixed(2)} cm`
+}
+
+async function applyRetornoMasaAAlmacen(
+  detalles: InventarioMovimientoDetalle[],
+  repository: MonoHiloMasaRepositoryPort,
+): Promise<Map<string, MonoHiloMasa['ubicacion']>> {
+  const snapshot = new Map<string, MonoHiloMasa['ubicacion']>()
+
+  for (const detalle of detalles) {
+    const masaId = detalle.masaId?.trim()
+    if (!masaId) {
+      throw new DomainError(
+        'El movimiento de masa requiere identificar la masa origen.',
+        400,
+        'MONO_HILO_MASA_ID_REQUERIDO',
+        { detalleId: detalle.id },
+      )
+    }
+
+    const masa = await repository.findById(masaId)
+    if (!masa) {
+      throw new DomainError(`Masa ${masaId} no existe`, 404, 'MONO_HILO_MASA_NOT_FOUND')
+    }
+
+    if (masa.estado === 'anulada') {
+      throw new DomainError(
+        `La masa ${masa.codigo} fue anulada y no puede retornar a almacen.`,
+        409,
+        'MONO_HILO_MASA_ANULADA',
+      )
+    }
+
+    if (masa.ubicacion === 'consumida') {
+      throw new DomainError(
+        `La masa ${masa.codigo} ya fue consumida y no puede retornar a almacen.`,
+        409,
+        'MONO_HILO_MASA_CONSUMIDA',
+      )
+    }
+
+    if (masa.ubicacion !== 'proceso') {
+      throw new DomainError(
+        `La masa ${masa.codigo} ya no esta en proceso.`,
+        409,
+        'MONO_HILO_MASA_ORIGEN_INVALIDO',
+      )
+    }
+
+    snapshot.set(masa.id, masa.ubicacion)
+    const updated = await repository.update(masa.id, {
+      ubicacion: 'almacen',
+    })
+    if (!updated) {
+      throw new DomainError(
+        `No se pudo actualizar la masa ${masa.id}.`,
+        500,
+        'MONO_HILO_MASA_UPDATE_FAILED',
+      )
+    }
+  }
+
+  return snapshot
+}
+
+async function rollbackRetornoMasaAAlmacen(
+  snapshot: Map<string, MonoHiloMasa['ubicacion']>,
+  repository: MonoHiloMasaRepositoryPort,
+): Promise<void> {
+  await Promise.all(
+    Array.from(snapshot.entries()).map(async ([masaId, ubicacion]) => {
+      await repository.update(masaId, { ubicacion }).catch(() => undefined)
+    }),
+  )
 }
 
 export class CreateSalidaProcesoInventarioUseCase {
@@ -344,10 +485,121 @@ export class CreateRetornoProcesoInventarioUseCase {
   }
 }
 
+export class CreateRetornoProcesoMasaInventarioUseCase {
+  constructor(
+    private readonly repository: InventarioMovimientoRepositoryPort,
+    private readonly monoHiloMasaRepository: MonoHiloMasaRepositoryPort,
+  ) {}
+
+  async execute(
+    dto: CreateRetornoProcesoMasaInventarioDto,
+    actor: MovimientoActor,
+  ): Promise<InventarioMovimientoResponseDto> {
+    const masaId = dto.masaId.trim()
+    if (!masaId) {
+      throw new DomainError(
+        'Debe seleccionar una masa en proceso para solicitar entrada a almacen.',
+        400,
+        'MONO_HILO_MASA_RETORNO_REQUERIDA',
+      )
+    }
+
+    const masa = await this.monoHiloMasaRepository.findById(masaId)
+    if (!masa) {
+      throw new DomainError(`Masa ${masaId} no existe`, 404, 'MONO_HILO_MASA_NOT_FOUND')
+    }
+
+    if (masa.estado === 'anulada') {
+      throw new DomainError(
+        'La masa fue anulada y no puede solicitar entrada a almacen.',
+        409,
+        'MONO_HILO_MASA_ANULADA',
+      )
+    }
+
+    if (masa.ubicacion === 'consumida') {
+      throw new DomainError(
+        'La masa ya fue consumida y no puede solicitar entrada a almacen.',
+        409,
+        'MONO_HILO_MASA_CONSUMIDA',
+      )
+    }
+
+    if (masa.ubicacion !== 'proceso') {
+      throw new DomainError(
+        'Solo se puede solicitar entrada para masas que esten en proceso.',
+        409,
+        'MONO_HILO_MASA_RETORNO_ORIGEN_INVALIDO',
+      )
+    }
+
+    const motivo = dto.motivo.trim()
+    if (motivo.length < 5) {
+      throw new DomainError(
+        'Debe indicar un motivo valido para la entrada de la masa.',
+        400,
+        'MONO_HILO_MASA_RETORNO_MOTIVO_REQUERIDO',
+      )
+    }
+
+    const pendienteExistente = (await this.repository.findAll()).find(
+      (movimiento) =>
+        movimiento.estado === 'pendiente' &&
+        movimiento.detalles.some(
+          (detalle) => isMasaMovimientoDetalle(detalle) && detalle.masaId === masa.id,
+        ),
+    )
+
+    if (pendienteExistente) {
+      throw new DomainError(
+        `La masa ${masa.codigo} ya tiene una solicitud pendiente (${pendienteExistente.id}).`,
+        409,
+        'MONO_HILO_MASA_RETORNO_DUPLICADO',
+        {
+          masaId: masa.id,
+          movimientoId: pendienteExistente.id,
+        },
+      )
+    }
+
+    const disponibilidad = resolveMasaDisponibilidad(masa)
+    const detalle: InventarioMovimientoDetalle = {
+      id: `imd-ma-${masa.id}-${Date.now()}`,
+      detalleTipo: 'masa',
+      productoNombre: masa.codigo,
+      tipo: disponibilidad.tipo,
+      dimension: disponibilidad.dimension,
+      ubicacionOrigen: 'proceso',
+      ubicacionDestino: 'almacen',
+      origenId: masa.bloqueId,
+      origenNombre: masa.bloqueCodigo.trim() || masa.bloqueNombre.trim() || 'SIN-BLOQUE',
+      cantidadLosas: disponibilidad.cantidadLosas,
+      metrosCuadrados: disponibilidad.metrosCuadrados,
+      masaId: masa.id,
+      masaCodigo: masa.codigo,
+      masaMedidas: formatMasaMedidas(masa),
+    }
+
+    const now = new Date().toISOString()
+    return this.repository.create({
+      fechaSolicitud: now,
+      tipo: 'entrada',
+      origen: 'proceso',
+      estado: 'pendiente',
+      motivo,
+      observaciones: `Retorno solicitado para la masa ${masa.codigo} desde proceso hacia almacen.`,
+      solicitadoPorId: actor.userId,
+      solicitadoPorNombre: actor.userName,
+      detalles: [detalle],
+    })
+  }
+}
+
 export class ApproveInventarioMovimientoUseCase {
   constructor(
     private readonly repository: InventarioMovimientoRepositoryPort,
     private readonly productoRepository: ProductoRepositoryPort,
+    private readonly monoHiloMasaRepository: MonoHiloMasaRepositoryPort,
     private readonly bloqueRepository: BloqueRepositoryPort,
     private readonly ventaRepository: VentaRepositoryPort,
     private readonly mermaRepository: MermaRepositoryPort,
@@ -372,6 +624,8 @@ export class ApproveInventarioMovimientoUseCase {
       )
     }
 
+    assertMovimientoDetalleHomogeneo(movimiento.detalles)
+    const detallesMasa = movimiento.detalles.filter(isMasaMovimientoDetalle)
     const detallesSalidaProceso = movimiento.detalles.map((detalle) => ({
       ...detalle,
       estado: detalle.estado ?? detalle.estadoDestino,
@@ -384,9 +638,15 @@ export class ApproveInventarioMovimientoUseCase {
 
     let rollbackDetallesSalida: InventarioMovimientoDetalle[] = []
     let rollbackDetallesEntrada: InventarioMovimientoDetalle[] = []
+    let rollbackMasas = new Map<string, MonoHiloMasa['ubicacion']>()
 
     try {
-      if (movimiento.origen === 'proceso') {
+      if (detallesMasa.length > 0) {
+        rollbackMasas = await applyRetornoMasaAAlmacen(
+          detallesMasa,
+          this.monoHiloMasaRepository,
+        )
+      } else if (movimiento.origen === 'proceso') {
         await applyInventarioSalida(detallesSalidaProceso, this.productoRepository)
         rollbackDetallesSalida = buildSalidaRollbackDetalles(detallesSalidaProceso)
 
@@ -425,9 +685,16 @@ export class ApproveInventarioMovimientoUseCase {
         updated.motivo,
         updated.detalles,
       )
-      await this.syncBloquesVendidos(updated.detalles)
+      if (detallesMasa.length === 0) {
+        await this.syncBloquesVendidos(updated.detalles)
+      }
       return updated
     } catch (error) {
+      if (rollbackMasas.size > 0) {
+        await rollbackRetornoMasaAAlmacen(rollbackMasas, this.monoHiloMasaRepository).catch(
+          () => undefined,
+        )
+      }
       if (rollbackDetallesEntrada.length > 0) {
         await applyInventarioSalida(rollbackDetallesEntrada, this.productoRepository).catch(() => undefined)
       }
@@ -665,6 +932,85 @@ export class RejectInventarioMovimientoUseCase {
       aprobacionAlmacenFecha: new Date().toISOString(),
       aprobacionAlmacenMotivo: motivoRechazo,
       inventarioAplicado: false,
+    })
+  }
+}
+
+export class CreateSalidaAjusteInventarioUseCase {
+  constructor(
+    private readonly repository: InventarioMovimientoRepositoryPort,
+    private readonly productoRepository: ProductoRepositoryPort,
+  ) {}
+
+  async execute(
+    dto: CreateSalidaAjusteInventarioDto,
+    actor: MovimientoActor,
+  ): Promise<InventarioMovimientoResponseDto> {
+    const producto = await this.productoRepository.findById(dto.productoId)
+    if (!producto) {
+      throw new DomainError(`Producto ${dto.productoId} no existe`, 404, 'PRODUCTO_NOT_FOUND')
+    }
+
+    if (producto.ubicacion !== 'almacen') {
+      throw new DomainError(
+        'Solo se puede registrar salida de ajuste desde stock en almacen.',
+        409,
+        'AJUSTE_STOCK_ORIGEN_INVALIDO',
+      )
+    }
+
+    const cantidadLosas = Math.trunc(dto.cantidadLosas)
+    if (!Number.isInteger(cantidadLosas) || cantidadLosas <= 0) {
+      throw new DomainError(
+        'La salida de ajuste requiere cantidad de losas entera y mayor a 0.',
+        400,
+        'AJUSTE_CANTIDAD_INVALIDA',
+      )
+    }
+
+    const motivo = dto.motivo.trim()
+    if (motivo.length < 5) {
+      throw new DomainError(
+        'La observación es obligatoria (mínimo 5 caracteres) para salidas de ajuste.',
+        400,
+        'AJUSTE_MOTIVO_REQUERIDO',
+      )
+    }
+
+    const metrosCuadrados = resolveMetrosParaMovimiento(producto, cantidadLosas)
+    const detalle = {
+      id: `imd-aj-${producto.id}-${Date.now()}`,
+      productoId: producto.id,
+      productoNombre: producto.nombre,
+      tipo: producto.tipo,
+      estado: producto.estado,
+      ubicacionOrigen: 'almacen' as const,
+      dimension: producto.dimension,
+      origenId: producto.origenId,
+      origenNombre: producto.origenNombre,
+      cantidadLosas,
+      metrosCuadrados,
+    }
+
+    await validateInventarioSalida([detalle], this.productoRepository, this.repository)
+
+    const now = new Date().toISOString()
+
+    await applyInventarioSalida([detalle], this.productoRepository)
+
+    return await this.repository.create({
+      fechaSolicitud: now,
+      fechaResolucion: now,
+      tipo: 'salida',
+      origen: 'ajuste',
+      estado: 'aprobado',
+      motivo: `${dto.destino}: ${motivo}`,
+      observaciones: motivo,
+      solicitadoPorId: actor.userId,
+      solicitadoPorNombre: actor.userName,
+      aprobadoPorId: actor.userId,
+      aprobadoPorNombre: actor.userName,
+      detalles: [detalle],
     })
   }
 }

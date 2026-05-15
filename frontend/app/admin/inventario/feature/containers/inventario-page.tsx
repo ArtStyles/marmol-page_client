@@ -44,7 +44,9 @@ import {
   getMermas,
   getMonoHiloMasas,
   getProduccionTrabajadores,
+  getVentas,
   rejectInventarioMovimiento,
+  updateMonoHiloMasaUbicacion,
 } from '@/lib/resources-api'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { useProduccionStore } from '@/hooks/use-produccion'
@@ -53,6 +55,8 @@ import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import {
   type BloqueOLote,
   type Gasto,
+  getMonoHiloLosasDisponibles,
+  getMonoHiloTotalLosasDisponibles,
   losasAMetros,
   type Merma,
   type MonoHiloMasa,
@@ -61,6 +65,7 @@ import {
   type Producto,
   type ProduccionTrabajador,
   type UbicacionInventario,
+  type Venta,
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
@@ -76,6 +81,7 @@ type EstadoRow = {
 
 type MetricView = 'both' | 'losas' | 'm2'
 type UbicacionFilter = 'all' | UbicacionInventario
+type ProcesoAccionObjetivo = 'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir'
 
 type AccionFiltroResumenRow = {
   estado: Producto['estado']
@@ -125,9 +131,10 @@ const estadoRequeridoProcesoPorAccion: Record<
 }
 
 const accionObjetivoProcesoLabel: Record<
-  'escuadrar' | 'devastar' | 'resinar' | 'pulir',
+  ProcesoAccionObjetivo,
   string
 > = {
+  picar: 'Picar',
   escuadrar: 'Escuadrar',
   devastar: 'Devastar',
   resinar: 'Resinar',
@@ -160,13 +167,20 @@ function buildProductoProcesoOptionLabel(
 ): string {
   return [origenCodigo, producto.estado, `${producto.cantidadLosas} losas`].join(' - ')
 }
-function getMonoHiloLosasDisponibles(
-  masa: MonoHiloMasa,
-  dimension: Dimension,
-): number {
-  const estimado = masa.estimados[dimension]
-  if (!estimado) return 0
-  return Math.max(0, estimado.losasEstimadas - estimado.losasConsumidas)
+
+function buildMonoHiloProcesoOptionLabel(origenCodigo: string, masa: MonoHiloMasa): string {
+  return [origenCodigo, masa.codigo, `hasta ${getMonoHiloTotalLosasDisponibles(masa)} losas`].join(' - ')
+}
+
+function buildMonoHiloDisponibilidadResumen(masa: MonoHiloMasa): string {
+  return Object.keys(masa.estimados)
+    .map((dimension) => ({
+      dimension,
+      disponibles: getMonoHiloLosasDisponibles(masa, dimension),
+    }))
+    .filter((item) => item.disponibles > 0)
+    .map((item) => `${item.dimension}: ${item.disponibles}`)
+    .join(' | ')
 }
 
 function formatDateTime(value: string | undefined): string {
@@ -238,6 +252,7 @@ export default function InventarioPage() {
   const [bloquesYLotes, setBloquesYLotes] = useState<BloqueOLote[]>([])
   const [gastos, setGastos] = useState<Gasto[]>([])
   const [mermas, setMermas] = useState<Merma[]>([])
+  const [ventas, setVentas] = useState<Venta[]>([])
   const [produccionTrabajadores, setProduccionTrabajadores] = useState<ProduccionTrabajador[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [tipoFilter, setTipoFilter] = useState<string>('all')
@@ -262,8 +277,9 @@ export default function InventarioPage() {
   const [rejectDialogMotivo, setRejectDialogMotivo] = useState('')
   const [rejectDialogError, setRejectDialogError] = useState<string | null>(null)
   const [procesoDialogOpen, setProcesoDialogOpen] = useState(false)
-  const [procesoAccionObjetivo, setProcesoAccionObjetivo] = useState<'escuadrar' | 'devastar' | 'resinar' | 'pulir'>('escuadrar')
+  const [procesoAccionObjetivo, setProcesoAccionObjetivo] = useState<ProcesoAccionObjetivo>('picar')
   const [procesoProductoId, setProcesoProductoId] = useState('')
+  const [procesoMasaId, setProcesoMasaId] = useState('')
   const [procesoCantidadLosas, setProcesoCantidadLosas] = useState(0)
   const [procesoCantidadTouched, setProcesoCantidadTouched] = useState(false)
   const [procesoDialogError, setProcesoDialogError] = useState<string | null>(null)
@@ -273,6 +289,8 @@ export default function InventarioPage() {
   const [monoHiloMasas, setMonoHiloMasas] = useState<MonoHiloMasa[]>([])
   const [monoHiloLoading, setMonoHiloLoading] = useState(true)
   const [monoHiloError, setMonoHiloError] = useState<string | null>(null)
+  const [monoHiloActionError, setMonoHiloActionError] = useState<string | null>(null)
+  const [monoHiloNotice, setMonoHiloNotice] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -294,6 +312,7 @@ export default function InventarioPage() {
       try {
         const data = await getInventarioMovimientosPage({
           limit: MOVIMIENTOS_PAGE_SIZE,
+          detalleTipo: 'producto',
         })
         if (!alive) return
         setMovimientos(data.items)
@@ -404,6 +423,36 @@ export default function InventarioPage() {
       alive = false
     }
   }, [])
+
+  useEffect(() => {
+    let alive = true
+
+    const canReadVentas = currentUser ? hasPermission(currentUser, 'ventas:read') : false
+    if (!canReadVentas) {
+      setVentas([])
+      return () => {
+        alive = false
+      }
+    }
+
+    const loadVentas = async () => {
+      try {
+        const items = await getVentas()
+        if (!alive) return
+        setVentas(items)
+      } catch {
+        if (!alive) return
+        setVentas([])
+      }
+    }
+
+    void loadVentas()
+
+    return () => {
+      alive = false
+    }
+  }, [currentUser])
+
   useEffect(() => {
     let alive = true
 
@@ -436,6 +485,7 @@ export default function InventarioPage() {
 
   const canApproveMovimientos = currentUser ? hasPermission(currentUser, 'inventario:approve') : false
   const canDarSalidaProceso = canApproveMovimientos
+  const canReadVentas = currentUser ? hasPermission(currentUser, 'ventas:read') : false
 
   const origenesVendidos = useMemo(() => {
     const ids = new Set<string>()
@@ -538,6 +588,7 @@ export default function InventarioPage() {
   }, [productos, tipoFilter, estadoFilter, dimensionFilter, ubicacionFilter])
 
   const productosAlmacenParaProceso = useMemo(() => {
+    if (procesoAccionObjetivo === 'picar') return []
     const estadoRequerido = estadoRequeridoProcesoPorAccion[procesoAccionObjetivo]
     return productos
       .filter((producto) => producto.ubicacion === 'almacen')
@@ -547,11 +598,36 @@ export default function InventarioPage() {
       .sort((a, b) => b.cantidadLosas - a.cantidadLosas)
   }, [productos, procesoAccionObjetivo, origenesVendidos])
 
+  const masasAlmacenParaProceso = useMemo(
+    () =>
+      monoHiloMasas
+        .filter((masa) => masa.estado !== 'anulada')
+        .filter((masa) => masa.ubicacion === 'almacen')
+        .filter((masa) => getMonoHiloTotalLosasDisponibles(masa) > 0)
+        .sort(
+          (a, b) =>
+            b.fechaRegistro.localeCompare(a.fechaRegistro) || b.codigo.localeCompare(a.codigo),
+        ),
+    [monoHiloMasas],
+  )
+
   useEffect(() => {
     if (!procesoDialogOpen) return
+    if (procesoAccionObjetivo === 'picar') {
+      if (procesoMasaId && masasAlmacenParaProceso.some((item) => item.id === procesoMasaId)) return
+      setProcesoMasaId(masasAlmacenParaProceso[0]?.id ?? '')
+      return
+    }
     if (procesoProductoId && productosAlmacenParaProceso.some((item) => item.id === procesoProductoId)) return
     setProcesoProductoId(productosAlmacenParaProceso[0]?.id ?? '')
-  }, [procesoDialogOpen, procesoProductoId, productosAlmacenParaProceso])
+  }, [
+    masasAlmacenParaProceso,
+    procesoAccionObjetivo,
+    procesoDialogOpen,
+    procesoMasaId,
+    procesoProductoId,
+    productosAlmacenParaProceso,
+  ])
 
   const originProfiles = useMemo(
     () =>
@@ -564,10 +640,19 @@ export default function InventarioPage() {
         produccion,
         produccionTrabajadores,
         monoHiloMasas,
+        ventas,
+        config: {
+          costosAnalisisEstado: config.costosAnalisisEstado,
+          costoResinaLitro: config.costoResinaLitro,
+        },
+        salesAnalysisEnabled: canReadVentas,
         resolveOriginCode: resolveOrigenCodigo,
       }),
     [
       bloquesYLotes,
+      canReadVentas,
+      config.costoResinaLitro,
+      config.costosAnalisisEstado,
       gastos,
       mermas,
       monoHiloMasas,
@@ -576,6 +661,7 @@ export default function InventarioPage() {
       productos,
       resolveOrigenCodigo,
       stockFilteredProductos,
+      ventas,
     ],
   )
 
@@ -700,6 +786,10 @@ export default function InventarioPage() {
     () => productosAlmacenParaProceso.find((producto) => producto.id === procesoProductoId) ?? null,
     [productosAlmacenParaProceso, procesoProductoId],
   )
+  const procesoMasaSeleccionada = useMemo(
+    () => masasAlmacenParaProceso.find((masa) => masa.id === procesoMasaId) ?? null,
+    [masasAlmacenParaProceso, procesoMasaId],
+  )
   const procesoProductoResumen = useMemo(
     () =>
       procesoProductoSeleccionado
@@ -712,6 +802,19 @@ export default function InventarioPage() {
           )
         : '',
     [procesoProductoSeleccionado, resolveOrigenCodigo],
+  )
+  const procesoMasaResumen = useMemo(
+    () =>
+      procesoMasaSeleccionada
+        ? buildMonoHiloProcesoOptionLabel(
+            resolveOrigenCodigo(
+              procesoMasaSeleccionada.bloqueId,
+              procesoMasaSeleccionada.bloqueNombre,
+            ),
+            procesoMasaSeleccionada,
+          )
+        : '',
+    [procesoMasaSeleccionada, resolveOrigenCodigo],
   )
 
   const closeApproveDialog = () => {
@@ -732,8 +835,9 @@ export default function InventarioPage() {
   const openProcesoDialog = () => {
     if (!canDarSalidaProceso) return
     setProcesoDialogError(null)
-    setProcesoAccionObjetivo('escuadrar')
+    setProcesoAccionObjetivo(masasAlmacenParaProceso.length > 0 ? 'picar' : 'escuadrar')
     setProcesoProductoId('')
+    setProcesoMasaId('')
     setProcesoCantidadLosas(0)
     setProcesoCantidadTouched(false)
     setProcesoConfirmDialogOpen(false)
@@ -753,6 +857,14 @@ export default function InventarioPage() {
   }
 
   const validateSalidaProcesoForm = (): boolean => {
+    if (procesoAccionObjetivo === 'picar') {
+      if (!procesoMasaSeleccionada) {
+        setProcesoDialogError('Selecciona una masa en almacen para la salida a proceso.')
+        return false
+      }
+      return true
+    }
+
     if (!procesoProductoSeleccionado) {
       setProcesoDialogError('Selecciona un producto de almacen para la salida a proceso.')
       return false
@@ -853,16 +965,32 @@ export default function InventarioPage() {
   }
 
   const confirmSalidaProceso = async () => {
-    if (!validateSalidaProcesoForm() || !procesoProductoSeleccionado) return
-
-    const cantidadLosas = Math.trunc(procesoCantidadLosas)
+    if (!validateSalidaProcesoForm()) return
 
     setProcesoDialogError(null)
+    setMonoHiloActionError(null)
+    setMonoHiloNotice(null)
     setMovimientosError(null)
     setProcesoDialogSubmitting(true)
     try {
+      if (procesoAccionObjetivo === 'picar' && procesoMasaSeleccionada) {
+        const updated = await updateMonoHiloMasaUbicacion(procesoMasaSeleccionada.id, {
+          ubicacionDestino: 'proceso',
+        })
+        setMonoHiloMasas((prev) => prev.map((masa) => (masa.id === updated.id ? updated : masa)))
+        setMonoHiloNotice(`Masa ${updated.codigo} enviada a proceso para picado.`)
+        setProcesoConfirmDialogOpen(false)
+        setProcesoDialogOpen(false)
+        setProcesoDialogError(null)
+        return
+      }
+
+      if (!procesoProductoSeleccionado) return
+      const cantidadLosas = Math.trunc(procesoCantidadLosas)
+      const accionObjetivo = procesoAccionObjetivo
+      if (accionObjetivo === 'picar') return
       const movimiento = await createSalidaProcesoInventario({
-        accionObjetivo: procesoAccionObjetivo,
+        accionObjetivo,
         productoId: procesoProductoSeleccionado.id,
         cantidadLosas,
       })
@@ -877,6 +1005,7 @@ export default function InventarioPage() {
           ? error.message
           : 'No se pudo registrar la salida a proceso.'
       setProcesoDialogError(message)
+      setMonoHiloActionError(message)
       setMovimientosError(message)
     } finally {
       setProcesoDialogSubmitting(false)
@@ -891,6 +1020,7 @@ export default function InventarioPage() {
       const data = await getInventarioMovimientosPage({
         limit: MOVIMIENTOS_PAGE_SIZE,
         cursor: movimientosNextCursor,
+        detalleTipo: 'producto',
       })
       setMovimientos((prev) => {
         const ids = new Set(prev.map((item) => item.id))
@@ -1108,6 +1238,9 @@ export default function InventarioPage() {
               <p className="text-xs text-amber-800">
                 Total: {monoHiloResumen.total} | Almacen: {monoHiloResumen.almacen} | Proceso: {monoHiloResumen.proceso} | Consumidas: {monoHiloResumen.consumida}
               </p>
+              <p className="mt-1 text-xs text-amber-700">
+                Las masas salen a proceso desde el modal general con accion Picar. Si queda remanente, el retorno se gestiona desde produccion diaria.
+              </p>
             </div>
           </div>
 
@@ -1124,65 +1257,77 @@ export default function InventarioPage() {
               No hay masas registradas desde produccion diaria.
             </p>
           ) : (
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-amber-200 text-xs uppercase tracking-wide text-amber-700">
-                    <th className="px-2 py-2">Masa</th>
-                    <th className="px-2 py-2">Bloque</th>
-                    <th className="px-2 py-2">Dimensiones (cm)</th>
-                    <th className="px-2 py-2">Estimado / disponible</th>
-                    <th className="px-2 py-2">Merma estimada</th>
-                    <th className="px-2 py-2">Ubicacion</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monoHiloMasasOrdenadas.map((masa) => {
-                    const dimensionesMonoHilo = dimensiones as Dimension[]
-                    const resumenDimensiones = dimensionesMonoHilo.map((dimension) => {
-                      const estimado = masa.estimados[dimension]
-                      return {
-                        dimension,
-                        estimado,
-                        disponibles: getMonoHiloLosasDisponibles(masa, dimension),
-                      }
-                    })
+            <>
+              {monoHiloActionError ? (
+                <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                  {monoHiloActionError}
+                </div>
+              ) : null}
+              {monoHiloNotice ? (
+                <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+                  {monoHiloNotice}
+                </div>
+              ) : null}
+              <div className="mt-3 overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-amber-200 text-xs uppercase tracking-wide text-amber-700">
+                      <th className="px-2 py-2">Masa</th>
+                      <th className="px-2 py-2">Bloque</th>
+                      <th className="px-2 py-2">Dimensiones (cm)</th>
+                      <th className="px-2 py-2">Estimado / disponible</th>
+                      <th className="px-2 py-2">Merma estimada</th>
+                      <th className="px-2 py-2">Ubicacion</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monoHiloMasasOrdenadas.map((masa) => {
+                      const dimensionesMonoHilo = dimensiones as Dimension[]
+                      const resumenDimensiones = dimensionesMonoHilo.map((dimension) => {
+                        const estimado = masa.estimados[dimension]
+                        return {
+                          dimension,
+                          estimado,
+                          disponibles: getMonoHiloLosasDisponibles(masa, dimension),
+                        }
+                      })
 
-                    return (
-                      <tr key={masa.id} className="border-b border-amber-100/70 text-amber-950 last:border-b-0">
-                        <td className="px-2 py-2">
-                          <p className="font-semibold">{masa.codigo}</p>
-                          <p className="text-xs text-amber-800">{masa.fechaRegistro.slice(0, 10)}</p>
-                        </td>
-                        <td className="px-2 py-2 text-xs text-amber-900">
-                          {resolveOrigenCodigo(masa.bloqueId, masa.bloqueCodigo || masa.bloqueNombre)}
-                        </td>
-                        <td className="px-2 py-2 text-xs text-amber-900">
-                          {masa.largoCm.toFixed(2)} x {masa.anchoCm.toFixed(2)} x {masa.profundidadCm.toFixed(2)}
-                        </td>
-                        <td className="px-2 py-2 text-xs text-amber-900">
-                          {resumenDimensiones.map((item) => (
-                            <p key={`stock-${masa.id}-${item.dimension}`}>
-                              {item.dimension}: {item.estimado.losasEstimadas} / {item.disponibles}
-                            </p>
-                          ))}
-                        </td>
-                        <td className="px-2 py-2 text-xs text-amber-900">
-                          {resumenDimensiones.map((item) => (
-                            <p key={`merma-${masa.id}-${item.dimension}`}>
-                              {item.dimension}: {item.estimado.mermaEstimadaPorcentaje.toFixed(2)}%
-                              {' '}
-                              ({item.estimado.mermaEstimadaM3.toFixed(4)} m3)
-                            </p>
-                          ))}
-                        </td>
-                        <td className="px-2 py-2 text-xs font-medium uppercase text-amber-800">{masa.ubicacion}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                      return (
+                        <tr key={masa.id} className="border-b border-amber-100/70 text-amber-950 last:border-b-0">
+                          <td className="px-2 py-2">
+                            <p className="font-semibold">{masa.codigo}</p>
+                            <p className="text-xs text-amber-800">{masa.fechaRegistro.slice(0, 10)}</p>
+                          </td>
+                          <td className="px-2 py-2 text-xs text-amber-900">
+                            {resolveOrigenCodigo(masa.bloqueId, masa.bloqueCodigo || masa.bloqueNombre)}
+                          </td>
+                          <td className="px-2 py-2 text-xs text-amber-900">
+                            {masa.largoCm.toFixed(2)} x {masa.anchoCm.toFixed(2)} x {masa.profundidadCm.toFixed(2)}
+                          </td>
+                          <td className="px-2 py-2 text-xs text-amber-900">
+                            {resumenDimensiones.map((item) => (
+                              <p key={`stock-${masa.id}-${item.dimension}`}>
+                                {item.dimension}: {item.estimado.losasEstimadas} / {item.disponibles}
+                              </p>
+                            ))}
+                          </td>
+                          <td className="px-2 py-2 text-xs text-amber-900">
+                            {resumenDimensiones.map((item) => (
+                              <p key={`merma-${masa.id}-${item.dimension}`}>
+                                {item.dimension}: {item.estimado.mermaEstimadaPorcentaje.toFixed(2)}%
+                                {' '}
+                                ({item.estimado.mermaEstimadaM3.toFixed(4)} m3)
+                              </p>
+                            ))}
+                          </td>
+                          <td className="px-2 py-2 text-xs font-medium uppercase text-amber-800">{masa.ubicacion}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 
@@ -1494,9 +1639,16 @@ export default function InventarioPage() {
                 <Select
                   value={procesoAccionObjetivo}
                   onValueChange={(value) => {
-                    if (value === 'escuadrar' || value === 'devastar' || value === 'resinar' || value === 'pulir') {
+                    if (
+                      value === 'picar' ||
+                      value === 'escuadrar' ||
+                      value === 'devastar' ||
+                      value === 'resinar' ||
+                      value === 'pulir'
+                    ) {
                       setProcesoAccionObjetivo(value)
                       setProcesoProductoId('')
+                      setProcesoMasaId('')
                     }
                   }}
                   disabled={procesoDialogSubmitting}
@@ -1505,6 +1657,7 @@ export default function InventarioPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="picar">Picar (requiere masa en almacen)</SelectItem>
                     <SelectItem value="escuadrar">Escuadrar (requiere estado Picado)</SelectItem>
                     <SelectItem value="devastar">Devastar (requiere estado Escuadrado)</SelectItem>
                     <SelectItem value="resinar">Resinar (requiere estado Devastado)</SelectItem>
@@ -1514,57 +1667,98 @@ export default function InventarioPage() {
               </div>
 
               <div className="space-y-1">
-                <Label>Producto en almacen</Label>
+                <Label>{procesoAccionObjetivo === 'picar' ? 'Masa en almacen' : 'Producto en almacen'}</Label>
                 <Select
-                  value={procesoProductoId}
-                  onValueChange={setProcesoProductoId}
+                  value={procesoAccionObjetivo === 'picar' ? procesoMasaId : procesoProductoId}
+                  onValueChange={(value) => {
+                    if (procesoAccionObjetivo === 'picar') {
+                      setProcesoMasaId(value)
+                    } else {
+                      setProcesoProductoId(value)
+                    }
+                  }}
                   disabled={procesoDialogSubmitting}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar producto" />
+                    <SelectValue
+                      placeholder={
+                        procesoAccionObjetivo === 'picar'
+                          ? 'Seleccionar masa'
+                          : 'Seleccionar producto'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    {productosAlmacenParaProceso.length === 0 ? (
-                      <SelectItem value="__empty__" disabled>
-                        Sin stock disponible para esta accion
-                      </SelectItem>
-                    ) : (
-                      productosAlmacenParaProceso.map((producto) => (
-                        <SelectItem key={producto.id} value={producto.id}>
-                          {buildProductoProcesoOptionLabel(
-                            resolveOrigenCodigo(producto.origenId, producto.origenNombre),
-                            producto,
-                          )}
-                        </SelectItem>
-                      ))
-                    )}
+                    {procesoAccionObjetivo === 'picar'
+                      ? masasAlmacenParaProceso.length === 0
+                        ? (
+                          <SelectItem value="__empty__" disabled>
+                            Sin masas disponibles para picado
+                          </SelectItem>
+                        )
+                        : masasAlmacenParaProceso.map((masa) => (
+                            <SelectItem key={masa.id} value={masa.id}>
+                              {buildMonoHiloProcesoOptionLabel(
+                                resolveOrigenCodigo(masa.bloqueId, masa.bloqueNombre),
+                                masa,
+                              )}
+                            </SelectItem>
+                          ))
+                      : productosAlmacenParaProceso.length === 0
+                        ? (
+                          <SelectItem value="__empty__" disabled>
+                            Sin stock disponible para esta accion
+                          </SelectItem>
+                        )
+                        : productosAlmacenParaProceso.map((producto) => (
+                            <SelectItem key={producto.id} value={producto.id}>
+                              {buildProductoProcesoOptionLabel(
+                                resolveOrigenCodigo(producto.origenId, producto.origenNombre),
+                                producto,
+                              )}
+                            </SelectItem>
+                          ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {procesoProductoSeleccionado && (
+              {procesoAccionObjetivo === 'picar' && procesoMasaSeleccionada ? (
+                <p className="text-xs text-slate-600">
+                  Reserva estimada: {buildMonoHiloDisponibilidadResumen(procesoMasaSeleccionada) || '--'}
+                  {' - '}
+                  la masa sale completa a proceso para picado.
+                </p>
+              ) : null}
+
+              {procesoAccionObjetivo !== 'picar' && procesoProductoSeleccionado ? (
                 <p className="text-xs text-slate-600">
                   Disponible: {procesoProductoSeleccionado.cantidadLosas} losas (
                   {procesoProductoSeleccionado.metrosCuadrados.toFixed(2)} m2)
                 </p>
-              )}
+              ) : null}
 
-              <div className="space-y-1">
-                <Label>Cantidad de losas</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={procesoCantidadTouched || procesoCantidadLosas > 0 ? procesoCantidadLosas : ''}
-                  onChange={(event) => {
-                    const value = event.target.value
-                    setProcesoCantidadTouched(value !== '')
-                    setProcesoCantidadLosas(value === '' ? 0 : Math.trunc(Number(value)))
-                    if (procesoDialogError) setProcesoDialogError(null)
-                  }}
-                  disabled={procesoDialogSubmitting}
-                />
-              </div>
+              {procesoAccionObjetivo === 'picar' ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-600">
+                  La salida de masa es completa. Si despues del picado queda remanente, el retorno se hace desde produccion diaria.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <Label>Cantidad de losas</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={procesoCantidadTouched || procesoCantidadLosas > 0 ? procesoCantidadLosas : ''}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setProcesoCantidadTouched(value !== '')
+                      setProcesoCantidadLosas(value === '' ? 0 : Math.trunc(Number(value)))
+                      if (procesoDialogError) setProcesoDialogError(null)
+                    }}
+                    disabled={procesoDialogSubmitting}
+                  />
+                </div>
+              )}
 
               {procesoDialogError ? (
                 <p className="text-xs text-destructive">{procesoDialogError}</p>
@@ -1587,8 +1781,9 @@ export default function InventarioPage() {
                 }}
                 disabled={
                   procesoDialogSubmitting ||
-                  !procesoProductoSeleccionado ||
-                  procesoCantidadLosas <= 0
+                  (procesoAccionObjetivo === 'picar'
+                    ? !procesoMasaSeleccionada
+                    : !procesoProductoSeleccionado || procesoCantidadLosas <= 0)
                 }
               >
                 Dar salida
@@ -1619,18 +1814,29 @@ export default function InventarioPage() {
                 </span>
               </div>
               <div className="flex items-start justify-between gap-3">
-                <span className="text-slate-500">Producto</span>
+                <span className="text-slate-500">
+                  {procesoAccionObjetivo === 'picar' ? 'Masa' : 'Producto'}
+                </span>
                 <span className="max-w-[70%] text-right font-semibold text-slate-950">
-                  {procesoProductoResumen || '--'}
+                  {procesoAccionObjetivo === 'picar' ? procesoMasaResumen || '--' : procesoProductoResumen || '--'}
                 </span>
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-slate-500">Cantidad</span>
-                <span className="font-semibold text-slate-950">
-                  {Math.trunc(procesoCantidadLosas).toLocaleString()} losas
-                </span>
-              </div>
-              {procesoProductoSeleccionado ? (
+              {procesoAccionObjetivo === 'picar' ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Salida</span>
+                  <span className="font-semibold text-slate-950">
+                    Masa completa
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Cantidad</span>
+                  <span className="font-semibold text-slate-950">
+                    {Math.trunc(procesoCantidadLosas).toLocaleString()} losas
+                  </span>
+                </div>
+              )}
+              {procesoAccionObjetivo !== 'picar' && procesoProductoSeleccionado ? (
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-slate-500">Equivalencia</span>
                   <span className="font-semibold text-slate-950">

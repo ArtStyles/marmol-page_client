@@ -41,6 +41,7 @@ export default function VentasPage() {
     getVentaBloqueResumen,
     getVentaSections,
     groupedByDate,
+    hasSlabStockAvailable,
     handleBlockChange,
     handleSubmit,
     isDialogOpen,
@@ -130,7 +131,7 @@ export default function VentasPage() {
                 Registrar venta
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
+            <DialogContent className="h-[96vh] max-h-[96vh] w-[calc(100vw-1rem)] max-w-none overflow-y-auto overflow-x-hidden p-4 sm:w-[calc(100vw-2rem)] sm:max-w-[1600px] sm:p-6">
               <DialogHeader>
                 <DialogTitle>Registrar resumen de ventas del bloque</DialogTitle>
               </DialogHeader>
@@ -196,7 +197,7 @@ export default function VentasPage() {
                     </Badge>
                   </div>
 
-                  <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -267,121 +268,131 @@ export default function VentasPage() {
                       </p>
                     </div>
 
-                    <Button type="button" variant="outline" size="sm" onClick={addSlabRow}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addSlabRow}
+                      disabled={!formData.bloqueId || !hasSlabStockAvailable}
+                    >
                       <Plus className="mr-2 h-4 w-4" />
                       Agregar plancha
                     </Button>
                   </div>
 
-                  <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Producto</TableHead>
-                          <TableHead>Dimension</TableHead>
-                          <TableHead>Estado</TableHead>
-                          <TableHead>Disponible</TableHead>
-                          <TableHead>Cantidad (unid.)</TableHead>
-                          <TableHead>Precio por unidad</TableHead>
-                          <TableHead>Total</TableHead>
-                          <TableHead />
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {resolvedSlabRows.map((row) => (
-                          <TableRow key={row.id}>
-                            <TableCell className="font-medium text-slate-900">Plancha</TableCell>
-                            <TableCell>
-                              <Select
-                                value={row.dimension}
-                                onValueChange={(value) => updateSlabRow(row.id, { dimension: value })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Dimension" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {row.dimensionOptions.length === 0 ? (
-                                    <SelectItem value="__empty__" disabled>
-                                      Sin dimensiones
-                                    </SelectItem>
-                                  ) : (
-                                    row.dimensionOptions.map((dimension) => (
+                  {!formData.bloqueId ? (
+                    <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">
+                      Selecciona un bloque para cargar las planchas disponibles.
+                    </div>
+                  ) : !hasSlabStockAvailable ? (
+                    <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-sm text-slate-500">
+                      No hay planchas con stock disponible en este bloque.
+                    </div>
+                  ) : (
+                    <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Producto</TableHead>
+                            <TableHead>Dimension</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Disponible</TableHead>
+                            <TableHead>Cantidad (unid.)</TableHead>
+                            <TableHead>Precio por unidad</TableHead>
+                            <TableHead>Total</TableHead>
+                            <TableHead />
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {resolvedSlabRows.map((row) => (
+                            <TableRow key={row.id}>
+                              <TableCell className="font-medium text-slate-900">Plancha</TableCell>
+                              <TableCell>
+                                <Select
+                                  value={row.dimension}
+                                  onValueChange={(value) => updateSlabRow(row.id, { dimension: value })}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Dimension" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {row.dimensionOptions.map((dimension) => (
                                       <SelectItem key={`${row.id}-${dimension}`} value={dimension}>
                                         {dimension}
                                       </SelectItem>
-                                    ))
-                                  )}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                value={row.estado}
-                                onValueChange={(value) =>
-                                  updateSlabRow(row.id, { estado: value as (typeof slabStateOrder)[number] })
-                                }
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {slabStateOrder.map((estado) => (
-                                    <SelectItem key={`${row.id}-${estado}`} value={estado}>
-                                      {estado}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell className="text-xs text-slate-500">
-                              {row.producto ? `${row.disponibleUnidades} unid.` : 'Sin stock'}
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="1"
-                                value={row.cantidadUnidades > 0 ? row.cantidadUnidades : ''}
-                                onChange={(event) =>
-                                  updateSlabRow(row.id, {
-                                    cantidadUnidades:
-                                      event.target.value === '' ? 0 : Math.trunc(Number(event.target.value)),
-                                  })
-                                }
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={row.precioUnitario > 0 ? row.precioUnitario : ''}
-                                onChange={(event) =>
-                                  updateSlabRow(row.id, {
-                                    precioUnitario: event.target.value === '' ? 0 : Number(event.target.value),
-                                  })
-                                }
-                              />
-                            </TableCell>
-                            <TableCell className="font-semibold text-slate-900">
-                              {formatMoney(row.total)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeSlabRow(row.id)}
-                                disabled={resolvedSlabRows.length === 1}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell>
+                                <Select
+                                  value={row.estado}
+                                  onValueChange={(value) =>
+                                    updateSlabRow(row.id, { estado: value as (typeof slabStateOrder)[number] })
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {slabStateOrder.map((estado) => (
+                                      <SelectItem key={`${row.id}-${estado}`} value={estado}>
+                                        {estado}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell className="text-xs text-slate-500">
+                                {row.producto ? `${row.disponibleUnidades} unid.` : 'Sin stock'}
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={row.cantidadUnidades > 0 ? row.cantidadUnidades : ''}
+                                  onChange={(event) =>
+                                    updateSlabRow(row.id, {
+                                      cantidadUnidades:
+                                        event.target.value === '' ? 0 : Math.trunc(Number(event.target.value)),
+                                    })
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={row.precioUnitario > 0 ? row.precioUnitario : ''}
+                                  onChange={(event) =>
+                                    updateSlabRow(row.id, {
+                                      precioUnitario: event.target.value === '' ? 0 : Number(event.target.value),
+                                    })
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell className="font-semibold text-slate-900">
+                                {formatMoney(row.total)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => removeSlabRow(row.id)}
+                                  disabled={resolvedSlabRows.length === 1}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">

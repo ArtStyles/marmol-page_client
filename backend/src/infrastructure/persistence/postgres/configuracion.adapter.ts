@@ -24,6 +24,12 @@ const emptyConfiguracion: ConfiguracionSistema = {
     '160x60': { crudo: 0, pulido: 0 },
     '160x65': { crudo: 0, pulido: 0 },
   },
+  costosAnalisisEstado: {
+    crudo: 0,
+    escuadrado: 0,
+    pulido: 0,
+  },
+  costoResinaLitro: 0,
   monoHiloGrosorDiscoMm: 8,
   monoHiloEspesorLosaCm: 3,
   nombreEmpresa: '',
@@ -37,9 +43,16 @@ const emptyConfiguracion: ConfiguracionSistema = {
 
 function rowToConfig(r: Record<string, unknown>): ConfiguracionSistema {
   return {
-    tarifasGlobales: r.tarifas_globales as ConfiguracionSistema['tarifasGlobales'],
-    salariosFijosPorRol: r.salarios_fijos_por_rol as ConfiguracionSistema['salariosFijosPorRol'],
-    preciosM2: r.precios_m2 as ConfiguracionSistema['preciosM2'],
+    tarifasGlobales:
+      (r.tarifas_globales as ConfiguracionSistema['tarifasGlobales']) ?? emptyConfiguracion.tarifasGlobales,
+    salariosFijosPorRol:
+      (r.salarios_fijos_por_rol as ConfiguracionSistema['salariosFijosPorRol']) ??
+      emptyConfiguracion.salariosFijosPorRol,
+    preciosM2: (r.precios_m2 as ConfiguracionSistema['preciosM2']) ?? emptyConfiguracion.preciosM2,
+    costosAnalisisEstado:
+      (r.costos_analisis_estado as ConfiguracionSistema['costosAnalisisEstado']) ??
+      emptyConfiguracion.costosAnalisisEstado,
+    costoResinaLitro: Number(r.costo_resina_litro ?? emptyConfiguracion.costoResinaLitro),
     monoHiloGrosorDiscoMm: Number(r.mono_hilo_grosor_disco_mm ?? emptyConfiguracion.monoHiloGrosorDiscoMm),
     monoHiloEspesorLosaCm: Number(r.mono_hilo_espesor_losa_cm ?? emptyConfiguracion.monoHiloEspesorLosaCm),
     nombreEmpresa: r.nombre_empresa as string,
@@ -77,12 +90,31 @@ export class PostgresConfiguracionAdapter implements ConfiguracionPort {
     const configId = `default:${workshopId}`
 
     await pool.query(
-      `INSERT INTO configuracion (id, workshop_id, tarifas_globales, salarios_fijos_por_rol, precios_m2, mono_hilo_grosor_disco_mm, mono_hilo_espesor_losa_cm, nombre_empresa, email, telefono, direccion, notificaciones_email, alertas_stock_bajo, reportes_ventas)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `INSERT INTO configuracion (
+         id,
+         workshop_id,
+         tarifas_globales,
+         salarios_fijos_por_rol,
+         precios_m2,
+         costos_analisis_estado,
+         costo_resina_litro,
+         mono_hilo_grosor_disco_mm,
+         mono_hilo_espesor_losa_cm,
+         nombre_empresa,
+         email,
+         telefono,
+         direccion,
+         notificaciones_email,
+         alertas_stock_bajo,
+         reportes_ventas
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        ON CONFLICT (id) DO UPDATE SET
          tarifas_globales = EXCLUDED.tarifas_globales,
          salarios_fijos_por_rol = EXCLUDED.salarios_fijos_por_rol,
          precios_m2 = EXCLUDED.precios_m2,
+         costos_analisis_estado = EXCLUDED.costos_analisis_estado,
+         costo_resina_litro = EXCLUDED.costo_resina_litro,
          mono_hilo_grosor_disco_mm = EXCLUDED.mono_hilo_grosor_disco_mm,
          mono_hilo_espesor_losa_cm = EXCLUDED.mono_hilo_espesor_losa_cm,
          nombre_empresa = EXCLUDED.nombre_empresa,
@@ -99,6 +131,8 @@ export class PostgresConfiguracionAdapter implements ConfiguracionPort {
         JSON.stringify(config.tarifasGlobales),
         JSON.stringify(config.salariosFijosPorRol),
         JSON.stringify(config.preciosM2),
+        JSON.stringify(config.costosAnalisisEstado),
+        config.costoResinaLitro,
         config.monoHiloGrosorDiscoMm,
         config.monoHiloEspesorLosaCm,
         config.nombreEmpresa,

@@ -3,7 +3,11 @@
 import { useEffect, useState } from 'react'
 import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-auth'
 import { getConfiguracion, updateConfiguracion } from '@/lib/resources-api'
-import type { ConfiguracionSistema } from '@/lib/types'
+import {
+  COSTOS_ANALISIS_ESTADO_DEFAULT,
+  COSTO_RESINA_LITRO_DEFAULT,
+  type ConfiguracionSistema,
+} from '@/lib/types'
 
 const emptyConfiguracion: ConfiguracionSistema = {
   tarifasGlobales: {
@@ -31,6 +35,8 @@ const emptyConfiguracion: ConfiguracionSistema = {
     '160x60': { crudo: 0, pulido: 0 },
     '160x65': { crudo: 0, pulido: 0 },
   },
+  costosAnalisisEstado: { ...COSTOS_ANALISIS_ESTADO_DEFAULT },
+  costoResinaLitro: COSTO_RESINA_LITRO_DEFAULT,
   nombreEmpresa: '',
   email: '',
   telefono: '',
@@ -55,6 +61,11 @@ const mergeConfiguracion = (value: Partial<ConfiguracionSistema>): Configuracion
     ...emptyConfiguracion.preciosM2,
     ...value.preciosM2,
   },
+  costosAnalisisEstado: {
+    ...emptyConfiguracion.costosAnalisisEstado,
+    ...value.costosAnalisisEstado,
+  },
+  costoResinaLitro: value.costoResinaLitro ?? emptyConfiguracion.costoResinaLitro,
   monoHiloGrosorDiscoMm: value.monoHiloGrosorDiscoMm ?? emptyConfiguracion.monoHiloGrosorDiscoMm,
   monoHiloEspesorLosaCm: value.monoHiloEspesorLosaCm ?? emptyConfiguracion.monoHiloEspesorLosaCm,
 })
