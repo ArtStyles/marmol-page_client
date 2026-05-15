@@ -115,6 +115,29 @@ async function loadPendingInventarioMovimientos(
   return items
 }
 
+function isMassInventarioMovimiento(movimiento: InventarioMovimiento): boolean {
+  return movimiento.detalles.some(
+    (detalle) => detalle.detalleTipo === 'masa' || Boolean(detalle.masaId),
+  )
+}
+
+function buildInventarioMovimientoNotificationDetail(movimiento: InventarioMovimiento): string {
+  const detalle = movimiento.detalles[0]
+  if (!detalle) return `${movimiento.tipo} - ${movimiento.origen} - ${movimiento.motivo}`
+
+  if (detalle.detalleTipo === 'masa' || detalle.masaId) {
+    return [
+      detalle.masaCodigo ?? detalle.productoNombre,
+      detalle.origenNombre ? `Bloque ${detalle.origenNombre}` : null,
+      movimiento.motivo,
+    ]
+      .filter(Boolean)
+      .join(' - ')
+  }
+
+  return `${movimiento.tipo} - ${movimiento.origen} - ${movimiento.motivo}`
+}
+
 export const ApprovalNotifications = ({
   sessionUser,
   onLogout,
@@ -244,13 +267,14 @@ export const ApprovalNotifications = ({
         if (canApproveAlmacen) {
           for (const movimiento of movimientosInventario) {
             if (movimiento.estado !== 'pendiente') continue
+            const isMassMovimiento = isMassInventarioMovimiento(movimiento)
             pending.push({
               id: `inv-mov-${movimiento.id}`,
               type: 'inventario_movimiento',
               referenceId: movimiento.id,
-              title: 'Movimiento de almacen pendiente',
-              detail: `${movimiento.tipo} - ${movimiento.origen} - ${movimiento.motivo}`,
-              href: scopedRoute('/admin/inventario'),
+              title: isMassMovimiento ? 'Entrada de masa pendiente' : 'Movimiento de almacen pendiente',
+              detail: buildInventarioMovimientoNotificationDetail(movimiento),
+              href: scopedRoute(isMassMovimiento ? '/admin/inventario/masas' : '/admin/inventario/losas'),
               timestamp: toTimestamp(movimiento.fechaSolicitud),
             })
           }

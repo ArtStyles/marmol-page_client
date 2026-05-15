@@ -28,7 +28,7 @@ import { getAccessForUser, type AdminUser } from '@/lib/admin-auth'
 
 const primaryNavItems = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-  { label: 'Inventario', href: '/admin/inventario', icon: Package },
+  { label: 'Losas', href: '/admin/inventario/losas', icon: Package },
   { label: 'Ventas', href: '/admin/ventas', icon: ShoppingCart },
   { label: 'Finanzas', href: '/admin/finanzas', icon: TrendingUp },
   { label: 'Gastos', href: '/admin/gastos', icon: ReceiptText },
@@ -39,7 +39,8 @@ const secondaryNavItems = [
   { label: 'Producción diaria', href: '/admin/produccion', icon: Factory },
   { label: 'Asignaciones', href: '/admin/asignaciones', icon: ClipboardList },
   { label: 'Mermas', href: '/admin/mermas', icon: AlertTriangle },
-  { label: 'Materia prima', href: '/admin/bloques', icon: Boxes },
+  { label: 'Bloques y lotes', href: '/admin/bloques', icon: Boxes },
+  { label: 'Masas', href: '/admin/inventario/masas', icon: Package },
   { label: 'Trabajadores', href: '/admin/trabajadores', icon: Users },
   { label: 'Pagos', href: '/admin/pagos', icon: Wallet },
   { label: 'Historial', href: '/admin/historial', icon: ClipboardList },
