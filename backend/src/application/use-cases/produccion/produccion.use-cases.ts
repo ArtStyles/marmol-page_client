@@ -39,8 +39,8 @@ import {
   buildEntradaRollbackDetalles,
 } from '../inventario-movimientos/inventario-movimiento.helpers.js'
 import {
-  consumeMonoHiloMasasParaPicado,
-  restoreMonoHiloMasasParaPicado,
+  assertMonoHiloPicadoConsumptionsDisponibles,
+  syncMonoHiloMasasFromProduccionState,
 } from '../mono-hilo/mono-hilo.use-cases.js'
 
 interface ProduccionActor {
@@ -112,6 +112,7 @@ export class CreateProduccionUseCase {
           this.trabajadorRepository,
           this.configuracionPort,
         )
+        await syncMonoHiloMasasFromProduccionState(this.repository, this.monoHiloRepository)
       }
 
       return created
@@ -182,6 +183,7 @@ export class ApproveProduccionTallerUseCase {
       await assertProduccionTrabajadoresEditable(id, this.produccionTrabajadorRepository)
       let trabajadoresEliminados = false
       let stockRevertido = false
+      let registroActualizado = false
 
       try {
         trabajadoresEliminados =
@@ -219,9 +221,17 @@ export class ApproveProduccionTallerUseCase {
             'PRODUCCION_UPDATE_FAILED',
           )
         }
+        registroActualizado = true
+
+        if (!isMonoHiloWorkflow(produccion)) {
+          await syncMonoHiloMasasFromProduccionState(this.repository, this.monoHiloRepository)
+        }
 
         return rejected
       } catch (error) {
+        if (registroActualizado) {
+          await this.repository.update(id, produccion).catch(() => undefined)
+        }
         if (stockRevertido) {
           await applyRegularProduccionSideEffects(
             produccion,
@@ -243,6 +253,7 @@ export class ApproveProduccionTallerUseCase {
 
     let stockReaplicado = false
     let trabajadoresRecreados = false
+    let registroActualizado = false
     if (produccion.aprobacionTallerEstado === 'rechazado') {
       try {
         await applyRegularProduccionSideEffects(
@@ -293,9 +304,17 @@ export class ApproveProduccionTallerUseCase {
           'PRODUCCION_UPDATE_FAILED',
         )
       }
+      registroActualizado = true
+
+      if (!isMonoHiloWorkflow(produccion)) {
+        await syncMonoHiloMasasFromProduccionState(this.repository, this.monoHiloRepository)
+      }
 
       return approved
     } catch (error) {
+      if (registroActualizado) {
+        await this.repository.update(id, produccion).catch(() => undefined)
+      }
       if (trabajadoresRecreados) {
         await deleteProduccionTrabajadoresForRegistro(
           produccion.id,
@@ -685,6 +704,7 @@ export class UpdateProduccionUseCase {
         this.trabajadorRepository,
         this.configuracionPort,
       )
+      await syncMonoHiloMasasFromProduccionState(this.repository, this.monoHiloRepository)
 
       return updated
     } catch (error) {
@@ -779,6 +799,11 @@ export class DeleteProduccionUseCase {
           'PRODUCCION_DELETE_FAILED',
         )
       }
+
+      await syncMonoHiloMasasFromProduccionState(
+        this.repository,
+        this.monoHiloRepository,
+      ).catch(() => undefined)
 
       return true
     } catch (error) {
@@ -991,8 +1016,9 @@ async function applyRegularProduccionSideEffects(
     return
   }
 
-  for (const consumo of buildMonoHiloConsumptions(dto)) {
-    await consumeMonoHiloMasasParaPicado(consumo, monoHiloRepository)
+  const consumosMonoHilo = buildMonoHiloConsumptions(dto)
+  if (consumosMonoHilo.length > 0) {
+    await assertMonoHiloPicadoConsumptionsDisponibles(consumosMonoHilo, monoHiloRepository)
   }
   await consumeProcesoStockParaProduccion(dto, productoRepository)
 }
@@ -1020,9 +1046,6 @@ async function revertRegularProduccionSideEffects(
     return
   }
 
-  for (const consumo of buildMonoHiloConsumptions(dto)) {
-    await restoreMonoHiloMasasParaPicado(consumo, monoHiloRepository)
-  }
   await restoreProcesoStockParaProduccion(dto, productoRepository)
 }
 
