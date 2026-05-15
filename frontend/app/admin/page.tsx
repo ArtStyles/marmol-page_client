@@ -236,8 +236,8 @@ export default function AdminDashboard() {
       icon: Factory,
     },
     {
-      href: adminPath('/admin/inventario'),
-      title: 'Inventario disponible',
+      href: adminPath('/admin/inventario/losas'),
+      title: 'Inventario de losas',
       description: `${totalLosasInventario} losas en stock`,
       value: `${totalM2Inventario.toFixed(1)} m²`,
       footer: `${productos.length} referencias`,
@@ -255,7 +255,7 @@ export default function AdminDashboard() {
     },
     {
       href: adminPath('/admin/bloques'),
-      title: 'Materia prima',
+      title: 'Bloques y lotes',
       description: `${bloquesActivos} activos`,
       value: `${bloquesYLotes.length} totales`,
       footer: 'Control de origen',
