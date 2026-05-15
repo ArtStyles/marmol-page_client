@@ -92,7 +92,15 @@ export const buildEmptyMetrosPorDimension = (
   return totals
 }
 export type EstadoLosa = 'Crudo' | 'Pulido'
-export type EstadoInventario = 'Picado' | 'Escuadrado' | 'Devastado' | 'Resinado' | 'Pulido'
+export type EstadoInventario =
+  | 'Picado'
+  | 'Escuadrado'
+  | 'Devastado'
+  | 'Resinado'
+  | 'Pulido'
+  | 'Recuperado'
+  | 'Pendiente'
+  | 'Redimensionado'
 export type UbicacionInventario = 'almacen' | 'proceso'
 export type UbicacionMasaMonoHilo = 'almacen' | 'proceso' | 'consumida'
 export type ProduccionWorkflowTipo = 'regular' | 'mono_hilo'
@@ -110,6 +118,12 @@ export type RolTrabajador =
   | 'Obrero'
 
 export type RolConSalarioFijo = Exclude<RolTrabajador, 'Obrero'>
+
+export interface CostosAnalisisEstado {
+  crudo: number
+  escuadrado: number
+  pulido: number
+}
 
 export type AccionLosa = 'picar' | 'escuadrar' | 'devastar' | 'resinar' | 'pulir'
 export type TipoEquipo = 'Pulidora' | 'Cortadora' | 'Escuadradora'
@@ -151,10 +165,20 @@ export const PRECIOS_M2_DEFAULT: Record<Dimension, { crudo: number; pulido: numb
   '160x65': { crudo: 160, pulido: 220 },
 }
 
+export const COSTOS_ANALISIS_ESTADO_DEFAULT: CostosAnalisisEstado = {
+  crudo: 0,
+  escuadrado: 0,
+  pulido: 0,
+}
+
+export const COSTO_RESINA_LITRO_DEFAULT = 0
+
 export interface ConfiguracionSistema {
   tarifasGlobales: Record<AccionLosa, number>
   salariosFijosPorRol: Record<RolConSalarioFijo, number>
   preciosM2: Record<string, { crudo: number; pulido: number }>
+  costosAnalisisEstado: CostosAnalisisEstado
+  costoResinaLitro: number
   monoHiloGrosorDiscoMm: number
   monoHiloEspesorLosaCm: number
   nombreEmpresa: string
@@ -233,6 +257,11 @@ export interface MonoHiloEstimadoDimension {
 
 export type MonoHiloEstimados = Record<string, MonoHiloEstimadoDimension>
 
+export interface MonoHiloRemanente {
+  largoCm: number
+  anchoCm: number
+}
+
 export interface MonoHiloMasa {
   id: string
   bloqueId: string
@@ -253,10 +282,147 @@ export interface MonoHiloMasa {
   observaciones: string
   fechaRegistro: string
   estimados: MonoHiloEstimados
+  remanentes?: MonoHiloRemanente[]
   anulacionMotivo?: string
   anuladoPorId?: string
   anuladoPorNombre?: string
   anuladoFecha?: string
+}
+
+function resolveMonoHiloCapasProfundidad(
+  profundidadCm: number,
+  espesorLosaCm: number,
+  kerfCm: number,
+): number {
+  if (profundidadCm <= 0) return 0
+  return Math.max(0, Math.floor((profundidadCm + kerfCm) / (espesorLosaCm + kerfCm)))
+}
+
+function sortMonoHiloRemanentes(remanentes: MonoHiloRemanente[]): MonoHiloRemanente[] {
+  return remanentes
+    .map((remanente) => ({
+      largoCm: Number(remanente.largoCm.toFixed(2)),
+      anchoCm: Number(remanente.anchoCm.toFixed(2)),
+    }))
+    .filter((remanente) => remanente.largoCm > 0 && remanente.anchoCm > 0)
+    .sort((a, b) => {
+      const areaDelta = b.largoCm * b.anchoCm - a.largoCm * a.anchoCm
+      if (areaDelta !== 0) return areaDelta
+      if (b.largoCm !== a.largoCm) return b.largoCm - a.largoCm
+      return b.anchoCm - a.anchoCm
+    })
+}
+
+function buildInitialMonoHiloRemanentes(masa: Pick<
+  MonoHiloMasa,
+  'largoCm' | 'anchoCm' | 'profundidadCm' | 'grosorDiscoMm' | 'espesorLosaCm'
+>): MonoHiloRemanente[] {
+  const kerfCm = masa.grosorDiscoMm / 10
+  const capas = resolveMonoHiloCapasProfundidad(
+    masa.profundidadCm,
+    masa.espesorLosaCm,
+    kerfCm,
+  )
+
+  return sortMonoHiloRemanentes(
+    Array.from({ length: capas }, () => ({
+      largoCm: masa.largoCm,
+      anchoCm: masa.anchoCm,
+    })),
+  )
+}
+
+export function getMonoHiloRemanentes(
+  masa: Pick<
+    MonoHiloMasa,
+    | 'largoCm'
+    | 'anchoCm'
+    | 'profundidadCm'
+    | 'grosorDiscoMm'
+    | 'espesorLosaCm'
+    | 'remanentes'
+    | 'ubicacion'
+  >,
+): MonoHiloRemanente[] {
+  const remanentes = sortMonoHiloRemanentes(masa.remanentes ?? [])
+  if (remanentes.length > 0 || masa.ubicacion === 'consumida') {
+    return remanentes
+  }
+
+  return buildInitialMonoHiloRemanentes(masa)
+}
+
+export function hasMonoHiloRemainingRemanentes(
+  masa: Pick<
+    MonoHiloMasa,
+    | 'largoCm'
+    | 'anchoCm'
+    | 'profundidadCm'
+    | 'grosorDiscoMm'
+    | 'espesorLosaCm'
+    | 'remanentes'
+    | 'ubicacion'
+  >,
+): boolean {
+  return getMonoHiloRemanentes(masa).length > 0
+}
+
+export function getMonoHiloLosasDisponibles(
+  masa: Pick<
+    MonoHiloMasa,
+    | 'largoCm'
+    | 'anchoCm'
+    | 'profundidadCm'
+    | 'grosorDiscoMm'
+    | 'espesorLosaCm'
+    | 'remanentes'
+    | 'ubicacion'
+  >,
+  dimension: Dimension,
+): number {
+  const spec = parseDimension(dimension)
+  if (!spec) return 0
+
+  const kerfCm = masa.grosorDiscoMm / 10
+  return getMonoHiloRemanentes(masa).reduce((sum, remanente) => {
+    const cortesLargo = Math.max(
+      0,
+      Math.floor((remanente.largoCm + kerfCm) / (spec.largoCm + kerfCm)),
+    )
+    const cortesAncho = Math.max(
+      0,
+      Math.floor((remanente.anchoCm + kerfCm) / (spec.anchoCm + kerfCm)),
+    )
+
+    return sum + cortesLargo * cortesAncho
+  }, 0)
+}
+
+export function getMonoHiloTotalLosasDisponibles(
+  masa: Pick<
+    MonoHiloMasa,
+    | 'largoCm'
+    | 'anchoCm'
+    | 'profundidadCm'
+    | 'grosorDiscoMm'
+    | 'espesorLosaCm'
+    | 'remanentes'
+    | 'ubicacion'
+    | 'estimados'
+  >,
+  dimensions: Iterable<Dimension> = [...MONO_HILO_DIMENSIONES_BASE, ...Object.keys(masa.estimados)],
+): number {
+  let maxDisponibles = 0
+
+  for (const dimension of dimensions) {
+    const normalized = normalizeDimension(dimension)
+    maxDisponibles = Math.max(
+      maxDisponibles,
+      getMonoHiloLosasDisponibles(masa, normalized),
+    )
+  }
+
+  return maxDisponibles
 }
 
 export interface CatalogoItem {
@@ -596,9 +762,11 @@ export interface FinancialSummary {
 
 export type InventarioMovimientoTipo = 'entrada' | 'salida'
 export type InventarioMovimientoOrigen = 'produccion' | 'venta' | 'merma' | 'proceso' | 'ajuste'
+export type InventarioMovimientoDetalleTipo = 'producto' | 'masa'
 
 export interface InventarioMovimientoDetalle {
   id: string
+  detalleTipo?: InventarioMovimientoDetalleTipo
   productoId?: string
   productoNombre: string
   tipo: TipoProducto
@@ -611,6 +779,9 @@ export interface InventarioMovimientoDetalle {
   origenNombre: string
   cantidadLosas: number
   metrosCuadrados: number
+  masaId?: string
+  masaCodigo?: string
+  masaMedidas?: string
 }
 
 export interface InventarioMovimiento {
