@@ -1,7 +1,7 @@
 import { getBloqueCodigo } from '@/lib/bloque-codigo'
 import {
   DIMENSIONES_PISO,
-  PLANCHA_DIMENSIONES,
+  isPlanchaDimension,
   getMonoHiloLosasDisponibles,
   hasMonoHiloRemainingRemanentes,
   losasAMetros,
@@ -32,16 +32,9 @@ const STATE_ORDER: Producto['estado'][] = [
   'Pulido',
 ]
 
-export const INVENTORY_ORIGIN_DIMENSION_ORDER: Dimension[] = [
-  '160x65',
-  '160x60',
-  '80x40',
-  '60x40',
-  '40x40',
-]
+export const INVENTORY_ORIGIN_DIMENSION_ORDER: Dimension[] = ['80x40', '60x40', '40x40']
 
 const FLOOR_DIMENSION_ORDER: PisoDimension[] = ['80x40', '60x40', '40x40']
-const SLAB_DIMENSION_ORDER: Dimension[] = ['160x65', '160x60']
 const ANALYSIS_STATE_ORDER = ['Crudo', 'Escuadrado', 'Pulido'] as const
 
 const STATE_BY_ACTION: Record<AccionLosa, Producto['estado']> = {
@@ -71,9 +64,7 @@ const ANALYSIS_STATE_BY_INVENTORY_STATE: Partial<
 const round2 = (value: number): number => Number(value.toFixed(2))
 
 const resolveProductType = (dimension: Dimension): Producto['tipo'] =>
-  PLANCHA_DIMENSIONES.includes(dimension as (typeof PLANCHA_DIMENSIONES)[number])
-    ? 'Plancha'
-    : 'Piso'
+  isPlanchaDimension(dimension) ? 'Plancha' : 'Piso'
 
 type SimplifiedFichaState = (typeof FICHA_STATE_BY_ACTION)[AccionLosa]
 type AnalysisState = (typeof ANALYSIS_STATE_ORDER)[number]
@@ -922,7 +913,11 @@ export function buildInventoryOriginProfiles({
         totalM2: round2(floorRows.reduce((sum, row) => sum + row.totalM2, 0)),
       }
 
-      const slabRows = SLAB_DIMENSION_ORDER.map((dimension) => {
+      const slabDimensions = [...new Set(
+        Array.from(simplifiedRowsMap.keys()).map((key) => key.split('-')[0]).filter(isPlanchaDimension)
+      )].sort()
+
+      const slabRows = slabDimensions.map((dimension) => {
         const entries = Array.from(simplifiedRowsMap.values()).filter((row) => row.dimension === dimension)
         const units = entries.reduce((sum, row) => sum + row.slabs, 0)
         const m2 = entries.reduce((sum, row) => sum + row.m2, 0)

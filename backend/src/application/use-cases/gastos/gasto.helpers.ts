@@ -1,4 +1,5 @@
 import { DomainError } from '../../errors/domain.error.js'
+import { round2 } from '../../../shared/math.js'
 import type {
   BloqueRepositoryPort,
   GastoRepositoryPort,
@@ -376,6 +377,3 @@ function resolvePayrollFlow(role: Trabajador['rol'] | undefined): GastoFlujo {
   return 'Administracion'
 }
 
-function round2(value: number): number {
-  return Number(value.toFixed(2))
-}

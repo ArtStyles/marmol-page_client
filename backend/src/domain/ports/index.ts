@@ -9,6 +9,7 @@ export type { ProduccionRepositoryPort, ProduccionTrabajadorRepositoryPort } fro
 export type { MermaRepositoryPort } from './merma.port.js'
 export type { VentaRepositoryPort } from './venta.port.js'
 export type { GastoRepositoryPort } from './gasto.port.js'
+export type { FondoOperativoRepositoryPort } from './fondo-operativo.port.js'
 export type { HistorialPagoRepositoryPort } from './historial-pago.port.js'
 export type { LogRepositoryPort } from './log.port.js'
 export type {

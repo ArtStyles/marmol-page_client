@@ -279,13 +279,25 @@ CREATE TABLE IF NOT EXISTS inventario_movimientos (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Fondo operativo por período (caja chica del taller)
+CREATE TABLE IF NOT EXISTS fondo_operativo (
+  id TEXT PRIMARY KEY,
+  workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
+  periodo TEXT NOT NULL,
+  fondo_inicial NUMERIC(14,2) NOT NULL CHECK (fondo_inicial > 0),
+  creado_por_id TEXT,
+  creado_por_nombre TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (workshop_id, periodo)
+);
+
 -- Gastos operativos
 CREATE TABLE IF NOT EXISTS gastos (
   id TEXT PRIMARY KEY,
   workshop_id TEXT NOT NULL DEFAULT 'TLR-001',
   fecha DATE NOT NULL,
   costo NUMERIC(14,2) NOT NULL,
-  tipo TEXT NOT NULL CHECK (tipo IN ('Materia prima', 'Transporte', 'Servicios', 'Mantenimiento', 'Nomina', 'Operacion', 'Imprevisto')),
+  tipo TEXT NOT NULL CHECK (tipo IN ('Materia prima', 'Transporte', 'Servicios', 'Mantenimiento', 'Nomina', 'Operativo', 'Personal', 'Otros')),
   flujo TEXT NOT NULL CHECK (flujo IN ('Produccion', 'Inventario', 'Ventas', 'Administracion', 'General')),
   descripcion TEXT NOT NULL,
   encargado TEXT NOT NULL,

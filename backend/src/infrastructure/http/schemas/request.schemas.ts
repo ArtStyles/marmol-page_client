@@ -286,6 +286,10 @@ export const updateGastoSchema = createGastoSchema.partial()
 export const cancelGastoSchema = z.object({
   motivoAnulacion: z.string().min(6),
 })
+export const setFondoOperativoSchema = z.object({
+  periodo: z.string().regex(/^\d{4}-\d{2}$/, 'Formato esperado: YYYY-MM'),
+  fondoInicial: z.number().positive(),
+})
 
 export const createLogSchema = z.object({
   fecha: z.string(),

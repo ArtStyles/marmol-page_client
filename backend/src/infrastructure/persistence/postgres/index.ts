@@ -12,6 +12,7 @@ export {
 export { PostgresMermaRepository } from './merma.repository.js'
 export { PostgresVentaRepository } from './venta.repository.js'
 export { PostgresGastoRepository } from './gasto.repository.js'
+export { PostgresFondoOperativoRepository } from './fondo-operativo.repository.js'
 export { PostgresHistorialPagoRepository } from './historial-pago.repository.js'
 export { PostgresLogRepository } from './log.repository.js'
 export { PostgresInventarioMovimientoRepository } from './inventario-movimiento.repository.js'

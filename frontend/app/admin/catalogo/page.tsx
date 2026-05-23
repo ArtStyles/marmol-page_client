@@ -19,8 +19,8 @@ import {
 } from '@/lib/resources-api'
 import {
   DIMENSIONES_PISO,
+  isPlanchaDimension,
   losasAMetros,
-  PLANCHA_DIMENSIONES,
   type CatalogoItem,
   type Dimension,
   type EstadoLosa,
@@ -46,9 +46,7 @@ type CatalogoAdminItem = CatalogoItem & { visible: boolean }
 
 function normalizeDimensionByTipo(tipo: TipoProducto, dimension: Dimension): Dimension {
   if (tipo === 'Plancha') {
-    return PLANCHA_DIMENSIONES.includes(dimension as (typeof PLANCHA_DIMENSIONES)[number])
-      ? dimension
-      : PLANCHA_DIMENSIONES[0]
+    return isPlanchaDimension(dimension) ? dimension : ''
   }
   return DIMENSIONES_PISO.includes(dimension as (typeof DIMENSIONES_PISO)[number])
     ? dimension
@@ -438,25 +436,31 @@ export default function CatalogoAdminPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Dimension</Label>
-                  <Select
-                    value={formData.dimension}
-                    onValueChange={(value: Dimension) =>
-                      setFormData({ ...formData, dimension: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(formData.tipo === 'Plancha' ? PLANCHA_DIMENSIONES : DIMENSIONES_PISO).map(
-                        (dimensionValue) => (
+                  {formData.tipo === 'Plancha' ? (
+                    <Input
+                      placeholder="Ej: 160x65"
+                      value={formData.dimension}
+                      onChange={(e) => setFormData({ ...formData, dimension: e.target.value })}
+                    />
+                  ) : (
+                    <Select
+                      value={formData.dimension}
+                      onValueChange={(value: Dimension) =>
+                        setFormData({ ...formData, dimension: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DIMENSIONES_PISO.map((dimensionValue) => (
                           <SelectItem key={dimensionValue} value={dimensionValue}>
                             {dimensionValue}
                           </SelectItem>
-                        ),
-                      )}
-                    </SelectContent>
-                  </Select>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               </div>
 

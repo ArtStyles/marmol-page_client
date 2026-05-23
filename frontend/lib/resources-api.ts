@@ -19,6 +19,7 @@ import type {
   Trabajador,
   UpdateBloqueInput,
   Venta,
+  FondoOperativoResponse,
 } from './types'
 import { apiRequest } from './api-client'
 
@@ -398,6 +399,18 @@ export const cancelGasto = (
 ): Promise<Gasto> =>
   apiRequest<Gasto>(`/gastos/${gastoId}/anular`, {
     method: 'PATCH',
+    body: input,
+  })
+
+export const getFondoActual = (): Promise<FondoOperativoResponse> =>
+  apiRequest<FondoOperativoResponse>('/gastos/fondo-actual')
+
+export const setFondoOperativo = (input: {
+  periodo: string
+  fondoInicial: number
+}): Promise<FondoOperativoResponse> =>
+  apiRequest<FondoOperativoResponse>('/gastos/fondo', {
+    method: 'POST',
     body: input,
   })
 

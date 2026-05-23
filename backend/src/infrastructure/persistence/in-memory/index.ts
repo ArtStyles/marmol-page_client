@@ -11,6 +11,7 @@ export {
 export { InMemoryMermaRepository } from './merma.repository.js'
 export { InMemoryVentaRepository } from './venta.repository.js'
 export { InMemoryGastoRepository } from './gasto.repository.js'
+export { InMemoryFondoOperativoRepository } from './fondo-operativo.repository.js'
 export { InMemoryHistorialPagoRepository } from './historial-pago.repository.js'
 export { InMemoryLogRepository } from './log.repository.js'
 export { InMemoryInventarioMovimientoRepository } from './inventario-movimiento.repository.js'

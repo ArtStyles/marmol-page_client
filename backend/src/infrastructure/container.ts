@@ -87,6 +87,10 @@ import {
   CancelGastoUseCase,
   DeleteGastoUseCase,
 } from '../application/use-cases/gastos/gasto.use-cases.js'
+import {
+  GetFondoOperativoUseCase,
+  SetFondoOperativoUseCase,
+} from '../application/use-cases/gastos/fondo-operativo.use-cases.js'
 import { GetFinancialSummaryUseCase } from '../application/use-cases/finanzas/finanzas.use-cases.js'
 import {
   GetHistorialPagosUseCase,
@@ -162,6 +166,9 @@ const ventaRepo = usePostgres
 const gastoRepo = usePostgres
   ? new postgres.PostgresGastoRepository()
   : new inMemory.InMemoryGastoRepository()
+const fondoOperativoRepo = usePostgres
+  ? new postgres.PostgresFondoOperativoRepository()
+  : new inMemory.InMemoryFondoOperativoRepository()
 const historialPagoRepo = usePostgres
   ? new postgres.PostgresHistorialPagoRepository()
   : new inMemory.InMemoryHistorialPagoRepository()
@@ -342,6 +349,9 @@ export const createVentaUseCase = new CreateVentaUseCase(
 )
 export const updateVentaUseCase = new UpdateVentaUseCase(ventaRepo)
 export const deleteVentaUseCase = new DeleteVentaUseCase(ventaRepo)
+
+export const getFondoOperativoUseCase = new GetFondoOperativoUseCase(fondoOperativoRepo, gastoRepo)
+export const setFondoOperativoUseCase = new SetFondoOperativoUseCase(fondoOperativoRepo, gastoRepo)
 
 export const getGastosUseCase = new GetGastosUseCase(
   gastoRepo,

@@ -20,6 +20,7 @@ import {
   cancelGastoSchema,
   createGastoSchema,
   updateGastoSchema,
+  setFondoOperativoSchema,
   createProduccionSchema,
   approveProduccionTallerSchema,
   approveProduccionAlmacenSchema,
@@ -359,6 +360,13 @@ api.delete('/ventas/:id', requirePermission('ventas:write'), asyncHandler(ventaC
 // ----- Gastos -----
 api.get('/gastos', requirePermission('gastos:read'), asyncHandler(gastoCtrl.getGastos))
 api.get('/gastos/resumen', requirePermission('gastos:read'), asyncHandler(gastoCtrl.getGastosResumen))
+api.get('/gastos/fondo-actual', requirePermission('gastos:read'), asyncHandler(gastoCtrl.getFondoActual))
+api.post(
+  '/gastos/fondo',
+  requirePermission('gastos:write'),
+  validateBody(setFondoOperativoSchema),
+  asyncHandler(gastoCtrl.setFondoOperativo),
+)
 api.get('/gastos/:id', requirePermission('gastos:read'), asyncHandler(gastoCtrl.getGastoById))
 api.post(
   '/gastos',

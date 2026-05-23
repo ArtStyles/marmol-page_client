@@ -470,11 +470,12 @@ export const GASTO_TIPOS = [
   'Servicios',
   'Mantenimiento',
   'Nomina',
-  'Operacion',
-  'Imprevisto',
+  'Operativo',
+  'Personal',
+  'Otros',
 ] as const
 
-export const GASTO_TIPOS_MANUALES = ['Servicios', 'Mantenimiento', 'Operacion', 'Imprevisto'] as const
+export const GASTO_TIPOS_MANUALES = ['Mantenimiento', 'Servicios', 'Operativo', 'Personal', 'Otros'] as const
 
 export const GASTO_FLUJOS = ['Produccion', 'Inventario', 'Ventas', 'Administracion', 'General'] as const
 
@@ -504,6 +505,15 @@ export interface Gasto {
   anuladoPorNombre?: string
   anuladoFecha?: string
   motivoAnulacion?: string
+}
+
+export interface FondoOperativo {
+  id: string
+  periodo: string
+  fondoInicial: number
+  creadoPorId?: string
+  creadoPorNombre?: string
+  createdAt?: string
 }
 
 export type WorkshopStatus = 'activo' | 'en-implementacion' | 'pausado'

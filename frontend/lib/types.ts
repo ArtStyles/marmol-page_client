@@ -1,8 +1,7 @@
 import React from 'react'
 
 export const DIMENSIONES_PISO = ['40x40', '60x40', '80x40'] as const
-export const DIMENSIONES_PLANCHA = ['160x65', '160x60'] as const
-export const MONO_HILO_DIMENSIONES_BASE: Dimension[] = ['160x65', '160x60', '80x40', '60x40', '40x40']
+export const MONO_HILO_DIMENSIONES_BASE: Dimension[] = [...DIMENSIONES_PISO]
 export const VENTA_FONDO_DESGASTE_EQUIPOS_RATE = 0.1
 export const VENTA_FONDO_TRABAJADORES_RATE = 0.05
 
@@ -10,15 +9,11 @@ export type PisoDimension = (typeof DIMENSIONES_PISO)[number]
 export type PlanchaDimension = string
 export type Dimension = string
 export type TipoProducto = 'Piso' | 'Plancha'
-export const PLANCHA_DIMENSION: PlanchaDimension = DIMENSIONES_PLANCHA[0]
-export const PLANCHA_DIMENSIONES: PlanchaDimension[] = [...DIMENSIONES_PLANCHA]
 
 const DIMENSION_AREA_M2_FIJA: Record<string, number> = {
   '40x40': 1 / 6,
   '60x40': 1 / 4,
   '80x40': 1 / 3,
-  '160x60': 0.96,
-  '160x65': 1.04,
 }
 
 const DIMENSION_REGEX = /^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/i
@@ -76,8 +71,19 @@ export const dimensionToAreaM2 = (dimension: Dimension): number => {
   return Number(((parsed.largoCm * parsed.anchoCm) / 10_000).toFixed(4))
 }
 
+export function getPlanchaDimensionesFromMasas(masas: Pick<MonoHiloMasa, 'estimados'>[]): Dimension[] {
+  const seen = new Set<Dimension>()
+  for (const masa of masas) {
+    for (const dim of Object.keys(masa.estimados)) {
+      const normalized = normalizeDimension(dim)
+      if (isPlanchaDimension(normalized)) seen.add(normalized)
+    }
+  }
+  return Array.from(seen).sort()
+}
+
 export const buildEmptyMetrosPorDimension = (
-  dimensions: Iterable<Dimension> = [...DIMENSIONES_PISO, ...DIMENSIONES_PLANCHA],
+  dimensions: Iterable<Dimension> = [...DIMENSIONES_PISO],
 ): Record<string, number> => {
   const totals: Record<string, number> = {}
 
@@ -112,9 +118,7 @@ export type RolTrabajador =
   | 'Gestor de Ventas'
   | 'Jefe de Almacen'
   | 'Jefe de Turno de Produccion'
-  | 'Jefe de Turno de ProducciÃ³n'
   | 'Jefe de Turno de Producción'
-  | 'Jefe de Turno de ProducciÃƒÂ³n'
   | 'Obrero'
 
 export type RolConSalarioFijo = Exclude<RolTrabajador, 'Obrero'>
@@ -152,17 +156,13 @@ export const SALARIOS_FIJOS_POR_ROL_DEFAULT: Record<RolConSalarioFijo, number> =
   'Gestor de Ventas': 18000,
   'Jefe de Almacen': 20000,
   'Jefe de Turno de Produccion': 22000,
-  'Jefe de Turno de ProducciÃ³n': 22000,
   'Jefe de Turno de Producción': 22000,
-  'Jefe de Turno de ProducciÃƒÂ³n': 22000,
 }
 
 export const PRECIOS_M2_DEFAULT: Record<Dimension, { crudo: number; pulido: number }> = {
   '40x40': { crudo: 120, pulido: 180 },
   '60x40': { crudo: 140, pulido: 200 },
   '80x40': { crudo: 160, pulido: 220 },
-  '160x60': { crudo: 160, pulido: 220 },
-  '160x65': { crudo: 160, pulido: 220 },
 }
 
 export const COSTOS_ANALISIS_ESTADO_DEFAULT: CostosAnalisisEstado = {
@@ -627,11 +627,12 @@ export const GASTO_TIPOS = [
   'Servicios',
   'Mantenimiento',
   'Nomina',
-  'Operacion',
-  'Imprevisto',
+  'Operativo',
+  'Personal',
+  'Otros',
 ] as const
 
-export const GASTO_TIPOS_MANUALES = ['Servicios', 'Mantenimiento', 'Operacion', 'Imprevisto'] as const
+export const GASTO_TIPOS_MANUALES = ['Mantenimiento', 'Servicios', 'Operativo', 'Personal', 'Otros'] as const
 
 export const GASTO_FLUJOS = ['Produccion', 'Inventario', 'Ventas', 'Administracion', 'General'] as const
 
@@ -661,6 +662,21 @@ export interface Gasto {
   anuladoPorNombre?: string
   anuladoFecha?: string
   motivoAnulacion?: string
+}
+
+export interface FondoCategoria {
+  categoria: string
+  total: number
+  porcentaje: number
+}
+
+export interface FondoOperativoResponse {
+  periodo: string
+  fondoInicial: number
+  totalGastado: number
+  balanceActual: number
+  configurado: boolean
+  porCategoria: FondoCategoria[]
 }
 
 export interface FinancialSeriesPoint {

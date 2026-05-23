@@ -69,7 +69,7 @@ export const createInitialFloorRows = (): FloorSaleFormRow[] =>
 
 export const createSlabRow = (seed = 1): SlabSaleFormRow => ({
   id: `slab-${seed}-${Math.random().toString(16).slice(2, 7)}`,
-  dimension: '160x60',
+  dimension: '',
   estado: 'Crudo',
   cantidadUnidades: 0,
   precioUnitario: 0,

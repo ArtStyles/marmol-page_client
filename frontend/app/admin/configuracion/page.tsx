@@ -68,13 +68,7 @@ const createNotificacionesDraft = (value: ConfiguracionSistema): NotificacionesD
 const createTarifasDraft = (value: ConfiguracionSistema): TarifasDraft => ({
   tarifasGlobales: { ...value.tarifasGlobales },
   salariosFijosPorRol: { ...value.salariosFijosPorRol },
-  preciosM2: {
-    '40x40': { ...value.preciosM2['40x40'] },
-    '60x40': { ...value.preciosM2['60x40'] },
-    '80x40': { ...value.preciosM2['80x40'] },
-    '160x60': { ...value.preciosM2['160x60'] },
-    '160x65': { ...value.preciosM2['160x65'] },
-  },
+  preciosM2: { ...value.preciosM2 },
   costosAnalisisEstado: { ...value.costosAnalisisEstado },
   costoResinaLitro: value.costoResinaLitro,
   monoHiloGrosorDiscoMm: value.monoHiloGrosorDiscoMm,

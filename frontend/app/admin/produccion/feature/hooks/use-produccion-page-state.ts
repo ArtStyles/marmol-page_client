@@ -26,8 +26,7 @@ import {
   losasAMetros,
   parseDimension,
   normalizeDimension,
-  PLANCHA_DIMENSION,
-  PLANCHA_DIMENSIONES,
+  getPlanchaDimensionesFromMasas,
   TIPO_EQUIPO_POR_ACCION,
   type AccionLosa,
   type BloqueOLote,
@@ -73,12 +72,14 @@ const estadoProcesoRequeridoPorAccion: Record<
 
 const PROCESS_ACTIONS: AccionLosa[] = ['escuadrar', 'devastar', 'resinar', 'pulir']
 const ACTION_ORDER: AccionLosa[] = ['picar', 'escuadrar', 'devastar', 'resinar', 'pulir']
-const BASE_DIMENSION_OPTIONS: Dimension[] = [...DIMENSIONES_PISO, ...PLANCHA_DIMENSIONES]
+const BASE_DIMENSION_OPTIONS: Dimension[] = [...DIMENSIONES_PISO]
 const isPlanchaDimensionAllowed = (dimension: Dimension): boolean =>
   isPlanchaDimension(dimension)
 
 const buildDefaultPlanchaDimension = (masa: MonoHiloMasa): Dimension =>
-  PLANCHA_DIMENSIONES.find((dimension) => getMonoHiloLosasDisponibles(masa, dimension) > 0) ??
+  Object.keys(masa.estimados)
+    .filter(isPlanchaDimension)
+    .find((dimension) => getMonoHiloLosasDisponibles(masa, dimension) > 0) ??
   normalizeDimension(`${masa.largoCm}x${masa.anchoCm}`)
 
 const isProcessAction = (
@@ -114,9 +115,10 @@ const buildPseudoOrigen = (
 const resolveDimensionByTipo = (
   tipo: ProduccionDiaria['tipo'] | '',
   dimension: ProduccionDiaria['dimension'],
+  fallbackPlancha: Dimension,
 ): ProduccionDiaria['dimension'] => {
   if (tipo === 'Plancha') {
-    return isPlanchaDimensionAllowed(dimension) ? dimension : PLANCHA_DIMENSION
+    return isPlanchaDimensionAllowed(dimension) ? dimension : fallbackPlancha
   }
   return dimension
 }
@@ -147,8 +149,18 @@ export const useProduccionPageState = () => {
   const [entryUpdateLoadingById, setEntryUpdateLoadingById] = useState<Record<string, boolean>>({})
   const [entryDeleteLoadingById, setEntryDeleteLoadingById] = useState<Record<string, boolean>>({})
   const mountedRef = useRef(true)
+  const planchaDimensiones = useMemo(
+    () => getPlanchaDimensionesFromMasas(monoHiloMasas),
+    [monoHiloMasas],
+  )
+
+  const defaultPlanchaDimension = useMemo(
+    () => planchaDimensiones[0] ?? '',
+    [planchaDimensiones],
+  )
+
   const dimensionOptions = useMemo(() => {
-    const collected = new Set<Dimension>(BASE_DIMENSION_OPTIONS)
+    const collected = new Set<Dimension>([...BASE_DIMENSION_OPTIONS, ...planchaDimensiones])
 
     productos.forEach((producto) => collected.add(normalizeDimension(producto.dimension)))
     produccion.forEach((registro) => collected.add(normalizeDimension(registro.dimension)))
@@ -161,7 +173,7 @@ export const useProduccionPageState = () => {
     })
 
     return Array.from(collected)
-  }, [monoHiloMasas, produccion, productos])
+  }, [monoHiloMasas, planchaDimensiones, produccion, productos])
   const monoHiloDimensions = useMemo(() => {
     const collected = new Set<Dimension>(dimensionOptions)
 
@@ -407,7 +419,7 @@ export const useProduccionPageState = () => {
             producto.origenNombre,
             bloquesPorId.get(producto.origenId),
           )
-          const dimension = resolveDimensionByTipo(producto.tipo, producto.dimension)
+          const dimension = resolveDimensionByTipo(producto.tipo, producto.dimension, defaultPlanchaDimension)
           const key = `${producto.origenId}::${producto.tipo}::${dimension}`
 
           const existing = optionsByKey.get(key)
@@ -529,7 +541,7 @@ export const useProduccionPageState = () => {
     if (!baseDimension) {
       return {
         ...uso,
-        dimensiones: [createUsageDimensionRow(PLANCHA_DIMENSION)],
+        dimensiones: defaultPlanchaDimension ? [createUsageDimensionRow(defaultPlanchaDimension)] : [],
       }
     }
 
@@ -583,7 +595,7 @@ export const useProduccionPageState = () => {
 
         if (tipo === 'Plancha' && !isPlanchaDimensionAllowed(dimension)) return 0
         if (tipo === 'Piso' && !isPisoDimension(dimension)) return 0
-        const dimensionNormalizada = resolveDimensionByTipo(tipo, dimension)
+        const dimensionNormalizada = resolveDimensionByTipo(tipo, dimension, defaultPlanchaDimension)
         return resolveDisponibilidadMonoHilo(dimensionNormalizada)
       }
 
@@ -595,7 +607,7 @@ export const useProduccionPageState = () => {
         dimensionItem: ProduccionDiaria['dimension'],
       ): number => {
         if (tipoItem === 'Plancha' && !isPlanchaDimensionAllowed(dimensionItem)) return 0
-        const dimensionNormalizada = resolveDimensionByTipo(tipoItem, dimensionItem)
+        const dimensionNormalizada = resolveDimensionByTipo(tipoItem, dimensionItem, defaultPlanchaDimension)
         const stockKey = `${origenId}::${tipoItem}::${dimensionNormalizada}::${estadoRequerido}`
         return stockProcesoPorClave.get(stockKey) ?? 0
       }
@@ -787,7 +799,7 @@ export const useProduccionPageState = () => {
         ? dimensionOptions.find(
                 (dimension) =>
                   (getLosasDisponiblesParaAccion(accionInicial, primerOrigen.id, '', dimension, '') ?? 0) > 0,
-              ) ?? PLANCHA_DIMENSION
+              ) ?? defaultPlanchaDimension
             : '60x40'
 
         nextForm.acciones[accionInicial].usos = [
@@ -829,10 +841,11 @@ export const useProduccionPageState = () => {
             .map((dimensionUso) => normalizeDimension(dimensionUso.dimension))
             .filter((dimension): dimension is Dimension => isPlanchaDimensionAllowed(dimension))
           const masaOption = picarUsageOptions.find((item) => item.masaId === uso.masaId)
+          const masaDims = monoHiloMasas.find((m) => m.id === uso.masaId)
           const candidates = [
             ...currentDimensions,
             ...(masaOption ? [masaOption.defaultPlanchaDimension] : []),
-            ...PLANCHA_DIMENSIONES,
+            ...(masaDims ? Object.keys(masaDims.estimados).filter(isPlanchaDimension) : planchaDimensiones),
           ]
 
           return [...new Set(candidates)].filter(
@@ -1371,7 +1384,7 @@ export const useProduccionPageState = () => {
             return
           }
 
-          const dimensionUsoReal = resolveDimensionByTipo(tipoUso, dimensionUso.dimension)
+          const dimensionUsoReal = resolveDimensionByTipo(tipoUso, dimensionUso.dimension, defaultPlanchaDimension)
           const masaBase =
             accion === 'picar'
               ? monoHiloMasasActivas.find((masa) => masa.id === usoNormalizado.masaId)

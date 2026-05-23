@@ -46,3 +46,13 @@ export async function deleteGasto(req: Request, res: Response) {
   if (!ok) return res.status(404).json({ error: 'Gasto not found' })
   res.status(204).send()
 }
+
+export async function getFondoActual(_req: Request, res: Response) {
+  const data = await container.getFondoOperativoUseCase.execute()
+  res.json(data)
+}
+
+export async function setFondoOperativo(req: Request, res: Response) {
+  const data = await container.setFondoOperativoUseCase.execute(req.body, resolveActor(req))
+  res.json(data)
+}

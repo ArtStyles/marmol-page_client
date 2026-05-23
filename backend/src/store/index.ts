@@ -3,6 +3,7 @@ import type {
   CatalogoItem,
   ConfiguracionSistema,
   Equipo,
+  FondoOperativo,
   Gasto,
   HistorialPago,
   InventarioMovimiento,
@@ -56,6 +57,7 @@ interface StoreState {
   inventarioMovimientos: InventarioMovimiento[]
   logs: SystemLog[]
   workshops: WorkshopTenant[]
+  fondoOperativo: FondoOperativo[]
 }
 
 function cloneInitialState(): StoreState {
@@ -76,6 +78,7 @@ function cloneInitialState(): StoreState {
     inventarioMovimientos: [...inventarioMovimientos],
     logs: [...logsSistema],
     workshops: [...workshops],
+    fondoOperativo: [],
   }
 }
 
@@ -511,6 +514,21 @@ export function deleteWorkshop(id: string): boolean {
   if (i === -1) return false
   state.workshops.splice(i, 1)
   return true
+}
+
+// --- Fondo Operativo ---
+export function getFondoOperativoByPeriodo(periodo: string): FondoOperativo | undefined {
+  return state.fondoOperativo.find((f) => f.periodo === periodo)
+}
+export function upsertFondoOperativo(data: Omit<FondoOperativo, 'id'>): FondoOperativo {
+  const i = state.fondoOperativo.findIndex((f) => f.periodo === data.periodo)
+  if (i !== -1) {
+    state.fondoOperativo[i] = { ...state.fondoOperativo[i], ...data }
+    return state.fondoOperativo[i]
+  }
+  const item: FondoOperativo = { id: `FO-${data.periodo}`, ...data }
+  state.fondoOperativo.push(item)
+  return item
 }
 
 // --- Auth (mock users, no persistence)

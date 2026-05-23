@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useFinancialSummary } from '@/hooks/use-financial-summary'
+import { useFondoOperativo } from '@/hooks/use-fondo-operativo'
 import {
   gastoFlujos,
   gastoTipos,
@@ -26,7 +27,7 @@ import {
   type GastoManualTipo,
   type GastoRegistro,
 } from '@/hooks/use-gastos'
-import { Ban, Plus, ReceiptText, Search, TrendingDown, UserRound } from 'lucide-react'
+import { AlertTriangle, Ban, Plus, ReceiptText, Search, TrendingDown, UserRound, Wallet } from 'lucide-react'
 
 type TipoFilter = 'todos' | (typeof gastoTipos)[number]
 type FlujoFilter = 'todos' | GastoFlujo
@@ -40,12 +41,12 @@ type GastoFormData = {
   encargado: string
 }
 
-const getTodayDateIso = () => new Date().toISOString().split('T')[0]
+const getTodayDateIso = () => new Date().toLocaleDateString('en-CA')
 
 const buildDefaultForm = (): GastoFormData => ({
   fecha: getTodayDateIso(),
   costo: 0,
-  tipo: 'Operacion',
+  tipo: 'Operativo',
   flujo: 'General',
   descripcion: '',
   encargado: '',
@@ -74,9 +75,11 @@ export default function GastosPage() {
     error: summaryError,
     reload: reloadSummary,
   } = useFinancialSummary({ scope: 'gastos' })
+  const { fondo, loading: fondoLoading, reload: reloadFondo, actualizarFondo } = useFondoOperativo()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [formError, setFormError] = useState('')
   const [costTouched, setCostTouched] = useState(false)
+  const [overflowWarning, setOverflowWarning] = useState(false)
   const [formData, setFormData] = useState<GastoFormData>(buildDefaultForm)
   const [gastoToCancel, setGastoToCancel] = useState<GastoRegistro | null>(null)
   const [cancelReason, setCancelReason] = useState('')
@@ -85,6 +88,10 @@ export default function GastosPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [tipoFilter, setTipoFilter] = useState<TipoFilter>('todos')
   const [flujoFilter, setFlujoFilter] = useState<FlujoFilter>('todos')
+  const [isFondoDialogOpen, setIsFondoDialogOpen] = useState(false)
+  const [fondoInput, setFondoInput] = useState('')
+  const [fondoError, setFondoError] = useState('')
+  const [fondoPending, setFondoPending] = useState(false)
 
   const gastosFiltrados = useMemo(() => {
     const query = searchTerm.toLowerCase().trim()
@@ -114,11 +121,40 @@ export default function GastosPage() {
     setFormData(buildDefaultForm())
     setFormError('')
     setCostTouched(false)
+    setOverflowWarning(false)
   }
 
   const closeDialog = () => {
     setIsDialogOpen(false)
     resetForm()
+  }
+
+  const closeFondoDialog = () => {
+    setIsFondoDialogOpen(false)
+    setFondoInput('')
+    setFondoError('')
+  }
+
+  const handleFondoSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const valor = Number(fondoInput)
+    if (!Number.isFinite(valor) || valor <= 0) {
+      setFondoError('El monto debe ser mayor que 0.')
+      return
+    }
+    setFondoPending(true)
+    setFondoError('')
+    try {
+      const ok = await actualizarFondo(valor)
+      if (ok) {
+        closeFondoDialog()
+        reloadFondo()
+      } else {
+        setFondoError('No se pudo guardar el fondo operativo.')
+      }
+    } finally {
+      setFondoPending(false)
+    }
   }
 
   const openCancelDialog = (gasto: GastoRegistro) => {
@@ -156,6 +192,14 @@ export default function GastosPage() {
       return
     }
 
+    if (fondo?.configurado && costo > fondo.balanceActual && !overflowWarning) {
+      setOverflowWarning(true)
+      setFormError(
+        `El gasto ($${costo.toLocaleString()}) supera el balance disponible ($${fondo.balanceActual.toLocaleString()}). Confirma para continuar de todas formas.`,
+      )
+      return
+    }
+
     const created = await addGasto({
       fecha: formData.fecha || getTodayDateIso(),
       costo: Number(costo.toFixed(2)),
@@ -166,6 +210,7 @@ export default function GastosPage() {
     })
     if (created) {
       reloadSummary()
+      reloadFondo()
       closeDialog()
       return
     }
@@ -179,7 +224,7 @@ export default function GastosPage() {
 
     const motivoAnulacion = cancelReason.trim()
     if (motivoAnulacion.length < 6) {
-      setCancelError('Indica un motivo de anulacion con al menos 6 caracteres.')
+      setCancelError('Indica un motivo de reversa con al menos 6 caracteres.')
       return
     }
 
@@ -194,6 +239,7 @@ export default function GastosPage() {
       }
 
       reloadSummary()
+      reloadFondo()
       closeCancelDialog(true)
     } finally {
       setCancelPending(false)
@@ -203,9 +249,79 @@ export default function GastosPage() {
   const expenseSummary = summary?.gastos
   const activeBreakdown = expenseSummary?.porTipo.slice(0, 5) ?? []
   const topEncargados = expenseSummary?.topEncargados ?? []
+  const balanceRatio =
+    fondo?.configurado && fondo.fondoInicial > 0
+      ? fondo.balanceActual / fondo.fondoInicial
+      : null
+  const balanceAlerta = balanceRatio !== null && balanceRatio < 0.2
 
   const rightPanel = (
     <div className="space-y-4">
+      <AdminPanelCard
+        title="Fondo operativo"
+        meta={fondo?.periodo ?? '—'}
+      >
+        {fondoLoading ? (
+          <p className="text-xs text-slate-500">Cargando...</p>
+        ) : (
+          <div className="space-y-3 text-sm text-slate-700">
+            <div className="flex items-center justify-between">
+              <span>Fondo inicial</span>
+              <span className="font-semibold">
+                {fondo?.configurado ? formatMoney(fondo.fondoInicial) : <span className="text-slate-400">No configurado</span>}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Total gastado</span>
+              <span className="font-semibold text-rose-700">{formatMoney(fondo?.totalGastado ?? 0)}</span>
+            </div>
+            <div className={`flex items-center justify-between border-t border-white/70 pt-2 ${balanceAlerta ? 'text-amber-700' : ''}`}>
+              <span className="font-medium">Balance actual</span>
+              <span className={`font-bold ${balanceAlerta ? 'text-amber-700' : 'text-emerald-700'}`}>
+                {fondo?.configurado ? formatMoney(fondo.balanceActual) : '—'}
+              </span>
+            </div>
+            {balanceAlerta && (
+              <div className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                Balance bajo. Menos del 20% disponible.
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setFondoInput(String(fondo?.fondoInicial ?? ''))
+                setIsFondoDialogOpen(true)
+              }}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white/70 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-white"
+            >
+              {fondo?.configurado ? 'Actualizar fondo' : 'Definir fondo inicial'}
+            </button>
+          </div>
+        )}
+      </AdminPanelCard>
+
+      {fondo?.configurado && fondo.porCategoria?.length > 0 && (
+        <AdminPanelCard title="Distribucion del mes" meta="Por categoria">
+          <div className="space-y-2 text-sm text-slate-700">
+            {fondo.porCategoria.map((item) => (
+              <div key={item.categoria} className="space-y-0.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs">{item.categoria}</span>
+                  <span className="text-xs font-semibold">{item.porcentaje.toFixed(1)}%</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-rose-400"
+                    style={{ width: `${Math.min(100, item.porcentaje)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </AdminPanelCard>
+      )}
+
       <AdminPanelCard title="Resumen gastos" meta={`${expenseSummary?.cantidadActivos ?? 0} activos`}>
         <div className="space-y-3 text-sm text-slate-700">
           <div className="flex items-center justify-between">
@@ -277,8 +393,8 @@ export default function GastosPage() {
           <div>
             <h1 className="font-sans text-3xl font-bold text-foreground">Gastos</h1>
             <p className="mt-1 font-sans text-muted-foreground">
-              Libro de gastos manuales y automaticos. Materia prima, transporte y nomina se generan
-              desde sus modulos origen.
+              Registro operativo de gastos. Categorias manuales: Mantenimiento, Servicios, Operativo,
+              Personal y Otros. Materia prima, transporte y nomina se generan desde sus modulos origen.
             </p>
             {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
             {summaryError ? <p className="mt-2 text-sm text-destructive">{summaryError}</p> : null}
@@ -287,6 +403,15 @@ export default function GastosPage() {
             <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
               Ledger unificado
             </Badge>
+            {fondo?.configurado && (
+              <Badge
+                variant="outline"
+                className={`w-fit ${balanceAlerta ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}
+              >
+                <Wallet className="mr-1 h-3 w-3" />
+                Balance: {formatMoney(fondo.balanceActual)}
+              </Badge>
+            )}
             <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">
               Tipos manuales limitados
             </Badge>
@@ -398,14 +523,19 @@ export default function GastosPage() {
                     />
                   </div>
 
-                  {formError && <p className="text-sm text-destructive">{formError}</p>}
+                  {formError && (
+                    <p className={`text-sm ${overflowWarning ? 'text-amber-700' : 'text-destructive'}`}>
+                      {overflowWarning && <AlertTriangle className="mr-1 inline h-4 w-4" />}
+                      {formError}
+                    </p>
+                  )}
 
                   <div className="flex gap-2 pt-2">
                     <Button type="button" variant="outline" onClick={closeDialog} className="flex-1 bg-transparent">
                       Cancelar
                     </Button>
-                    <Button type="submit" className="flex-1">
-                      Guardar gasto
+                    <Button type="submit" className={`flex-1 ${overflowWarning ? 'bg-amber-600 hover:bg-amber-700' : ''}`}>
+                      {overflowWarning ? 'Confirmar de todas formas' : 'Guardar gasto'}
                     </Button>
                   </div>
                 </form>
@@ -419,7 +549,7 @@ export default function GastosPage() {
             >
               <DialogContent className="w-[96vw] max-w-[560px]">
                 <DialogHeader>
-                  <DialogTitle>Anular gasto manual</DialogTitle>
+                  <DialogTitle>Reversar gasto</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleCancelSubmit} className="space-y-4">
                   <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-900">
@@ -430,11 +560,11 @@ export default function GastosPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Motivo de anulacion</Label>
+                    <Label>Motivo de reversa</Label>
                     <Textarea
                       value={cancelReason}
                       onChange={(event) => setCancelReason(event.target.value)}
-                      placeholder="Explica por que se anula este gasto..."
+                      placeholder="Explica por que se reversa este gasto..."
                       className="min-h-[96px]"
                       disabled={cancelPending}
                     />
@@ -453,7 +583,49 @@ export default function GastosPage() {
                       Cerrar
                     </Button>
                     <Button type="submit" className="flex-1" disabled={cancelPending}>
-                      {cancelPending ? 'Anulando...' : 'Confirmar anulacion'}
+                      {cancelPending ? 'Reversando...' : 'Confirmar reversa'}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={isFondoDialogOpen} onOpenChange={(open) => { if (!open) closeFondoDialog() }}>
+              <DialogContent className="w-[96vw] max-w-[480px]">
+                <DialogHeader>
+                  <DialogTitle>
+                    {fondo?.configurado ? 'Actualizar fondo operativo' : 'Definir fondo operativo'}
+                  </DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleFondoSubmit} className="space-y-4">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-sm text-slate-700">
+                    <p className="text-xs text-slate-500">Periodo actual</p>
+                    <p className="font-semibold">{fondo?.periodo ?? new Date().toISOString().slice(0, 7)}</p>
+                    {fondo?.configurado && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Fondo actual: {formatMoney(fondo.fondoInicial)} · Gastado: {formatMoney(fondo.totalGastado)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Monto del fondo inicial</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      placeholder="0"
+                      value={fondoInput}
+                      onChange={(e) => setFondoInput(e.target.value)}
+                      disabled={fondoPending}
+                    />
+                  </div>
+                  {fondoError && <p className="text-sm text-destructive">{fondoError}</p>}
+                  <div className="flex gap-2 pt-2">
+                    <Button type="button" variant="outline" onClick={closeFondoDialog} className="flex-1 bg-transparent" disabled={fondoPending}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit" className="flex-1" disabled={fondoPending}>
+                      {fondoPending ? 'Guardando...' : 'Guardar fondo'}
                     </Button>
                   </div>
                 </form>
@@ -684,7 +856,7 @@ export default function GastosPage() {
                                   : 'w-fit border-amber-200 bg-amber-50 text-amber-700'
                               }
                             >
-                              {gasto.estado === 'activo' ? 'Activo' : 'Anulado'}
+                              {gasto.estado === 'activo' ? 'Confirmado' : 'Reversado'}
                             </Badge>
                           </div>
 
@@ -700,7 +872,7 @@ export default function GastosPage() {
                                 onClick={() => openCancelDialog(gasto)}
                               >
                                 <Ban className="mr-2 h-4 w-4" />
-                                Anular
+                                Reversar
                               </Button>
                             ) : (
                               <span className="text-xs text-slate-400">

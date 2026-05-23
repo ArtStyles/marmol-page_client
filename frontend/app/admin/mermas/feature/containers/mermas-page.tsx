@@ -29,8 +29,8 @@ import { ADMIN_STORAGE_KEY, hasPermission, type AdminUser } from '@/lib/admin-au
 import { createMerma, getBloques, getMermas } from '@/lib/resources-api'
 import {
   DIMENSIONES_PISO,
+  isPlanchaDimension,
   losasAMetros,
-  PLANCHA_DIMENSIONES,
   type AccionLosa,
   type BloqueOLote,
   type Dimension,
@@ -181,9 +181,7 @@ function getTodayDateIso(): string {
 
 function resolveDimensionByTipo(tipo: TipoProducto, dimension: Dimension): Dimension {
   if (tipo === 'Plancha') {
-    return PLANCHA_DIMENSIONES.includes(dimension as (typeof PLANCHA_DIMENSIONES)[number])
-      ? dimension
-      : PLANCHA_DIMENSIONES[0]
+    return isPlanchaDimension(dimension) ? dimension : ''
   }
   return DIMENSIONES_PISO.includes(dimension as (typeof DIMENSIONES_PISO)[number])
     ? dimension
@@ -719,23 +717,29 @@ export default function MermasPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>Dimension</Label>
-                      <Select
-                        value={formData.dimension}
-                        onValueChange={(value) => setFormData({ ...formData, dimension: value as Dimension })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(formData.tipo === 'Plancha' ? PLANCHA_DIMENSIONES : dimensionOptions).map(
-                            (dimension) => (
+                      {formData.tipo === 'Plancha' ? (
+                        <Input
+                          placeholder="Ej: 160x65"
+                          value={formData.dimension}
+                          onChange={(e) => setFormData({ ...formData, dimension: e.target.value as Dimension })}
+                        />
+                      ) : (
+                        <Select
+                          value={formData.dimension}
+                          onValueChange={(value) => setFormData({ ...formData, dimension: value as Dimension })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {dimensionOptions.map((dimension) => (
                               <SelectItem key={dimension} value={dimension}>
                                 {dimension}
                               </SelectItem>
-                            ),
-                          )}
-                        </SelectContent>
-                      </Select>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                   </div>
 
