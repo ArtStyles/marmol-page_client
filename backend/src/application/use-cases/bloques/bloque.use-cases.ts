@@ -1,4 +1,5 @@
 import { DomainError } from '../../errors/domain.error.js'
+import { round2 } from '../../../shared/math.js'
 import type {
   BloqueRepositoryPort,
   GastoRepositoryPort,
@@ -461,6 +462,3 @@ function buildCodigoMateriaPrima(
   return `${prefijo}-${String(max + 1).padStart(3, '0')}`
 }
 
-function round2(value: number): number {
-  return Number(value.toFixed(2))
-}

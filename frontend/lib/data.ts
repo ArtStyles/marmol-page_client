@@ -1,4 +1,4 @@
-import type { 
+﻿import type { 
   BloqueOLote, 
   Producto, 
   ProduccionDiaria, 
@@ -21,7 +21,7 @@ import {
 } from './types'
 
 // ==========================================
-// CONFIGURACIÃ“N DEL SISTEMA
+// CONFIGURACIÓN DEL SISTEMA
 // ==========================================
 
 export const configuracionInicial: ConfiguracionSistema = {
@@ -32,7 +32,7 @@ export const configuracionInicial: ConfiguracionSistema = {
   costoResinaLitro: COSTO_RESINA_LITRO_DEFAULT,
   monoHiloGrosorDiscoMm: 8,
   monoHiloEspesorLosaCm: 3,
-  nombreEmpresa: 'MÃ¡rmoles Elegance',
+  nombreEmpresa: 'Mármoles Elegance',
   email: 'info@marmoleselegance.com',
   telefono: '+52 555 123 4567',
   direccion: 'Av. Principal 123, Col. Centro, CDMX',
@@ -42,7 +42,7 @@ export const configuracionInicial: ConfiguracionSistema = {
 }
 
 // ==========================================
-// DATOS DE EJEMPLO DEL TALLER DE MÃRMOL
+// DATOS DE EJEMPLO DEL TALLER DE MÁRMOL
 // ==========================================
 
 export const bloquesYLotes: BloqueOLote[] = [
@@ -56,7 +56,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     metrosComprados: 32.0,
     fechaIngreso: '2026-01-10',
     canteraOrigen: 'Cantera Carrara Norte',
-    proveedor: 'MÃ¡rmoles Italia S.A.',
+    proveedor: 'Mármoles Italia S.A.',
     losasProducidas: 120,
     losasPerdidas: 8,
     metrosVendibles: 28.8,
@@ -73,7 +73,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     metrosComprados: 26.5,
     fechaIngreso: '2026-01-05',
     canteraOrigen: 'Cantera Toledo Beta',
-    proveedor: 'Canteras EspaÃ±a',
+    proveedor: 'Canteras España',
     losasProducidas: 95,
     losasPerdidas: 12,
     metrosVendibles: 22.8,
@@ -107,7 +107,7 @@ export const bloquesYLotes: BloqueOLote[] = [
     metrosComprados: 21.0,
     fechaIngreso: '2025-12-20',
     canteraOrigen: 'Cantera Verona Sur',
-    proveedor: 'MÃ¡rmoles Italia S.A.',
+    proveedor: 'Mármoles Italia S.A.',
     losasProducidas: 85,
     losasPerdidas: 3,
     metrosVendibles: 20.4,
@@ -220,7 +220,7 @@ export const trabajadores: Trabajador[] = [
   },
   {
     id: 'T002',
-    nombre: 'Roberto SÃ¡nchez',
+    nombre: 'Roberto Sánchez',
     email: 'roberto.sanchez@taller.com',
     telefono: '+52 555 234 5678',
     rol: 'Obrero',
@@ -234,10 +234,10 @@ export const trabajadores: Trabajador[] = [
   },
   {
     id: 'T003',
-    nombre: 'Miguel Ãngel Torres',
+    nombre: 'Miguel Ángel Torres',
     email: 'miguel.torres@taller.com',
     telefono: '+52 555 345 6789',
-    rol: 'Jefe de Turno de ProducciÃ³n',
+    rol: 'Jefe de Turno de Producción',
     fechaIngreso: '2022-01-10',
     estado: 'activo',
     usuario: 'produccion@marmol.local',
@@ -266,7 +266,7 @@ export const trabajadores: Trabajador[] = [
   },
   {
     id: 'T005',
-    nombre: 'JosÃ© GarcÃ­a',
+    nombre: 'José García',
     email: 'jose.garcia@taller.com',
     telefono: '+52 555 567 8901',
     rol: 'Gestor de Ventas',
@@ -357,7 +357,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
         id: 'PGA002',
         accion: 'pulir',
         trabajadorId: 'T002',
-        trabajadorNombre: 'Roberto SÃƒÂ¡nchez',
+        trabajadorNombre: 'Roberto Sánchez',
         equipoId: 'EQ003',
         equipoNombre: 'PUL-001',
         cantidadLosas: 20,
@@ -384,7 +384,7 @@ export const produccionDiaria: ProduccionDiaria[] = [
         id: 'PGA003',
         accion: 'escuadrar',
         trabajadorId: 'T003',
-        trabajadorNombre: 'Miguel ÃƒÂngel Torres',
+        trabajadorNombre: 'Miguel Ángel Torres',
         equipoId: 'EQ005',
         equipoNombre: 'ESC-001',
         cantidadLosas: 25,
@@ -468,7 +468,7 @@ export const produccionTrabajadores: ProduccionTrabajador[] = [
     id: 'PD002',
     fecha: '2026-01-28',
     trabajadorId: 'T002',
-    trabajadorNombre: 'Roberto SÃ¡nchez',
+    trabajadorNombre: 'Roberto Sánchez',
     accion: 'pulir',
     origenId: 'BL001',
     origenNombre: 'A-001',
@@ -485,7 +485,7 @@ export const produccionTrabajadores: ProduccionTrabajador[] = [
     id: 'PD003',
     fecha: '2026-01-28',
     trabajadorId: 'T003',
-    trabajadorNombre: 'Miguel Ãngel Torres',
+    trabajadorNombre: 'Miguel Ángel Torres',
     accion: 'escuadrar',
     origenId: 'BL002',
     origenNombre: 'A-002',
@@ -536,7 +536,7 @@ export const produccionTrabajadores: ProduccionTrabajador[] = [
     id: 'PD006',
     fecha: '2026-01-26',
     trabajadorId: 'T003',
-    trabajadorNombre: 'Miguel Ãngel Torres',
+    trabajadorNombre: 'Miguel Ángel Torres',
     accion: 'picar',
     origenId: 'BL002',
     origenNombre: 'A-002',
@@ -551,7 +551,7 @@ export const produccionTrabajadores: ProduccionTrabajador[] = [
   }
 ]
 
-// Mermas: registro en losas con su conversiÃ³n a mÂ²
+// Mermas: registro en losas con su conversión a m²
 export const mermas: Merma[] = [
   {
     id: 'M001',
@@ -563,7 +563,7 @@ export const mermas: Merma[] = [
     cantidadLosas: 2,
     metrosCuadrados: 0.5,
     motivo: 'Partida al picar',
-    observaciones: 'Vetas internas causaron fractura, pÃ©rdida total de 2 losas'
+    observaciones: 'Vetas internas causaron fractura, pérdida total de 2 losas'
   },
   {
     id: 'M002',
@@ -575,7 +575,7 @@ export const mermas: Merma[] = [
     cantidadLosas: 2,
     metrosCuadrados: 0.33,
     motivo: 'Partida al pulir',
-    observaciones: 'PresiÃ³n excesiva en el proceso, pÃ©rdida total de 2 losas'
+    observaciones: 'Presión excesiva en el proceso, pérdida total de 2 losas'
   },
   {
     id: 'M003',
@@ -587,7 +587,7 @@ export const mermas: Merma[] = [
     cantidadLosas: 1,
     metrosCuadrados: 0.25,
     motivo: 'Recorte aprovechable',
-    observaciones: 'Recorte de bordes para escuadrar, pÃ©rdida equivalente a 1 losa'
+    observaciones: 'Recorte de bordes para escuadrar, pérdida equivalente a 1 losa'
   },
   {
     id: 'M004',
@@ -636,8 +636,8 @@ export const ventas: Venta[] = [
     fondoOperativo: 149.76,
     subtotal: 998.4,
     total: 998.4,
-    clienteNombre: 'DiseÃ±os Interiores Premium',
-    clienteEmail: 'pedidos@diseÃ±ospremium.com',
+    clienteNombre: 'Diseños Interiores Premium',
+    clienteEmail: 'pedidos@diseñospremium.com',
     clienteTelefono: '+52 555 333 4444',
     fecha: '2026-01-27',
     estado: 'completada'
@@ -700,7 +700,7 @@ export const historialPagos: HistorialPago[] = [
   {
     id: 'HP002',
     trabajadorId: 'T003',
-    trabajadorNombre: 'Miguel Ãngel Torres',
+    trabajadorNombre: 'Miguel Ángel Torres',
     fecha: '2026-01-26',
     produccionIds: ['PD006'],
     montoAcciones: 5040,
@@ -708,7 +708,7 @@ export const historialPagos: HistorialPago[] = [
     bonoExtra: 0,
     motivoBonoExtra: '',
     totalPagado: 5040,
-    observaciones: 'Pago por producciÃ³n del dÃ­a'
+    observaciones: 'Pago por producción del día'
   }
 ]
 
@@ -770,11 +770,11 @@ export const logsSistema: SystemLog[] = [
   }
 ]
 
-// CategorÃ­as para el catÃ¡logo pÃºblico
+// Categorías para el catálogo público
 export const categories = ['Todos', 'Piso', 'Plancha', 'Pulido', 'Crudo']
 
 // Dimensiones disponibles
-export const dimensiones = ['40x40', '60x40', '80x40', '160x60', '160x65']
+export const dimensiones = ['40x40', '60x40', '80x40']
 
 // Motivos de merma actualizados
 export const motivosMerma = [

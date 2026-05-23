@@ -1,4 +1,5 @@
 import { DomainError } from '../../errors/domain.error.js'
+import { round2, round4 } from '../../../shared/math.js'
 import type {
   ConsumeMonoHiloParaPicadoDto,
   CreateMonoHiloMasasDto,
@@ -1309,10 +1310,3 @@ function areMonoHiloRemanentesEqual(
   return JSON.stringify(sortMonoHiloRemanentes(left)) === JSON.stringify(sortMonoHiloRemanentes(right))
 }
 
-function round2(value: number): number {
-  return Number(value.toFixed(2))
-}
-
-function round4(value: number): number {
-  return Number(value.toFixed(4))
-}

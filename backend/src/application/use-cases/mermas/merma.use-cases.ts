@@ -1,4 +1,5 @@
 ﻿import { DomainError } from '../../errors/domain.error.js'
+import { round2 } from '../../../shared/math.js'
 import type {
   CreateMermaDto,
   MermaResponseDto,
@@ -147,6 +148,3 @@ function assertTipoDimensionCompatible(tipo: 'Piso' | 'Plancha', dimension: stri
   }
 }
 
-function round2(value: number): number {
-  return Number(value.toFixed(2))
-}

@@ -1,4 +1,5 @@
 import { DomainError } from '../../errors/domain.error.js'
+import { round2 } from '../../../shared/math.js'
 import type {
   AprobarInventarioMovimientoDto,
   CreateRetornoProcesoMasaInventarioDto,
@@ -158,9 +159,6 @@ function resolveEstadoRetornoProceso(
   )
 }
 
-function round2(value: number): number {
-  return Number(value.toFixed(2))
-}
 
 function resolveMetrosParaMovimiento(
   producto: { cantidadLosas: number; metrosCuadrados: number; dimension: Dimension },

@@ -1,3 +1,4 @@
+import { round2, round4 } from '../../../shared/math.js'
 import type {
   BloqueRepositoryPort,
   ConfiguracionPort,
@@ -292,10 +293,3 @@ function buildBreakdown<T extends { costo: number }>(
     .sort((left, right) => right.total - left.total)
 }
 
-function round2(value: number): number {
-  return Number(value.toFixed(2))
-}
-
-function round4(value: number): number {
-  return Number(value.toFixed(4))
-}

@@ -10,8 +10,19 @@ import {
   type Gasto,
   type GastoFlujo,
   type GastoManualTipo,
+  type GastoOrigen,
+  type GastoOrigenModulo,
   type GastoTipo,
 } from '@/lib/types'
+
+const GASTO_ORIGENES: GastoOrigen[] = ['manual', 'sistema']
+const GASTO_ORIGEN_MODULOS: GastoOrigenModulo[] = ['gastos', 'bloques', 'pagos']
+
+const isGastoOrigen = (value: unknown): value is GastoOrigen =>
+  typeof value === 'string' && GASTO_ORIGENES.includes(value as GastoOrigen)
+
+const isGastoOrigenModulo = (value: unknown): value is GastoOrigenModulo =>
+  typeof value === 'string' && GASTO_ORIGEN_MODULOS.includes(value as GastoOrigenModulo)
 
 export const gastoTipos = [...GASTO_TIPOS]
 export const gastoTiposManuales = [...GASTO_TIPOS_MANUALES]
@@ -63,8 +74,8 @@ const normalizeGasto = (item: Gasto): GastoRegistro => {
     anuladoPorNombre: item.anuladoPorNombre?.trim() || undefined,
     anuladoFecha: item.anuladoFecha?.trim() || undefined,
     motivoAnulacion: item.motivoAnulacion?.trim() || undefined,
-    origen: item.origen ?? 'manual',
-    origenModulo: item.origenModulo ?? 'gastos',
+    origen: isGastoOrigen(item.origen) ? item.origen : (() => { throw new Error(`Gasto ${item.id} con origen invalido: ${String(item.origen)}`) })(),
+    origenModulo: isGastoOrigenModulo(item.origenModulo) ? item.origenModulo : (() => { throw new Error(`Gasto ${item.id} con origenModulo invalido: ${String(item.origenModulo)}`) })(),
     estado: item.estado ?? 'activo',
   }
 }
@@ -107,7 +118,7 @@ export function useGastosStore(options: UseGastosStoreOptions = {}) {
       if (!hasPermission(sessionUser, 'gastos:read')) {
         if (!active) return
         setGastos([])
-        setError(null)
+        setError('Sin permiso para ver gastos.')
         setLoading(false)
         return
       }
@@ -165,7 +176,7 @@ export function useGastosStore(options: UseGastosStoreOptions = {}) {
   const cancelGasto = async (gastoId: string, motivoAnulacion: string): Promise<boolean> => {
     const sessionUser = readSessionUser()
     if (!hasPermission(sessionUser, 'gastos:write')) {
-      setError('No tienes permisos para anular gastos.')
+      setError('No tienes permisos para reversar gastos.')
       return false
     }
 
@@ -180,7 +191,7 @@ export function useGastosStore(options: UseGastosStoreOptions = {}) {
       setError(
         saveError instanceof Error
           ? saveError.message
-          : 'No se pudo anular el gasto en el backend.',
+          : 'No se pudo reversar el gasto en el backend.',
       )
       return false
     }

@@ -1,4 +1,5 @@
 import { DomainError } from '../../errors/domain.error.js'
+import { round2 } from '../../../shared/math.js'
 import {
   dimensionToAreaM2,
   type InventarioMovimientoDetalle,
@@ -20,9 +21,6 @@ function isProductoInventarioDetalle(detalle: InventarioMovimientoDetalle): bool
   return detalle.detalleTipo !== 'masa' && !detalle.masaId
 }
 
-function round2(value: number): number {
-  return Number(value.toFixed(2))
-}
 
 function estadoPrioridad(estado: Producto['estado']): number {
   if (estado === 'Pulido') return 5

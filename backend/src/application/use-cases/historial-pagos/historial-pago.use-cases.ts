@@ -1,4 +1,5 @@
 import { DomainError } from '../../errors/domain.error.js'
+import { round2 } from '../../../shared/math.js'
 import type {
   ConfiguracionPort,
   GastoRepositoryPort,
@@ -251,9 +252,6 @@ export class DeleteHistorialPagoUseCase {
   }
 }
 
-function round2(value: number): number {
-  return Number(value.toFixed(2))
-}
 
 function resolvePayrollMonthKey(rawDate: string): string {
   const normalized = rawDate.trim()
